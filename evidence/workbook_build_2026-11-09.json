@@ -1,0 +1,16 @@
+{
+  "sheets": [
+    "01_All_Leads",
+    "02_Qualification",
+    "03_Priority_Leads",
+    "04_Contacts",
+    "05_Methodology_Sources"
+  ],
+  "counts": {
+    "companies": 302,
+    "scores": 302,
+    "priority": 30,
+    "contacts": 30,
+    "sources": 3
+  }
+}

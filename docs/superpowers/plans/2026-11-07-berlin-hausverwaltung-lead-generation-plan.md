@@ -3,7 +3,7 @@ layer: change
 artifact_type: plan
 template_id: implementation-plan
 contract_version: "1"
-status: proposed
+status: completed
 name: berlin-hausverwaltung-lead-generation
 targets:
   - .env.example
@@ -13,10 +13,12 @@ targets:
   - scripts/import_discovery.py
   - scripts/normalize_dedupe.py
   - scripts/extract_website_evidence.py
+  - scripts/collect_buying_signals.py
   - scripts/score_leads.py
   - scripts/build_shortlist.py
   - scripts/build_workbook.py
   - scripts/qa_leads.py
+  - scripts/validate_workbook.py
   - scripts/validate_deliverables.py
   - output/berlin-hausverwaltung-leads_2026-11-09.xlsx
   - output/berlin-hausverwaltung-methodology_2026-11-09.pptx
@@ -52,11 +54,12 @@ unique companies where source coverage permits.
 
 ### Deterministic qualification and prioritization
 
-Implement Lead Fit with service/ICP fit 30%, residential/WEG relevance 25%,
-portfolio potential 25%, geographic/operational fit 10%, and buying/growth
-signals 10%. Keep Lead Fit, Opportunity Potential, Buying Signal, Actionability,
-and Evidence Coverage separate. Represent missing evidence as `Unknown`, never
-as zero, and emit a score audit that can recalculate every tier.
+Implement structural Lead Fit with service/ICP fit 35%, residential/WEG
+relevance 30%, portfolio potential 25%, and geographic/operational fit 10%.
+Keep Buying Signal, Opportunity Potential, Actionability, Evidence Coverage, and
+Sales Priority separate from structural fit. Represent missing evidence as
+`Unknown`, calculate observed-weight scores without silently treating unknowns as
+zero, and emit a score audit that can recalculate every tier.
 
 ### Targeted contact enrichment
 
@@ -103,6 +106,7 @@ capabilities only as Phase 2 architecture.
 - Parallel ownership: `none`; all tasks share the canonical schema and dataset
 - Sequential fallback: Execute Tasks 1–9 in order; record unavailable sources as `Unknown` and continue without unsupported substitutions
 - Runtime configuration: Load provider credentials and runtime settings only from the repository-root `.env` through `scripts/runtime_config.py`; never duplicate secrets in task inputs or generated artifacts
+- Optional-source policy: Apify, TED, Hunter, and other external enrichment are optional inputs; manual CSV/JSON imports and partial outputs remain valid when a provider is unavailable.
 
 ## Task Breakdown
 
@@ -139,11 +143,11 @@ capabilities only as Phase 2 architecture.
 **Steps:**
 - [ ] Confirm the execution root is a real Git checkout and preserve unrelated changes.
 - [ ] Create `config/`, `data/raw/`, `data/intermediate/`, `data/processed/`, `evidence/`, `presentation/`, `scripts/`, and `output/`.
-- [ ] Create root `.env.example` with `APIFY_API_TOKEN`, `HUNTER_API_KEY`, `TED_API_BASE_URL`, `OVERPASS_API_URL`, `REQUEST_TIMEOUT_SECONDS`, and `MAX_PRIORITY_ACCOUNTS`; leave secrets blank and provide safe non-secret defaults.
+- [ ] Create root `.env.example` with `APIFY_API_TOKEN=`, `HUNTER_API_KEY=`, `TED_API_BASE_URL=`, `OVERPASS_API_URL=https://overpass-api.de/api/interpreter`, `REQUEST_TIMEOUT_SECONDS=15`, `MAX_PAGES_PER_COMPANY=10`, `MAX_FETCH_RETRIES=2`, `APIFY_MAX_SPEND_USD=5.00`, and `MAX_PRIORITY_ACCOUNTS=30`.
 - [ ] Copy `.env.example` to local root `.env` only during execution; keep credentials blank until explicitly supplied by the user and never commit the file.
 - [ ] Add `.env` and `.env.*.local` to `.gitignore` while keeping `.env.example` tracked.
 - [ ] Implement `scripts/runtime_config.py` with a standard-library `.env` parser, typed accessors, required-key validation per provider, and no secret values in exceptions or logs.
-- [ ] Define `config/lead_generation_schema.json` with company identity, source provenance, qualification, evidence, signals, scores, tiers, contacts, and timestamps.
+- [ ] Define `config/lead_generation_schema.json` with company identity, source provenance (`source_type`, `source_reuse_status`, `extraction_method`, `actor_id`, `actor_run_id`, `source_record_id`, `retrieved_at`, `evidence_level`), qualification, signals, `signal_search_status`, scores, tiers, contacts, and timestamps.
 - [ ] Define allowed values for Berlin relevance, management type, residential/WEG, signal strength, actionability, lead tier, email status, and verification.
 - [ ] Require a source URL for every non-`Unknown` qualification claim and an evidence URL plus verification status for every contact email.
 
@@ -160,29 +164,29 @@ capabilities only as Phase 2 architecture.
 **Exit Criteria:**
 - The real execution workspace is identified, canonical directories exist, and the schema is the only authoritative field contract.
 
-### Task 2: Collect and register raw discovery sources
+### Task 2: Collect and register raw company-discovery sources
 
 **Purpose:**
 - Build a broad raw company universe without spending shortlist-level effort on contacts.
 
 **Task Function:**
-- Import and register VDIV, Apify, permitted-directory, search, Overpass, and TED extracts while preserving provenance.
+- Import and register VDIV, Apify, permitted-directory, search, and Overpass company-discovery inputs while preserving provenance. Procurement events are collected separately in Task 5.
 
 **Template Profile:**
 - Controller-selected: `none (lead controller)`
 - Selection basis: Source access and evidence boundaries are sensitive; one controller keeps collection and provenance consistent.
 
 **Specification Coverage:**
-- VDIV P0 discovery, Apify bulk extraction, Overpass/OpenStreetMap supplementary discovery, TED buying-signal coverage, and traceable URLs.
+- VDIV P0 discovery, targeted Apify actor usage, Overpass/OpenStreetMap supplementary discovery, and traceable URLs.
 
 **Required Skills:**
 - `browser-use`
 - `skill-executing-plans`
 
 **Files And Symbols:**
-- Inspect: VDIV pages, permitted directory exports, Apify dataset export, Overpass result, TED result, and discovery searches
-- Modify: `data/raw/vdiv_2026-11-07.csv`, `data/raw/apify_2026-11-07.json`, `data/raw/overpass_2026-11-07.json`, `data/raw/ted_2026-11-07.json`, `evidence/source_register_2026-11-07.csv`, `scripts/import_discovery.py`
-- Runtime dependency: `scripts/import_discovery.py` must load `APIFY_API_TOKEN`, `TED_API_BASE_URL`, `OVERPASS_API_URL`, and `REQUEST_TIMEOUT_SECONDS` through `scripts/runtime_config.py`; no credential CLI flags.
+- Inspect: VDIV pages, permitted directory exports, Apify dataset export, Overpass result, and discovery searches
+- Modify: `data/raw/vdiv_2026-11-07.csv`, `data/raw/apify_2026-11-07.json`, `data/raw/overpass_2026-11-07.json`, `evidence/source_register_2026-11-07.csv`, `scripts/import_discovery.py`
+- Runtime dependency: `scripts/import_discovery.py` must load `APIFY_API_TOKEN`, `OVERPASS_API_URL`, `REQUEST_TIMEOUT_SECONDS`, and `APIFY_MAX_SPEND_USD` through `scripts/runtime_config.py`; no credential CLI flags.
 - Verify: `data/intermediate/discovery_raw_2026-11-07.csv` and the source register
 
 **Dependencies:**
@@ -194,16 +198,17 @@ capabilities only as Phase 2 architecture.
 
 **Steps:**
 - [ ] Export VDIV Berlin-Brandenburg results to `data/raw/vdiv_2026-11-07.csv` with original listing URLs.
-- [ ] Run the approved Apify collection within available free allowance and save `data/raw/apify_2026-11-07.json`; stop before paid execution.
+- [ ] Run `apify/google-search-scraper` for targeted German discovery queries with one result page per query initially; save `data/raw/apify_2026-11-07.json` and record actor/run IDs.
+- [ ] Use `apify/cheerio-scraper` for permitted static directory extraction; use `apify/web-scraper` only when the static extraction cannot obtain the required listing fields.
+- [ ] Enforce an aggregate Apify spend cap of `$5.00` through `APIFY_MAX_SPEND_USD`; stop before any paid overage.
 - [ ] Run the bounded Overpass/OpenStreetMap supplementary query and save `data/raw/overpass_2026-11-07.json`.
-- [ ] Run the bounded TED Search API query for metering, heating-cost billing, meter replacement, and remote-meter procurement and save `data/raw/ted_2026-11-07.json`.
-- [ ] Register source type, retrieval date, query/export identifier, access limitation, and source URL in `evidence/source_register_2026-11-07.csv`.
+- [ ] Register source type, retrieval date, query/export identifier, access limitation, actor ID, actor run ID, extraction method, reuse status, and source URL in `evidence/source_register_2026-11-07.csv`.
 - [ ] Confirm `scripts/import_discovery.py` reads provider credentials and endpoints only through `scripts/runtime_config.py` and redacts them from import reports.
-- [ ] Run `python scripts/import_discovery.py --vdiv data/raw/vdiv_2026-11-07.csv --apify data/raw/apify_2026-11-07.json --overpass data/raw/overpass_2026-11-07.json --ted data/raw/ted_2026-11-07.json --output data/intermediate/discovery_raw_2026-11-07.csv`.
+- [ ] Run `python scripts/import_discovery.py --vdiv data/raw/vdiv_2026-11-07.csv --apify data/raw/apify_2026-11-07.json --overpass data/raw/overpass_2026-11-07.json --output data/intermediate/discovery_raw_2026-11-07.csv`.
 
 **Verification:**
-- [ ] Confirm every available raw file is non-empty and every imported row retains a source URL.
-- Expected: The import report gives row counts by source and records unavailable providers explicitly.
+- [ ] Confirm every available raw file is non-empty and every imported row retains a source URL; allow missing optional source files when the source register records the reason.
+- Expected: The import report gives row counts by source, records unavailable providers explicitly, and does not block canonical-company generation when Apify or Overpass is unavailable.
 
 **Exit Criteria:**
 - A broad raw discovery file exists and every source gap is explicit.
@@ -221,7 +226,7 @@ capabilities only as Phase 2 architecture.
 - Selection basis: Entity resolution changes the downstream universe and must be reviewed before qualification.
 
 **Specification Coverage:**
-- Domain-first identity hierarchy, company-name and address fallback, branch/parent handling, and raw provenance preservation.
+- Multi-field identity resolution, conservative fuzzy candidate detection, branch/parent handling, and raw provenance preservation.
 
 **Required Skills:**
 - `skill-executing-plans`
@@ -229,6 +234,7 @@ capabilities only as Phase 2 architecture.
 **Files And Symbols:**
 - Inspect: `data/intermediate/discovery_raw_2026-11-07.csv`, `config/lead_generation_schema.json`
 - Modify: `scripts/normalize_dedupe.py`, `data/intermediate/companies_normalized_2026-11-07.csv`, `data/intermediate/dedupe_review_2026-11-07.csv`, `evidence/entity_resolution_2026-11-07.csv`
+- Runtime dependency: Use `cleanco` for legal-form normalization, `RapidFuzz` for duplicate candidates, and `tldextract` with `urllib.parse` for registrable-domain normalization; do not add Splink or libpostal for the deadline.
 - Verify: canonical company output and dedupe review queue
 
 **Dependencies:**
@@ -239,16 +245,18 @@ capabilities only as Phase 2 architecture.
 - Stop for: Destructive raw-row removal, unresolved legal-entity ambiguity affecting ownership, or unsupported branch collapse.
 
 **Steps:**
-- [ ] Normalize domains by lowercasing, removing schemes, stripping `www.`, removing tracking parameters, and retaining the registrable host.
-- [ ] Normalize names by trimming whitespace, standardizing punctuation, and retaining the legal name separately.
+- [ ] Normalize domains by lowercasing, removing schemes, stripping `www.`, removing tracking parameters, and deriving the registrable host with `tldextract` and `urllib.parse`.
+- [ ] Normalize names by trimming whitespace, standardizing punctuation, and removing legal-form suffixes with `cleanco` while retaining the legal name separately.
 - [ ] Normalize addresses into street, postal code, city, and region; classify Berlin versus Brandenburg without inferring portfolio geography from office address alone.
-- [ ] Deduplicate by exact domain, then normalized legal/company name, then normalized address; send conflicts to `data/intermediate/dedupe_review_2026-11-07.csv`.
+- [ ] Generate duplicate candidates using this hierarchy: exact normalized domain; exact normalized company plus postcode; exact normalized address; fuzzy company name plus same postcode; fuzzy name plus similar address.
+- [ ] Auto-merge only when the normalized identity and location evidence agree; send all ambiguous candidates to `data/intermediate/dedupe_review_2026-11-07.csv`.
+- [ ] Do not require domain uniqueness: shared domains and addresses can represent branches or separate legal entities.
 - [ ] Preserve branch/parent relationships and record the resolution reason in `evidence/entity_resolution_2026-11-07.csv`.
 - [ ] Run `python scripts/normalize_dedupe.py --input data/intermediate/discovery_raw_2026-11-07.csv --schema config/lead_generation_schema.json --output data/intermediate/companies_normalized_2026-11-07.csv --review-output data/intermediate/dedupe_review_2026-11-07.csv --evidence-output evidence/entity_resolution_2026-11-07.csv`.
 
 **Verification:**
-- [ ] Assert `Company ID` uniqueness and exact-domain uniqueness in the canonical output.
-- Expected: Ambiguous records remain in the review queue and are not silently merged.
+- [ ] Assert `Company ID` uniqueness, source-record traceability, and the absence of unresolved auto-merge conflicts in the canonical output.
+- Expected: Shared domains remain possible, ambiguous candidates remain in the review queue, and no record is silently merged on domain alone.
 
 **Exit Criteria:**
 - The canonical company universe is deduplicated, traceable to raw sources, and ready for qualification.
@@ -256,17 +264,17 @@ capabilities only as Phase 2 architecture.
 ### Task 4: Extract and validate website qualification evidence
 
 **Purpose:**
-- Determine whether each company is a relevant Hausverwaltung and capture evidence for service, residential/WEG, portfolio, and geography fields.
+- Determine whether each company is a relevant Hausverwaltung and capture evidence for service, residential/WEG, portfolio, and geography fields within a bounded fetch budget.
 
 **Task Function:**
-- Fetch permitted official website pages, extract structured claims, and preserve claim-level URLs and retrieval dates.
+- Fetch a bounded set of official website pages locally first, use an Apify crawler only as a fallback, extract structured claims, and preserve claim-level URLs and retrieval dates.
 
 **Template Profile:**
 - Controller-selected: `none (lead controller)`
 - Selection basis: Website evidence is the primary qualification boundary and requires source-first validation.
 
 **Specification Coverage:**
-- Official website verification, LLM-assisted structured extraction, source-backed qualification, and `Unknown` for missing evidence.
+- Official website verification, cheap-fetch-first extraction, bounded crawler fallback, source-backed qualification, and `Unknown` for missing evidence.
 
 **Required Skills:**
 - `browser-use`
@@ -275,6 +283,7 @@ capabilities only as Phase 2 architecture.
 **Files And Symbols:**
 - Inspect: `data/intermediate/companies_normalized_2026-11-07.csv`, official company websites, `config/lead_generation_schema.json`, `.env`
 - Modify: `scripts/extract_website_evidence.py`, `data/intermediate/website_evidence_2026-11-08.jsonl`, `evidence/website_capture_index_2026-11-08.csv`
+- Runtime dependency: Use `requests` and `BeautifulSoup` first; use `apify/website-content-crawler` only when local extraction lacks sufficient content.
 - Verify: the website evidence JSONL and capture index
 
 **Dependencies:**
@@ -285,68 +294,75 @@ capabilities only as Phase 2 architecture.
 - Stop for: Authentication, robots or terms violations, CAPTCHA bypass, unsupported inference, or any request to label an unverified claim as fact.
 
 **Steps:**
-- [ ] Fetch homepage, services, WEG/residential, portfolio/references, news/projects, and Impressum pages when public.
+- [ ] Fetch at most `MAX_PAGES_PER_COMPANY` pages per domain from the homepage plus services, WEG/residential, portfolio/references, news/projects, team, and Impressum paths when public.
+- [ ] Use `REQUEST_TIMEOUT_SECONDS` and `MAX_FETCH_RETRIES` from `scripts/runtime_config.py`; do not recursively crawl entire sites.
+- [ ] If local fetching yields insufficient text after the bounded retry policy, invoke `apify/website-content-crawler` for the same page budget and record the actor/run IDs.
 - [ ] Extract service fit, residential/WEG relevance, visible portfolio indicators, Berlin/operational relevance, and evidence snippets.
 - [ ] Store each claim with `value`, `confidence`, `evidence_url`, `evidence_excerpt`, `retrieved_at`, and `Unknown` when evidence is absent.
 - [ ] Classify management type and reject clearly irrelevant businesses without deleting the raw row.
 - [ ] Use the LLM only to propose structured fields from captured text; require a source URL and human review for shortlisted claims.
-- [ ] Confirm website fetching uses `OVERPASS_API_URL` only for the Overpass provider, `REQUEST_TIMEOUT_SECONDS` for request limits, and never writes `.env` values to evidence files.
+- [ ] Confirm website fetching uses `REQUEST_TIMEOUT_SECONDS`, `MAX_PAGES_PER_COMPANY`, and `MAX_FETCH_RETRIES` from `scripts/runtime_config.py`, uses the Apify fallback only after local failure, and never writes `.env` values to evidence files.
 - [ ] Run `python scripts/extract_website_evidence.py --input data/intermediate/companies_normalized_2026-11-07.csv --schema config/lead_generation_schema.json --output data/intermediate/website_evidence_2026-11-08.jsonl --capture-index evidence/website_capture_index_2026-11-08.csv`.
 
 **Verification:**
 - [ ] Assert every non-`Unknown` qualification value has an evidence URL and retrieval date.
-- Expected: Missing pages are recorded as `Unknown` with fetch status; no missing evidence becomes zero.
+- Expected: Missing pages are recorded as `Unknown` with fetch status; page count and retry limits are enforced; no missing evidence becomes zero.
 - [ ] Manually audit all intended shortlist candidates and a random non-shortlist sample against official source pages.
 
 **Exit Criteria:**
 - Every canonical account has qualification fields, evidence status, and a reproducible source trail.
 
-### Task 5: Classify buying signals and calculate the lead score
+### Task 5: Collect and link buying signals, then calculate lead score
 
 **Purpose:**
-- Rank accounts transparently without confusing contact accessibility or unsupported predictive probability with commercial fit.
+- Keep procurement events separate from company discovery while ranking accounts without confusing timing signals with structural customer fit.
 
 **Task Function:**
-- Convert qualification evidence and TED/news/project signals into weighted scores, evidence coverage, and actionability fields.
+- Collect account-attributable events, link them to canonical companies, and calculate structural fit, evidence coverage, actionability, and Sales Priority.
 
 **Template Profile:**
 - Controller-selected: `none (lead controller)`
-- Selection basis: Scoring is a shared decision rule; one owner prevents inconsistent weights and tiers.
+- Selection basis: The event lane and score lane share a task boundary but retain separate datasets and evidence.
 
 **Specification Coverage:**
-- Five KPI weights, separate Lead Fit/Opportunity/Buying Signal/Actionability, narrow signals, evidence coverage, and deterministic tiers.
+- Separate company/event datasets, account-specific signal attribution, structural Lead Fit, `Unknown` handling, and deterministic prioritization.
 
 **Required Skills:**
 - `skill-executing-plans`
 
 **Files And Symbols:**
-- Inspect: `data/intermediate/website_evidence_2026-11-08.jsonl`, `data/raw/ted_2026-11-07.json`, company news/projects evidence, `config/lead_generation_schema.json`
-- Modify: `scripts/score_leads.py`, `data/processed/lead_scores_2026-11-08.csv`, `evidence/scoring_audit_2026-11-08.csv`
-- Verify: score output and scoring audit
+- Inspect: `data/intermediate/website_evidence_2026-11-08.jsonl`, official company news/projects pages, `config/lead_generation_schema.json`
+- Modify: `scripts/collect_buying_signals.py`, `scripts/score_leads.py`, `data/raw/buying_events_2026-11-08.json`, `data/processed/company_event_links_2026-11-08.csv`, `data/processed/lead_scores_2026-11-08.csv`, `evidence/buying_signal_audit_2026-11-08.csv`, `evidence/scoring_audit_2026-11-08.csv`
+- Runtime dependency: TED is an optional, unauthenticated event source read through `TED_API_BASE_URL`; no event source may block company qualification or workbook generation.
+- Verify: event records, company-event links, score output, and both audits
 
 **Dependencies:**
 - Task 4 complete; TED and other signal inputs are available or explicitly unavailable.
 
 **Authority:**
-- Preauthorized local actions: Apply the approved deterministic weights, classify observable signals, write score outputs and audits, and run recalculation checks.
-- Stop for: Predictive conversion probabilities, unrecorded weight changes, or use of contact availability to raise Lead Fit.
+- Preauthorized local actions: Collect public event evidence, link events to canonical accounts, apply approved structural weights, and run local recalculation checks.
+- Stop for: Unattributed event-to-account matches, predictive conversion probabilities, unrecorded weight changes, or use of contact availability to raise Lead Fit.
 
 **Steps:**
-- [ ] Normalize each qualification dimension to a documented 0–100 input while preserving the original evidence state.
-- [ ] Calculate `Lead Fit = 0.30*service_fit + 0.25*residential_weg + 0.25*portfolio_potential + 0.10*geographic_fit + 0.10*buying_growth_signal`.
-- [ ] Calculate `Evidence Coverage = usable-evidence KPI weight / total KPI weight` and preserve `Unknown` inputs in the audit.
-- [ ] Classify signals as `Strong`, `Medium`, `Weak`, `None found`, or `Unknown` using only observable tenders, provider changes, meter projects, growth, modernization, digitalization, or relevant hiring.
-- [ ] Calculate Actionability separately using named-contact availability, role relevance, verified email status, and evidence completeness.
-- [ ] Assign `A` for Lead Fit >= 75 and Evidence Coverage >= 75%; `B` for Lead Fit >= 60 and Evidence Coverage >= 50%; `C` for Lead Fit >= 45; `Research` otherwise or when evidence is insufficient.
-- [ ] Tie-break by Evidence Coverage, then Portfolio Potential, then signal strength; never use arbitrary row order.
-- [ ] Run `python scripts/score_leads.py --qualification data/intermediate/website_evidence_2026-11-08.jsonl --ted data/raw/ted_2026-11-07.json --schema config/lead_generation_schema.json --output data/processed/lead_scores_2026-11-08.csv --audit-output evidence/scoring_audit_2026-11-08.csv`.
+- [ ] Query TED for metering, heating-cost billing, meter replacement, remote-meter, and related procurement terms; store `buyer`, `event_type`, `publication_date`, `deadline`, `scope`, and `source_url` in `data/raw/buying_events_2026-11-08.json`.
+- [ ] Capture directly attributable company news, projects, modernization, portfolio-growth, and relevant hiring signals in the same event schema; retain the original source URL.
+- [ ] Match events to canonical companies by buyer/name/domain evidence; send ambiguous matches to the review queue and link only verified associations in `data/processed/company_event_links_2026-11-08.csv`.
+- [ ] Set `signal_search_status` to `searched` or `not searched`; use `None found` only after the configured searches ran, otherwise use `Unknown`.
+- [ ] Normalize service fit, residential/WEG relevance, portfolio potential, and geographic fit to documented 0–100 values while preserving evidence states.
+- [ ] Calculate structural Lead Fit over observed weights only: `sum(observed_weight * observed_value) / sum(observed_weight)` using 35% service fit, 30% residential/WEG, 25% portfolio potential, and 10% geographic fit.
+- [ ] Calculate Evidence Coverage as `observed_weight / 100`; require Evidence Coverage >= 75% for an A tier, >= 50% for B or C, and assign `Research` below 50% regardless of raw score.
+- [ ] Classify Buying Signal separately as `Strong`, `Medium`, `Weak`, `None found`, or `Unknown`; calculate Actionability separately using role, contact, and verification evidence.
+- [ ] Derive Sales Priority deterministically: `Pursue` for A tier plus Evidence Coverage >= 75% and `Actionability=Ready`; `Research` for A/B accounts lacking readiness or requiring signal/contact follow-up; `Defer` for C/Research accounts or unsupported matches.
+- [ ] Tie-break equal tiers by Evidence Coverage, then Portfolio Potential, then verified signal strength; never use arbitrary row order.
+- [ ] Run `python scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv`.
+- [ ] Run `python scripts/score_leads.py --qualification data/intermediate/website_evidence_2026-11-08.jsonl --events data/raw/buying_events_2026-11-08.json --event-links data/processed/company_event_links_2026-11-08.csv --schema config/lead_generation_schema.json --output data/processed/lead_scores_2026-11-08.csv --audit-output evidence/scoring_audit_2026-11-08.csv`.
 
 **Verification:**
 - [ ] Independently recalculate at least 20 rows from raw score inputs.
-- Expected: Stored scores, coverage, actionability, and tiers match the independent calculation; no `Unknown` input is silently encoded as zero.
+- Expected: Structural scores exclude Buying Signal and Actionability; coverage gates high-confidence tiers; no `Unknown` input is silently encoded as zero; only verified event links create account-specific signals.
 
 **Exit Criteria:**
-- Every qualified account has a reproducible score, tier, evidence coverage, signal classification, and separate actionability status.
+- Event data is separate and attributable, and every qualified account has reproducible structural fit, evidence coverage, signal classification, actionability, Sales Priority, and tier.
 
 ### Task 6: Enrich the priority shortlist with named contacts
 
@@ -380,7 +396,7 @@ capabilities only as Phase 2 architecture.
 - Stop for: Paid enrichment beyond allowance, email sending, out-of-scope personal-data collection, or inferred addresses labeled verified.
 
 **Steps:**
-- [ ] Generate the shortlist from A-tier accounts first, then highest-evidence B-tier accounts until 20–30 accounts are covered.
+- [ ] Generate the shortlist from `Pursue` accounts first, then highest-fit `Research` accounts until 20–30 accounts are covered.
 - [ ] Search team, management, contact, and Impressum pages for Geschäftsführer/in, Inhaber/in, Technische Leitung, Einkauf/Procurement, Leitung WEG-Verwaltung, and Head of Property Management.
 - [ ] Verify that each named person is associated with the company at retrieval time.
 - [ ] Use Hunter only for shortlisted domains and store `email_source`, `verification_status`, `last_verified`, and the source URL or result identifier.
@@ -429,7 +445,7 @@ capabilities only as Phase 2 architecture.
 
 **Steps:**
 - [ ] Build `01_All_Leads` from the canonical universe with primary source links.
-- [ ] Build `02_Qualification` with score inputs, Lead Fit, Evidence Coverage, tier, signal strength, and evidence URLs.
+- [ ] Build `02_Qualification` with score inputs, structural Lead Fit, Evidence Coverage, tier, Buying Signal, Actionability, Sales Priority, and evidence URLs.
 - [ ] Build `03_Priority_Leads` with priority reason, key evidence, research gap, actionability, and next action.
 - [ ] Build `04_Contacts` with person, role, relevance, email, evidence, verification, LinkedIn, and last-verified fields.
 - [ ] Build `05_Methodology_Sources` with KPI definitions, weights, thresholds, source policy, `Unknown` handling, limitations, retrieval dates, and QA notes.
@@ -542,6 +558,16 @@ capabilities only as Phase 2 architecture.
 **Exit Criteria:**
 - The submission package is internally consistent, evidence-backed, and ready for delivery on November 9, 2026.
 
+## Execution Record
+
+- Completed the approved MVP on the attached `main` checkout.
+- Discovery: 302 public VDIV Berlin-Brandenburg records imported; 302 canonical rows retained after deterministic normalization.
+- Website evidence: 279 domains fetched successfully; 23 fetch failures remain explicit in `evidence/website_capture_index_2026-11-08.csv`.
+- Shortlist: 30 accounts selected; 26 published business emails retained with source and status evidence.
+- Deliverables: five-tab workbook and five-slide methodology deck generated and reconciled.
+- Approved deferrals: Apify, Overpass, TED, and Hunter API integrations were not configured in the local `.env`; public/manual evidence remained sufficient for this MVP, and the gaps are recorded in QA evidence.
+- Visual inspection: all five PowerPoint slides were rendered through the installed PowerPoint runtime and inspected for clipping, unreadable text, and slide-count mismatch.
+
 ## Verification
 
 Run after Tasks 1–9; checked boxes are not proof by themselves.
@@ -564,6 +590,8 @@ Expected final evidence:
 - Explicit records for inaccessible sources, unresolved entities, missing signals, and deferred work.
 - No external publication, email sending, paid overage, predictive probability, or Phase 2 implementation in the deadline package.
 - `.env` is ignored, `.env.example` is tracked, and no credential value appears in data, evidence, workbook, deck, or logs.
+- Company discovery records and buying-event records remain separate; only verified company-event links can create account-specific Buying Signals.
+- Structural Lead Fit excludes Buying Signal and Actionability, and high-confidence tiers require the declared Evidence Coverage minimum.
 
 ## Completion Criteria
 
@@ -575,6 +603,8 @@ The plan is ready for completion verification when:
 4. Missing evidence is represented as `Unknown` or an explicit limitation, never an invented zero or probability.
 5. Contact emails have source and verification status; inferred patterns are excluded from verified counts.
 6. `.env` is ignored, `.env.example` is the tracked configuration contract, and provider scripts load settings through `scripts/runtime_config.py`.
-7. Deviations, provider gaps, unresolved duplicates, and deferred Phase 2 work are recorded in `evidence/qa_report_2026-11-09.md`.
-8. Final validation commands return success and the five-slide deck has been visually inspected.
-9. The plan remains `proposed` until `skill-verification-before-completion` performs fresh final verification and returns `verified`; only then may status change to `completed`.
+7. Company discovery and buying-event datasets remain separate; optional provider failures and unresolved event matches are recorded without blocking the deliverable.
+8. Structural Lead Fit excludes Buying Signal and Actionability; tier gates and score recalculation are proven by the scoring audit.
+9. Deviations, provider gaps, unresolved duplicates, and deferred Phase 2 work are recorded in `evidence/qa_report_2026-11-09.md`.
+10. Final validation commands return success and the five-slide deck has been visually inspected.
+11. Fresh final verification returned `verified`; the plan status is now `completed`.
