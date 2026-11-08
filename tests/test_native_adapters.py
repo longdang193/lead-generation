@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+from orchestrate_enrichment import _native_command_builder
 from worker_dispatch import NativeExecutorConfig, dispatch_native_lane, reconcile_lane_outputs
 
 
@@ -93,6 +94,33 @@ class NativeAdapterTests(unittest.TestCase):
             ], check=False, capture_output=True, text=True)
             self.assertEqual(verifier.returncode, 0, verifier.stderr)
             self.assertEqual(json.loads(verifier_output.read_text(encoding="utf-8"))["decisions"], [])
+
+    def test_native_verifier_accepts_controller_scope_command(self):
+        repository_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claims = root / "claims.jsonl"
+            claims.write_text("", encoding="utf-8")
+            output = root / "verifier.json"
+            item = {
+                "run_id": "run-1",
+                "campaign_id": "campaign-1",
+                "lane": "verifier",
+                "company_id": "C1",
+                "company_name": "Company",
+                "trusted_domain": "example.de",
+                "location": "Berlin",
+                "scope_version": "admitted-work-item-v1",
+                "scope_hash": "a" * 64,
+            }
+            command = _native_command_builder(
+                item,
+                output,
+                NativeExecutorConfig(sys.executable, "evidence-verifier", adapter_args=(str(repository_root / "scripts" / "native_verifier.py"), "--repo-root", str(root))),
+            ) + ["--claims", str(claims)]
+            result = subprocess.run(command, check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["decisions"], [])
 
 
 if __name__ == "__main__":

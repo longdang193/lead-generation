@@ -118,7 +118,17 @@ def write_lane_queue(
             raise ValueError("shortlist row lacks company_id")
         if accepted_company_ids is not None and company_id not in accepted_company_ids:
             raise ValueError(f"shortlist company is not accepted: {company_id}")
-        bound_row = {**row, **(company_rows or {}).get(company_id, {})}
+        if company_rows is None:
+            bound_row = dict(row)
+        else:
+            canonical_row = company_rows.get(company_id)
+            if canonical_row is None:
+                raise ValueError(f"shortlist company lacks canonical company binding: {company_id}")
+            if str(canonical_row.get("company_id") or "") != company_id:
+                raise ValueError(f"canonical company binding has mismatched company_id: {company_id}")
+            bound_row = dict(canonical_row)
+            if not str(bound_row.get("company_name") or "").strip():
+                raise ValueError(f"canonical company binding lacks company_name: {company_id}")
         if require_qualification and str(bound_row.get("resolution_status") or "") != "Accepted":
             raise ValueError(f"shortlist company lacks accepted qualification: {company_id}")
         admitted = admit_work_item(
@@ -392,7 +402,10 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         for company_id in sorted(accepted_ids):
             claims_path = verifier_input_dir / f"{company_id}.jsonl"
             _write_jsonl(claims_path, claims_by_company.get(company_id, []))
-            verifier_queue.append({"run_id": run_id, "lane": "verifier", "company_id": company_id, "claims_path": claims_path})
+            admitted = next((item for item in admitted_items if str(item["company_id"]) == company_id), None)
+            if admitted is None:
+                raise ValueError(f"accepted company lacks admitted work item: {company_id}")
+            verifier_queue.append({**admitted, "lane": "verifier", "claims_path": claims_path})
         def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)

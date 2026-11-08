@@ -90,6 +90,43 @@ class OrchestrationTests(unittest.TestCase):
                     required_location_evidence="Confirmed",
                 )
 
+    def test_production_queue_rejects_missing_canonical_company_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,berlin_relevance,resolution_status\nA,Alpha,fabricated.example,fabricated.example,Berlin,Confirmed,Accepted\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "canonical company binding"):
+                write_lane_queue(
+                    shortlist,
+                    root / "queue.jsonl",
+                    "signals",
+                    "run-1",
+                    campaign_id="campaign-1",
+                    accepted_company_ids={"A"},
+                    require_qualification=True,
+                    company_rows={},
+                    required_location_evidence="Confirmed",
+                )
+
+    def test_production_queue_rejects_incomplete_canonical_company_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,berlin_relevance,resolution_status\nA,Alpha,fabricated.example,fabricated.example,Berlin,Confirmed,Accepted\n", encoding="utf-8")
+            company_rows = {"A": {"company_id": "A", "company_name": "Alpha", "resolution_status": "Accepted"}}
+            with self.assertRaisesRegex(ValueError, "trusted domain"):
+                write_lane_queue(
+                    shortlist,
+                    root / "queue.jsonl",
+                    "signals",
+                    "run-1",
+                    campaign_id="campaign-1",
+                    accepted_company_ids={"A"},
+                    require_qualification=True,
+                    company_rows=company_rows,
+                    required_location_evidence="Confirmed",
+                )
+
     def test_queue_contains_stable_admitted_scope_and_worker_command(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
