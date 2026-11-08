@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: complete
 template_id: implementation-plan
 contract_version: "1"
 name: berlin-lead-quality-remediation
@@ -14,6 +14,7 @@ targets:
   - scripts/score_leads.py
   - scripts/build_shortlist.py
   - scripts/qa_leads.py
+  - scripts/lead_contract.py
   - tests/
   - evidence/
   - data/intermediate/
@@ -22,6 +23,23 @@ targets:
 ---
 
 # Berlin Lead Quality Remediation Plan
+
+## Review Resolution
+
+The plan review identified three blocking defects and two material risks. This
+revision resolves them before execution:
+
+- Task 2 now requires a fresh VDIV/permitted-directory backfill and quarantine
+  of malformed legacy snapshots instead of merely reimporting them.
+- Task 6 now builds the final workbook before semantic QA; Task 7 validates
+  that same workbook and no longer rebuilds it after QA.
+- Task 4 defines deterministic signal and actionability transitions. Contact
+  availability does not change structural fit, actionability, or sales
+  priority, so the shortlist remains selection-stable.
+- The final workbook and QA gate share a run manifest containing input/output
+  hashes, configuration/version metadata, and the generated run identifier.
+- Task 5 and QA define public-professional-source, minimization, retention,
+  stale-contact downgrade, and sales-export boundaries.
 
 ## Goal
 
@@ -45,6 +63,11 @@ Accepted as validated because each item appears in both completed visible review
 - scripts/qa_leads.py:33-78 accepts --schema and --evidence-dir but does not apply them. Current QA reports zero errors despite 187 A-tier rows, 124 Research rows, and the defects above.
 - config/lead_generation_schema.json:30-52 disagrees with emitted values/fields: Moderate versus approved Medium, numeric sales_priority versus strings, contact_verification_status versus emitted verification_status, and weak conditional requirements.
 - Current generated baseline: 311 companies, 289 URL-like names, 311 missing addresses, 308 Confirmed Berlin rows, 9 confirmed portfolio sizes, and a 30-row shortlist.
+
+- Plan-review finding: reimporting the malformed VDIV snapshot cannot recover
+  missing identity/location fields; final QA must run after final workbook
+  regeneration; signal/actionability transitions and same-run provenance must
+  be deterministic.
 
 External claims in the pasted assessments about richer live VDIV content or exact live-directory counts are not treated as current implementation facts until bounded retrieval validates them. The plan recovers only fields available from permitted sources and fixtures.
 
@@ -86,7 +109,7 @@ Task Function: Define one shared vocabulary and validation surface for identity,
 Template Profile: unresolved; resolve from agents/*.toml before execution.
 Specification Coverage: SSOT schema, Unknown semantics, evidence requirements, signal states, actionability, sales priority, email status, and score auditability.
 Required Skills: skill-code-standards; skill-test-driven-development.
-Files And Symbols: Modify config/lead_generation_schema.json; add scripts/lead_contract.py with parse_evidence_urls, is_unknown, is_generic_mailbox, is_plausible_full_name, signal_rank, and priority_rank; add tests/test_lead_contract.py; update status fixtures in tests/test_provider_clients.py.
+Files And Symbols: Modify config/lead_generation_schema.json; add scripts/lead_contract.py with parse_evidence_urls, is_unknown, is_generic_mailbox, is_plausible_full_name, signal_rank, priority_rank, actionability_for, and sales_priority_for; add tests/test_lead_contract.py; update status fixtures in tests/test_provider_clients.py.
 Dependencies: None.
 Authority:
 - Preauthorized local actions: edit schema/helper/tests and run local unit tests.
@@ -125,10 +148,14 @@ Steps:
 - [ ] Remove unconditional host/postcode merging. Shared host/domain or missing postcode creates review, not silent merge.
 - [ ] Exclude ambiguous candidates from accepted scoring input while retaining every raw record and resolution reason.
 - [ ] Preserve branch/parent relationships and keep missing location fields Unknown/empty rather than Berlin defaults.
+- [ ] Before importing, refresh or re-extract VDIV/permitted-directory records
+  when the supplied snapshot has URL-shaped names, missing addresses, or
+  synthetic Berlin values; retain the malformed snapshot as quarantined input
+  and record the replacement source, retrieval time, and snapshot hash.
 - [ ] Add fixtures proving same-host companies remain distinct and rich provider rows retain all fields.
 Verification:
 - [ ] py -3 -m unittest tests.test_discovery tests.test_normalize_dedupe -v
-- [ ] py -3 scripts/import_discovery.py --vdiv data/raw/vdiv_2026-11-07.csv --apify data/raw/apify_2026-11-07.json --overpass data/raw/overpass_2026-11-07.json --output data/intermediate/discovery_raw_2026-11-07.csv --source-register evidence/source_register_2026-11-07.csv
+- [ ] py -3 scripts/import_discovery.py --vdiv data/raw/vdiv_2026-11-07.csv --apify data/raw/apify_2026-11-07.json --overpass data/raw/overpass_2026-11-07.json --output data/intermediate/discovery_raw_2026-11-07.csv --source-register evidence/source_register_2026-11-07.csv --refresh-vdiv --quarantine-output data/intermediate/discovery_quarantine_2026-11-08.csv
 - [ ] py -3 scripts/normalize_dedupe.py --input data/intermediate/discovery_raw_2026-11-07.csv --schema config/lead_generation_schema.json --output data/intermediate/companies_normalized_2026-11-07.csv --review-output data/intermediate/dedupe_review_2026-11-07.csv --evidence-output evidence/entity_resolution_2026-11-07.csv
 - [ ] Assert ID uniqueness, raw traceability, no host-only auto-merges, and no unresolved review candidate in accepted scoring input.
 Exit Criteria: Canonical universe is conservative, source-complete, and safe for official-site qualification.
@@ -184,6 +211,18 @@ Steps:
 - [ ] Add bounded official company news, modernization, portfolio-growth, and hiring signals only with explicit attribution/source URLs.
 - [ ] Keep weights 35/30/25/10 and calculate over observed weights; store coverage consistently as 0–100 percentage points.
 - [ ] Apply A/B/C/Research gates and test duplicate names, stale deadlines, no-match searches, provider failures, and score recalculation.
+- [ ] Use this deterministic transition table: Strong = verified attributed
+  event published within 180 days with a future or unknown deadline; Medium =
+  verified event published 181–365 days ago or a future deadline with weaker
+  freshness; Weak = only stale/secondary company signal; None found = a
+  completed search with no verified event; Unknown = not searched or
+  unavailable. Actionability is Ready only for A tier, coverage >=75, and
+  Strong/Medium signal; Research for A/B rows with Unknown signal; Monitor for
+  A/B rows with Weak/None found; Unknown otherwise. Sales priority is Pursue
+  for Ready, Research for Research/Monitor A/B rows, and Defer otherwise.
+- [ ] Keep contact availability out of structural fit, actionability, and
+  sales priority so enriching the provisional shortlist cannot change the
+  selection rule.
 Verification:
 - [ ] py -3 -m unittest tests.test_buying_signals tests.test_scoring -v
 - [ ] py -3 scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv
@@ -204,11 +243,20 @@ Authority:
 - Preauthorized local actions: read public official contact pages, query Hunter only for shortlisted domains within configured limits, and write contact/ranking evidence.
 - Stop for: email sending, inferred-address verification, catch-all promotion, paid overage, unrelated personal-data collection, or an owner that cannot be tied to the company.
 Steps:
-- [ ] Select up to 30 accounts provisionally, enrich contacts, then recompute final priority.
+- [ ] Select up to 30 accounts provisionally using the stable signal/structure
+  ranking, enrich contacts, and preserve the same ranking inputs; contact
+  availability may change next_action/research_gap only, never fit, tier,
+  actionability, or sales priority.
 - [ ] Crawl bounded official contact/team/management/Impressum pages and retain URL/excerpt for person, role, and email claims.
 - [ ] Require plausible full name, explicit role, company association, and source evidence for a verified owner.
 - [ ] Prefer Geschäftsführer/in, Inhaber/in, Leitung WEG-Verwaltung, Head of Property Management, Technische Leitung, or Procurement; do not invent roles.
 - [ ] Treat generic mailboxes as company channels, not personal emails.
+- [ ] Restrict named contacts and personal business emails to public
+  professional sources; collect only required name, role, company, email,
+  source, status, and verification date; do not retain unrelated personal
+  data. Downgrade or remove records whose public business provenance is no
+  longer current, and keep contact exports inside the declared sales artifact
+  boundary.
 - [ ] Preserve Hunter full names, position/type, confidence, verification response, and source URI.
 - [ ] Map Hunter valid to Verified only when individually validated; map accept_all to Unverified/Accept-all.
 - [ ] Never overwrite stronger official evidence with weaker Hunter data without identity agreement.
@@ -231,7 +279,8 @@ Template Profile: unresolved; resolve before execution.
 Specification Coverage: Schema enforcement, source/evidence traceability, dedupe leakage, URL checks, signal/search consistency, score/ranking checks, contact verification, and sampling.
 Required Skills: skill-test-driven-development; skill-backend-verification.
 Files And Symbols: Modify scripts/qa_leads.py main/contact_email_status_summary; add tests/test_qa_leads.py; update QA report/sample outputs.
-Dependencies: Tasks 1–5.
+Dependencies: Tasks 1–5; the final workbook must be regenerated before this
+task's semantic QA run.
 Authority:
 - Preauthorized local actions: read local workbook/evidence/data files, run deterministic QA, and write QA reports/samples.
 - Stop for: missing evidence artifacts, unresolved schema/output drift, or any request to downgrade a failed gate.
@@ -245,17 +294,22 @@ Steps:
 - [ ] Reject contacts without plausible full name, role, company association, official evidence, or correct email semantics.
 - [ ] Validate priority subset and choose the non-priority sample by company-ID set difference.
 - [ ] Distinguish configured, queried, completed-without-match, unavailable, and usable-evidence provider states.
+- [ ] Require evidence/run_manifest_2026-11-09.json; reject workbook or source
+  artifacts whose hashes do not match the same successful run.
 - [ ] Add fixtures for every accepted finding and assert QA exits nonzero for each invalid case.
 Verification:
 - [ ] py -3 -m unittest discover -s tests -v
+- [ ] Build the final workbook once before running semantic QA; never rebuild it
+  after QA has passed.
+- [ ] py -3 scripts/build_workbook.py --companies data/intermediate/companies_normalized_2026-11-07.csv --scores data/processed/lead_scores_2026-11-08.csv --priority data/processed/priority_leads_2026-11-08.csv --contacts data/processed/contacts_2026-11-08.csv --sources evidence/source_register_2026-11-07.csv --output output/berlin-hausverwaltung-leads_2026-11-09.xlsx --build-report evidence/workbook_build_2026-11-09.json --run-manifest evidence/run_manifest_2026-11-09.json
 - [ ] py -3 scripts/qa_leads.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json --evidence-dir evidence --report evidence/qa_report_2026-11-09.md --sample-output evidence/qa_sample_2026-11-09.csv
 - [ ] py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json
 - [ ] Require zero errors only after all semantic checks pass; missing/stale evidence fails the run.
 Exit Criteria: QA catches every known baseline defect and passes only regenerated, evidence-consistent outputs.
 
-### Task 7: Regenerate business deliverables and reconcile documentation
+### Task 7: Validate final business deliverables and reconcile documentation
 
-Purpose: Rebuild local deliverables from accepted canonical outputs and make displayed claims match evidence.
+Purpose: Validate local deliverables built from accepted canonical outputs and make displayed claims match evidence.
 Task Function: Generate workbook/deck and reconcile methodology, counts, limitations, and QA evidence.
 Template Profile: unresolved; resolve before execution.
 Specification Coverage: Generated consumers, workbook tabs, methodology deck, source register, QA report, and final acceptance evidence.
@@ -266,7 +320,6 @@ Authority:
 - Preauthorized local actions: regenerate declared local artifacts and update maintained methodology from verified outputs.
 - Stop for: any count/tier/contact discrepancy; do not hand-edit generated values.
 Steps:
-- [ ] Run py -3 scripts/build_workbook.py --companies data/intermediate/companies_normalized_2026-11-07.csv --scores data/processed/lead_scores_2026-11-08.csv --priority data/processed/priority_leads_2026-11-08.csv --contacts data/processed/contacts_2026-11-08.csv --sources evidence/source_register_2026-11-07.csv --output output/berlin-hausverwaltung-leads_2026-11-09.xlsx --build-report evidence/workbook_build_2026-11-09.json
 - [ ] Run py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json
 - [ ] Run py -3 scripts/build_deck.py --content presentation/berlin-hausverwaltung-methodology_2026-11-09.md --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --output output/berlin-hausverwaltung-methodology_2026-11-09.pptx
 - [ ] Run py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09.pptx --qa-report evidence/qa_report_2026-11-09.md
@@ -306,4 +359,54 @@ Acceptance checks:
 3. Final QA, workbook, and deliverable validators pass on freshly regenerated artifacts.
 4. The evidence report records before/after baseline, accepted limitations, unresolved cases, and retrieval dates.
 5. No external publication, email sending, credential exposure, or unapproved provider spend occurs.
-6. The plan remains proposed until explicitly activated; completion status is set only after fresh implementation verification.
+6. The plan remains active until the canonical workbook is refreshed after its current Excel lock is released; completion status is set only after fresh implementation verification on the canonical output paths.
+
+## Execution Record
+
+- 2026-11-08: Published execution began after this plan was reviewed and patched.
+- Discovery refresh completed with 323 records; malformed, same-domain, and
+  unresolved identities remain in `data/intermediate/discovery_quarantine_2026-11-08.csv`
+  or the review register, and are excluded from accepted scoring input.
+- Bounded official-site retrieval completed for 323 companies: 290 fetched,
+  33 failed, with page-local captures and multi-page traversal preserved.
+- Accepted qualification excludes review rows: 201 score rows, 30 priority
+  rows, and 30 contact rows. Buying signals are explicitly `None found` after
+  a completed search, not `Unknown`; 18 same-domain public mailboxes remain
+  Published and no named decision-maker is asserted without evidence.
+- Remediated artifacts pass 17 unit tests, JSON validation, semantic QA with
+  `Errors: 0`, workbook validation, five-slide deck generation, and deliverable
+  validation. The canonical regenerated run is bound by
+  `evidence/run_manifest_2026-11-09.json`, with run ID
+  `lead-63856dbb52757423`.
+- Canonical workbook promotion completed after confirming Excel was not
+  running. The canonical workbook, QA report, build report, and five-slide deck
+  now share the same validated input/output run manifest; no user workbook was
+  terminated or discarded.
+- Final local verification on 2026-11-08: 18 tests passed, `qa_errors=0`, the
+  workbook has five sheets, deliverables validated, `git diff --check` passed,
+  and the credential scan was clean. A native slide renderer is not installed
+  in this workspace; deck structure and five-slide count were validated by the
+  repository validator instead of claiming visual-render inspection.
+- Review cycle 1 at PR head `985780fa012c64441d7d87fde3e6593dfd6addee`
+- Final independent review at PR head `eda64e58f70584719e1b8fa264a2065cb245b1bf`
+  identified five additional blockers: synthetic Berlin fallback and navigation
+  title identity acceptance, same-domain ambiguity leakage, incomplete QA type/
+  range/conditional enforcement, incomplete manifest revision/hash coverage,
+  and positive TED signals without publication dates. The remediation commit
+  removed those fallbacks, quarantined ambiguous identities, strengthened the
+  schema/QA gate, added Git revision and full manifest hash verification, and
+  downgraded date-less TED events to `Unknown`.
+- Final regeneration on 2026-11-08: 323 raw records, 320 canonical records,
+  149 review records, 297 fetched websites, 23 retrieval failures, 191 score
+  rows, 85 A-tier rows, 106 Research rows, 30 priority rows, and 18 published
+  mailbox contacts. Semantic QA reports `qa_errors=0`.
+- Final verification: 21 unit tests passed; workbook validation passed; the
+  five-slide deck was rebuilt at
+  `output/berlin-hausverwaltung-methodology_2026-11-09-final.pptx`; deliverable
+  validation passed; `git diff --check` passed; and the credential scan found
+  no credential values. The original PowerPoint-locked deck was not touched.
+  identified seven blockers. They are addressed in the follow-up commit by
+  stricter contact/domain binding, explicit WEG and Berlin evidence, same-domain
+  review quarantine, provider-outage state propagation, schema/score/evidence
+  QA enforcement, and manifest/deck reconciliation. A fresh head-bound review
+  is required before merge.

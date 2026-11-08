@@ -1,0 +1,92 @@
+{
+  "run_id": "lead-0b12a5ea972c8da0",
+  "generated_at": "2026-11-08T12:44:45+00:00",
+  "config_version": "lead-generation-contract-v2",
+  "git_revision": "eda64e58f70584719e1b8fa264a2065cb245b1bf",
+  "git_ref": "codex/lead-quality-remediation",
+  "inputs": {
+    "companies": {
+      "path": "data\\intermediate\\companies_normalized_2026-11-07.csv",
+      "sha256": "f48b050f36c1b5ad21d0211d625ff14f8d3d73a1f855522e16f9fa5ba22e6d65"
+    },
+    "scores": {
+      "path": "data\\processed\\lead_scores_2026-11-08.csv",
+      "sha256": "b70061ce7411f8491333f224c9e11a62c139aa2687e8f6be5f57084927c1b04f"
+    },
+    "priority": {
+      "path": "data\\processed\\priority_leads_2026-11-08.csv",
+      "sha256": "e4a451c0541b8fcf18946ccc84c999bcc89050725a3d25011b84ca1b84a61a3f"
+    },
+    "contacts": {
+      "path": "data\\processed\\contacts_2026-11-08.csv",
+      "sha256": "711aa069680dd44b1e62da6135af3b98e5afc4b3be9651f99f05802de8e88964"
+    },
+    "sources": {
+      "path": "evidence\\source_register_2026-11-07.csv",
+      "sha256": "8c1db18be6228db4800ae4e1b7be07889f17c390ddd4a45abed9fc43a34d38bf"
+    }
+  },
+  "supporting_inputs": {
+    "schema": {
+      "path": "config/lead_generation_schema.json",
+      "sha256": "db1bc9344b9a1e34bebf4fb15e7af3cb16b13cd8cc4d3da61f4fc100e7b4ba9e"
+    },
+    "website_evidence": {
+      "path": "data/intermediate/website_evidence_2026-11-08.jsonl",
+      "sha256": "0cd5ed8d806dc1685646e674629c1528a40f91cd2dd35a1fff1e0a11b9c8fd8e"
+    },
+    "source_register": {
+      "path": "evidence/source_register_2026-11-07.csv",
+      "sha256": "8c1db18be6228db4800ae4e1b7be07889f17c390ddd4a45abed9fc43a34d38bf"
+    },
+    "entity_resolution": {
+      "path": "evidence/entity_resolution_2026-11-07.csv",
+      "sha256": "22781b9f20bc38c943b4a652c060599317fca21b9af5e3264e8f43c5d0496b93"
+    },
+    "buying_signal_audit": {
+      "path": "evidence/buying_signal_audit_2026-11-08.csv",
+      "sha256": "7b5b1a7ea20a2ffaa300cf1791573465b28828e7269e0fb147e7173260ace19d"
+    },
+    "buying_events": {
+      "path": "data/raw/buying_events_2026-11-08.json",
+      "sha256": "00b512107f2f2f7c77c7f95a70f8bbf05525f68a0d40e1e71fe2aaed7a061b1c"
+    },
+    "scoring_audit": {
+      "path": "evidence/scoring_audit_2026-11-08.csv",
+      "sha256": "b0111766e37aeb9027777fbddd780d14b52b40b89d7c901475a26d0efb6c20c2"
+    },
+    "contact_sources": {
+      "path": "evidence/contact_sources_2026-11-08.csv",
+      "sha256": "74ed5e2f7a1e179b7a72ab817ccbcd685a8719fb5cc777ca9b6f2a0f40074130"
+    }
+  },
+  "outputs": {
+    "workbook": {
+      "path": "output\\berlin-hausverwaltung-leads_2026-11-09.xlsx",
+      "sha256": "83fc4872bcea8f1009c58f0d7670092897c7d8faa5f1c41e753aa86419113025"
+    },
+    "build_report": {
+      "path": "evidence\\workbook_build_2026-11-09.json",
+      "sha256": "93b712433e094b57eee6c2e68b2f92b97c17e062ed6b8ee9cb72c8234e6edda5"
+    },
+    "qa_report": {
+      "path": "evidence/qa_report_2026-11-09.md",
+      "sha256": "145b6683eb4d07dd44905ec05aa90a19909ee1db9da3bbb7d76cd58ad3fb6d6a"
+    },
+    "qa_sample": {
+      "path": "evidence/qa_sample_2026-11-09.csv",
+      "sha256": "be935da9e59c50dc39f96db3bd09e18914df050c7d2b68d2d9abfa8c79789d03"
+    },
+    "deck": {
+      "path": "output/berlin-hausverwaltung-methodology_2026-11-09-final.pptx",
+      "sha256": "70217008307ac725955ced9d4daf53728048b539fef493bfbaf3e581c9c2e59a"
+    }
+  },
+  "counts": {
+    "companies": 320,
+    "scores": 191,
+    "priority": 30,
+    "contacts": 30,
+    "sources": 3
+  }
+}

@@ -4,11 +4,16 @@ import argparse
 import csv
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
+import requests
+from bs4 import BeautifulSoup
+
 from runtime_config import RuntimeConfig
+from lead_contract import is_plausible_company_name
 from provider_clients import ProviderError, normalize_apify_items, overpass_query, run_apify_actor
 
 OVERPASS_MIN_TIMEOUT_SECONDS = 30
@@ -32,11 +37,62 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
         if not isinstance(item, dict):
             continue
         tags = item.get("tags") if isinstance(item.get("tags"), dict) else {}
-        name = item.get("company_name") or item.get("name") or item.get("title") or item.get("company") or tags.get("name") or ""
+        name = item.get("company_name") or item.get("legal_name") or item.get("name") or item.get("title") or item.get("company") or tags.get("name") or ""
         url = item.get("source_url") or item.get("url") or item.get("website") or item.get("link") or tags.get("website") or tags.get("contact:website") or ""
         if name or url:
-            rows.append({"company_name": str(name), "source_url": str(url), "source_type": source, "source_record_id": str(item.get("source_record_id") or item.get("id") or "")})
+            rows.append({
+                "company_name": str(name),
+                "legal_name": str(item.get("legal_name") or ""),
+                "source_url": str(url),
+                "discovery_source_url": str(item.get("discovery_source_url") or url),
+                "verified_company_domain": str(item.get("verified_company_domain") or item.get("domain") or item.get("website") or ""),
+                "address": str(item.get("address") or item.get("street") or tags.get("addr:street") or ""),
+                "postal_code": str(item.get("postal_code") or item.get("postcode") or tags.get("addr:postcode") or ""),
+                "city": str(item.get("city") or tags.get("addr:city") or ""),
+                "region": str(item.get("region") or item.get("state") or tags.get("addr:state") or ""),
+                "contact": str(item.get("contact") or item.get("phone") or tags.get("contact:phone") or ""),
+                "email": str(item.get("email") or tags.get("contact:email") or ""),
+                "source_type": source,
+                "source_record_id": str(item.get("source_record_id") or item.get("id") or ""),
+                "source_reuse_status": str(item.get("source_reuse_status") or "Existing export"),
+                "extraction_method": str(item.get("extraction_method") or "Provider export"),
+                "actor_id": str(item.get("actor_id") or ""),
+                "actor_run_id": str(item.get("actor_run_id") or ""),
+                "retrieved_at": str(item.get("retrieved_at") or now()),
+            })
     return rows
+
+
+def needs_identity_refresh(row: dict[str, str]) -> bool:
+    name = row.get("company_name", "").strip().lower()
+    return bool(re.match(r"^(https?://|www\.)", name) or re.search(r"\.(de|com|eu|org)(/|$)", name)) or not row.get("address")
+
+
+def refresh_identity(row: dict[str, str], timeout: int) -> dict[str, str]:
+    if row.get("source_type") not in (None, "", "VDIV") or not needs_identity_refresh(row) or not row.get("source_url"):
+        return row
+    try:
+        response = requests.get(row["source_url"], timeout=timeout, headers={"User-Agent": "lead-research/1.0"})
+        if not response.ok:
+            row["identity_status"] = "Review"
+            return row
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.title.get_text(" ", strip=True) if soup.title else ""
+        candidate = re.split(r"\s+[|–—-]\s+", title, maxsplit=1)[0].strip()
+        candidate = re.sub(r"^(home|startseite)\s*[:|-]\s*", "", candidate, flags=re.I).strip()
+        if candidate and not re.match(r"^(https?://|www\.)", candidate, re.I) and is_plausible_company_name(candidate):
+            row["company_name"] = candidate
+            row["legal_name"] = row.get("legal_name") or candidate
+            row["identity_status"] = "Refreshed"
+        else:
+            row["identity_status"] = "Review"
+        address_match = re.search(r"\b(\d{5})\s+([A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,})\b", soup.get_text(" ", strip=True))
+        if address_match and not row.get("postal_code"):
+            row["postal_code"] = address_match.group(1)
+            row["city"] = row.get("city") or address_match.group(2).strip()
+    except requests.RequestException:
+        row["identity_status"] = "Review"
+    return row
 
 
 def normalize_url(value: str) -> str:
@@ -65,6 +121,8 @@ def main() -> int:
     parser.add_argument("--source-register", type=Path, default=Path("evidence/source_register_2026-11-07.csv"))
     parser.add_argument("--fetch-providers", action="store_true")
     parser.add_argument("--apify-query", action="append", dest="apify_queries")
+    parser.add_argument("--refresh-vdiv", action="store_true")
+    parser.add_argument("--quarantine-output", type=Path)
     args = parser.parse_args()
     config = RuntimeConfig.from_env()
     if args.fetch_providers:
@@ -99,6 +157,12 @@ def main() -> int:
     register: list[dict[str, str]] = []
     for source, path in sources:
         rows = read_rows(path, source) if path else []
+        if args.refresh_vdiv and source == "VDIV":
+            for row in rows:
+                row["source_type"] = "VDIV"
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                futures = [pool.submit(refresh_identity, row, config.request_timeout_seconds) for row in rows]
+                rows = [future.result() for future in futures]
         for index, row in enumerate(rows, start=1):
             url = normalize_url(row.get("source_url") or row.get("website") or row.get("url") or "")
             name = re.sub(r"\s+", " ", (row.get("company_name") or row.get("name") or "").strip())
@@ -110,10 +174,17 @@ def main() -> int:
                 "source_type": source,
                 "source_record_id": row.get("source_record_id") or str(index),
                 "company_name": name,
+                "legal_name": row.get("legal_name", ""),
                 "source_url": url,
+                "discovery_source_url": normalize_url(row.get("discovery_source_url") or url),
+                "verified_company_domain": normalize_url(row.get("verified_company_domain") or url),
                 "address": row.get("address", ""),
+                "postal_code": row.get("postal_code", ""),
                 "city": row.get("city", ""),
                 "region": row.get("region", ""),
+                "contact": row.get("contact", ""),
+                "email": row.get("email", ""),
+                "identity_status": row.get("identity_status", "Accepted" if name else "Review"),
                 "retrieved_at": now(),
                 "source_reuse_status": "Existing export" if source != "VDIV" else "New retrieval",
                 "extraction_method": row.get("extraction_method", "manual/public export"),
@@ -138,6 +209,14 @@ def main() -> int:
             "source_reuse_status": "New retrieval" if source in {"Apify", "Overpass"} and rows else "Existing export" if source != "VDIV" else "New retrieval",
             "source_url": "https://vdiv-bb.de/mitglieder/" if source == "VDIV" else config.overpass_api_url if source == "Overpass" else "",
         })
+    if args.quarantine_output:
+        quarantined = [record for record in records if record.get("identity_status") == "Review"]
+        args.quarantine_output.parent.mkdir(parents=True, exist_ok=True)
+        with args.quarantine_output.open("w", encoding="utf-8", newline="") as handle:
+            fields = list(quarantined[0]) if quarantined else ["company_name", "source_url", "identity_status"]
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(quarantined)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     fields = list(records[0]) if records else ["source_type", "source_record_id", "company_name", "source_url", "address", "city", "region", "retrieved_at", "source_reuse_status", "extraction_method", "actor_id", "actor_run_id"]
     with args.output.open("w", encoding="utf-8", newline="") as handle:

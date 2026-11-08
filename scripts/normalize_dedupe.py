@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from lead_contract import is_plausible_company_name
+
 try:
     import tldextract
 except ImportError:
@@ -64,6 +66,20 @@ def company_id(name: str, host: str, postcode: str) -> str:
     return "DE-BER-" + hashlib.sha1(raw).hexdigest()[:12]
 
 
+def is_url_like_name(value: str) -> bool:
+    return bool(re.match(r"^(https?://|www\.)", value.strip(), re.I) or re.search(r"\.(de|com|eu|org)(/|$)", value.strip(), re.I))
+
+
+def explicit_berlin_evidence(row: dict[str, str]) -> str:
+    postal = re.sub(r"\D", "", row.get("postal_code", ""))
+    address = " ".join([row.get("address", ""), row.get("region", "")]).strip()
+    if row.get("city", "").strip().lower() == "berlin" and postal and 10115 <= int(postal) <= 14199:
+        return "Confirmed"
+    if re.search(r"\bberlin\b", address, re.I) or re.search(r"\bberlin\b", row.get("berlin_evidence", ""), re.I):
+        return "Probable"
+    return "Unknown"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", type=Path, required=True)
@@ -77,32 +93,62 @@ def main() -> int:
     canonical: list[dict[str, str]] = []
     review: list[dict[str, str]] = []
     evidence: list[dict[str, str]] = []
-    by_key: dict[tuple[str, str], dict[str, str]] = {}
+    by_key: dict[tuple[str, str, str], dict[str, str]] = {}
+    domain_groups: dict[str, list[tuple[str, str, str]]] = {}
+    for row in rows:
+        host = domain(row.get("verified_company_domain") or row.get("source_url", ""))
+        norm = clean_name(row.get("company_name", "").strip())
+        postcode = (row.get("postal_code", "") or "").strip()
+        address = re.sub(r"\W+", " ", row.get("address", "").lower()).strip()
+        if host:
+            domain_groups.setdefault(host, []).append((norm, postcode, address))
+    ambiguous_domains = {host for host, identities in domain_groups.items() if len(set(identities)) > 1}
     for row in rows:
         name = row.get("company_name", "").strip()
         norm = clean_name(name)
-        host = domain(row.get("source_url", ""))
-        postcode = re.search(r"\b\d{5}\b", row.get("address", "") or "")
-        postcode_text = postcode.group(0) if postcode else ""
-        key = (host, postcode_text) if host else (norm, postcode_text)
+        host = domain(row.get("verified_company_domain") or row.get("source_url", ""))
+        postcode_text = (row.get("postal_code", "") or "").strip()
+        if not postcode_text:
+            postcode = re.search(r"\b\d{5}\b", row.get("address", "") or "")
+            postcode_text = postcode.group(0) if postcode else ""
+        address_key = re.sub(r"\W+", " ", row.get("address", "").lower()).strip()
+        key = (norm, postcode_text, address_key)
+        city = row.get("city", "")
+        if city.strip().lower() == "berlin" and postcode_text and not 10115 <= int(re.sub(r"\D", "", postcode_text) or 0) <= 14199:
+            city = ""
+        requires_review = is_url_like_name(name) or not is_plausible_company_name(name) or row.get("identity_status") == "Review" or host in ambiguous_domains
+        same_domain = [item for item in canonical if host and item.get("domain") == host]
+        if host in ambiguous_domains:
+            requires_review = True
+            review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": same_domain[0].get("company_id", "") if same_domain else "", "company_name": name, "reason": "same verified domain has a distinct identity; manual branch/duplicate resolution required", "status": "Manual review"})
+        if requires_review:
+            review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": "", "company_name": name, "reason": "identity or location requires fresh official-source resolution", "status": "Manual review"})
         existing = by_key.get(key)
-        if existing and key[0]:
-            evidence.append({"raw_source_record_id": row.get("source_record_id", ""), "company_id": existing["company_id"], "resolution": "exact domain candidate retained", "reason": "same domain; raw provenance preserved", "retrieved_at": stamp()})
+        if existing and norm and (postcode_text or address_key or (host and existing.get("domain") == host and existing.get("normalized_name") == norm)):
+            evidence.append({"raw_source_record_id": row.get("source_record_id", ""), "company_id": existing["company_id"], "resolution": "exact identity candidate retained", "reason": "same normalized name and corroborating location", "retrieved_at": stamp()})
             continue
         candidates = [item for item in canonical if postcode_text and item["postal_code"] == postcode_text and ratio(norm, item["normalized_name"]) >= 88]
         if candidates:
             review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": candidates[0]["company_id"], "company_name": name, "reason": "fuzzy name and same postcode", "status": "Manual review"})
-        cid = company_id(norm, host, postcode_text or row.get("city", ""))
+        identity_locator = postcode_text or address_key or row.get("city", "")
+        if not identity_locator:
+            identity_locator = row.get("source_record_id", "")
+        cid = company_id(norm, host, identity_locator)
         item = {
             "company_id": cid,
             "company_name": name,
             "legal_name": name,
             "normalized_name": norm,
             "domain": host,
+            "discovery_source_url": row.get("discovery_source_url", row.get("source_url", "")),
+            "verified_company_domain": host,
             "address": row.get("address", ""),
             "postal_code": postcode_text,
-            "city": row.get("city", "Berlin") or "Berlin",
-            "region": row.get("region", "Berlin") or "Berlin",
+            "city": city,
+            "region": row.get("region", ""),
+            "contact": row.get("contact", ""),
+            "email": row.get("email", ""),
+            "resolution_status": "Review" if requires_review else "Accepted",
             "source_type": row.get("source_type", "Unknown"),
             "source_reuse_status": row.get("source_reuse_status", "Unknown"),
             "extraction_method": row.get("extraction_method", "Unknown"),
@@ -112,7 +158,7 @@ def main() -> int:
             "source_url": row.get("source_url", ""),
             "retrieved_at": row.get("retrieved_at", stamp()),
             "evidence_level": "Primary" if row.get("source_type") == "VDIV" else "Secondary",
-            "berlin_relevance": "Confirmed" if "berlin" in (row.get("source_url", "") + row.get("city", "")).lower() else "Probable",
+            "berlin_relevance": explicit_berlin_evidence({**row, "city": city}),
             "management_type": "Unknown",
             "residential_weg": "Unknown",
             "portfolio_size": "",

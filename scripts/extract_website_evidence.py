@@ -53,6 +53,7 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
     result: dict[str, object] = {
         "company_id": row.get("company_id", ""),
         "company_name": row.get("company_name", ""),
+        "resolution_status": row.get("resolution_status", "Accepted"),
         "domain": row.get("domain", ""),
         "source_url": url,
         "retrieved_at": stamp(),
@@ -63,7 +64,7 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
         "management_type": "Unknown",
         "portfolio_size": None,
         "portfolio_size_status": "Unknown",
-        "berlin_relevance": row.get("berlin_relevance", "Unknown"),
+        "berlin_relevance": "Unknown",
         "evidence_urls": [],
         "claims": [],
     }
@@ -73,7 +74,11 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
     seen = set()
     all_text = ""
     checked_urls: list[str] = []
-    for page_url in pages[: config.max_pages_per_company]:
+    page_texts: list[tuple[str, str]] = []
+    page_index = 0
+    while page_index < len(pages) and len(checked_urls) < config.max_pages_per_company:
+        page_url = pages[page_index]
+        page_index += 1
         if page_url in seen or urlparse(page_url).netloc != urlparse(url).netloc:
             continue
         seen.add(page_url)
@@ -84,26 +89,41 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
         result["fetch_status"] = "Fetched"
         checked_urls.append(final_url)
         all_text += " " + text
+        page_texts.append((final_url, text))
         keywords = ("service", "leistungen", "weg", "mietverwaltung", "hausverwaltung", "impressum", "team", "referenzen", "projekte", "portfolio", "kontakt")
         for link in links:
             low = link.lower()
-            if any(word in low for word in keywords) and link not in seen and len(pages) < config.max_pages_per_company:
+            if any(word in low for word in keywords) and link not in seen and link not in pages:
                 pages.append(link)
     text = re.sub(r"\s+", " ", all_text).strip()
-    service, confidence, excerpt = claim(text, [r"hausverwaltung", r"immobilienverwaltung", r"property management", r"verwaltung von immobilien"])
-    weg, weg_conf, weg_excerpt = claim(text, [r"\bweg\b", r"wohnungseigent[üu]mergemeinschaft", r"residential property", r"mietverwaltung"])
-    if service != "Unknown":
-        result["service_fit"] = service
-        result["management_type"] = "WEG-Verwaltung" if re.search(r"\bweg\b|wohnungseigent", text, re.I) else "Hausverwaltung"
-        result["claims"].append({"field": "service_fit", "value": service, "confidence": confidence, "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": excerpt})
-    if weg != "Unknown":
-        result["residential_weg"] = weg
-        result["claims"].append({"field": "residential_weg", "value": weg, "confidence": weg_conf, "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": weg_excerpt})
-    portfolio = re.search(r"(?:über|mehr als|more than|verwaltet|manag(?:e|es))\s+(\d{2,5})\s+(?:einheiten|objekte|immobilien|units|properties|wohnungen)", text, re.I)
-    if portfolio:
-        result["portfolio_size"] = int(portfolio.group(1))
-        result["portfolio_size_status"] = "Confirmed"
-        result["claims"].append({"field": "portfolio_size", "value": int(portfolio.group(1)), "confidence": "High", "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": portfolio.group(0)})
+    service_patterns = [r"hausverwaltung", r"immobilienverwaltung", r"property management", r"verwaltung von immobilien"]
+    weg_patterns = [r"wohnungseigent[üu]mergemeinschaft", r"\bweg[- ]verwaltung\b", r"eigent[üu]mergemeinschaft", r"residential property management"]
+    for page_url, page_text in page_texts:
+        service, confidence, excerpt = claim(page_text, service_patterns)
+        if service != "Unknown" and result["service_fit"] == "Unknown":
+            result["service_fit"] = service
+            result["management_type"] = "WEG-Verwaltung" if re.search(r"wohnungseigent[üu]mergemeinschaft|\bweg[- ]verwaltung\b|eigent[üu]mergemeinschaft", page_text, re.I) else "Hausverwaltung"
+            result["claims"].append({"field": "service_fit", "value": service, "confidence": confidence, "evidence_url": page_url, "evidence_excerpt": excerpt})
+        weg, weg_conf, weg_excerpt = claim(page_text, weg_patterns)
+        if weg != "Unknown" and result["residential_weg"] == "Unknown":
+            result["residential_weg"] = weg
+            result["claims"].append({"field": "residential_weg", "value": weg, "confidence": weg_conf, "evidence_url": page_url, "evidence_excerpt": weg_excerpt})
+        portfolio = re.search(r"(?:über|mehr als|verwaltet|manag(?:e|es))\s+(\d{2,5})\s+(?:einheiten|objekte|immobilien|units|properties|wohnungen)", page_text, re.I)
+        if portfolio and result["portfolio_size"] is None:
+            result["portfolio_size"] = int(portfolio.group(1))
+            result["portfolio_size_status"] = "Confirmed"
+            result["claims"].append({"field": "portfolio_size", "value": int(portfolio.group(1)), "confidence": "High", "evidence_url": page_url, "evidence_excerpt": portfolio.group(0)})
+    berlin_patterns = [
+        r"(?:sitz|standort|büro|niederlassung|kanzlei|geschäftsstelle)\s+(?:in|:)?\s*berlin",
+        r"(?:in|für|rund um|im raum)\s+berlin",
+        r"berlin(?:er)?\s+(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)",
+        r"(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)\s+(?:in|aus)\s+berlin",
+    ]
+    if result["berlin_relevance"] == "Unknown":
+        berlin_match = next((re.search(pattern, text, re.I) for pattern in berlin_patterns if re.search(pattern, text, re.I)), None)
+        if berlin_match:
+            result["berlin_relevance"] = "Confirmed"
+            result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": text[max(0, berlin_match.start() - 120):berlin_match.end() + 180].strip()[:420]})
     result["evidence_urls"] = checked_urls
     result["text_excerpt"] = text[:900]
     capture = {"company_id": row.get("company_id", ""), "url": checked_urls[0] if checked_urls else url, "status": result["fetch_status"], "pages_checked": str(result["pages_checked"]), "retrieved_at": result["retrieved_at"]}

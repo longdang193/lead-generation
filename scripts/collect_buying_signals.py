@@ -49,8 +49,13 @@ def main() -> int:
     links: list[dict[str, str]] = []
     audit: list[dict[str, str]] = []
     terms = ["Zählertausch", "Fernablesung", "Heizkostenabrechnung", "Wärmezähler"]
-    known = {normalize_name(row.get("company_name", "")): row for row in companies if row.get("company_name")}
+    known: dict[str, list[dict[str, str]]] = {}
+    for row in companies:
+        key = normalize_name(row.get("company_name", ""))
+        if key:
+            known.setdefault(key, []).append(row)
     seen: set[str] = set()
+    successful_terms = 0
     if config.ted_api_base_url:
         for term in terms:
             try:
@@ -81,16 +86,26 @@ def main() -> int:
                     }
                     events.append(event)
                     buyer_key = normalize_name(buyer)
-                    if buyer_key in known and buyer_key:
-                        links.append({"event_id": event_id, "company_id": known[buyer_key]["company_id"], "match_method": "exact normalized buyer name", "match_confidence": "Verified", "source_url": source_url or "Unknown"})
+                    matches = known.get(buyer_key, []) if buyer_key else []
+                    if len(matches) == 1 and source_url:
+                        links.append({"event_id": event_id, "company_id": matches[0]["company_id"], "match_method": "exact normalized buyer name with source URL", "match_confidence": "Verified", "source_url": source_url})
+                    elif len(matches) > 1:
+                        audit.append({"search_term": term, "search_status": "Searched", "event_count": "0", "reason": f"ambiguous buyer match for {buyer}; retained for review", "retrieved_at": stamp()})
                     term_count += 1
                 audit.append({"search_term": term, "search_status": "Searched", "event_count": str(term_count), "reason": "TED search completed; only exact buyer-name links are verified", "retrieved_at": stamp()})
+                successful_terms += 1
             except ProviderError as exc:
                 audit.append({"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": str(exc), "retrieved_at": stamp()})
     else:
         audit = [{"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": "TED_API_BASE_URL not configured", "retrieved_at": stamp()} for term in terms]
     args.ted_output.parent.mkdir(parents=True, exist_ok=True)
-    args.ted_output.write_text(json.dumps(events, indent=2), encoding="utf-8")
+    if not config.ted_api_base_url or successful_terms == 0:
+        payload = {"items": [], "status": "Unavailable", "reason": "TED search did not complete successfully"}
+    elif successful_terms < len(terms):
+        payload = {"items": events, "status": "Partial", "reason": "One or more TED searches were unavailable"}
+    else:
+        payload = {"items": events, "status": "Searched"}
+    args.ted_output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     args.links_output.parent.mkdir(parents=True, exist_ok=True)
     with args.links_output.open("w", encoding="utf-8", newline="") as handle:
         fields = ["event_id", "company_id", "match_method", "match_confidence", "source_url"]
