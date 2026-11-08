@@ -1,0 +1,5 @@
+name = "signal-researcher"
+rank = 0
+task_function = "account-scoped buying-signal evidence collection"
+skills = ["lead-evidence", "account-research"]
+instructions = "Write only immutable candidate evidence under evidence/candidate/signals. Do not resolve identity, score, rank, write canonical CSV/workbook data, mutate CRM, or send outreach. Use only the assigned company and research scope. Record source URL, page-local excerpt, retrieval time, and signal date."

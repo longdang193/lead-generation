@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
-from lead_contract import is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
+from lead_contract import contact_claim_valid, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
 from provider_clients import ProviderError, hunter_domain_search
 
 
@@ -30,10 +30,13 @@ def fetch_contacts(url: str, config: RuntimeConfig) -> tuple[str, str, str]:
         emails = re.findall(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", response.text, flags=re.I)
         company_host = (urlparse(response.url).hostname or "").lower().removeprefix("www.")
         email = next((item for item in emails if is_valid_business_email(item, company_host)), "")
-        role_match = re.search(r"([A-ZÄÖÜ][\wÄÖÜäöüß.-]+\s+[A-ZÄÖÜ][\wÄÖÜäöüß.-]+).{0,80}(Geschäftsführer|Inhaber|Leitung|Geschäftsleitung)", text, flags=re.I)
+        role_match = re.search(r"\b([A-ZÄÖÜ][\wÄÖÜäöüß'’-]+(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß'’-]+){1,2})\s*[,|-]\s*(Geschäftsführer(?:in)?|Inhaber(?:in)?|Leitung|Geschäftsleitung)\b", text)
         if not role_match:
-            role_match = re.search(r"(Geschäftsführer|Inhaber|Leitung|Geschäftsleitung).{0,80}([A-ZÄÖÜ][\wÄÖÜäöüß.-]+\s+[A-ZÄÖÜ][\wÄÖÜäöüß.-]+)", text, flags=re.I)
-        person = (role_match.group(1) if role_match and "Geschäft" not in role_match.group(1) and "Leitung" not in role_match.group(1) else role_match.group(2)) if role_match else ""
+            role_match = re.search(r"\b(Geschäftsführer(?:in)?|Inhaber(?:in)?|Leitung|Geschäftsleitung)\s*[:,-]\s*([A-ZÄÖÜ][\wÄÖÜäöüß'’-]+(?:\s+[A-ZÄÖÜ][\wÄÖÜäöüß'’-]+){1,2})\b", text)
+        if not role_match:
+            return "", email, response.url
+        person = role_match.group(1) if role_match.lastindex == 2 and is_plausible_full_name(role_match.group(1)) else role_match.group(2)
+        role = role_match.group(2) if role_match.lastindex == 2 and is_plausible_full_name(role_match.group(1)) else role_match.group(1)
         return person if is_plausible_full_name(person) else "", email, response.url
     except requests.RequestException:
         return "", "", ""
@@ -88,6 +91,7 @@ def main() -> int:
     evidence = []
     for row in shortlist:
         person, email, evidence_url = fetch_contacts(row.get("source_url", ""), config)
+        role_evidence = "Official role evidence" if person else ""
         if not is_plausible_full_name(person):
             person = ""
         if email and not is_valid_business_email(email, row.get("domain", "")):
@@ -95,15 +99,25 @@ def main() -> int:
         email_status = "Published" if email else "Not found"
         hunter_person, hunter_email, hunter_source, hunter_status = fetch_hunter_contact(row.get("domain", ""), config)
         if hunter_email and not email:
-            person = hunter_person or person
             email = hunter_email
             evidence_url = hunter_source or evidence_url or row.get("source_url", "")
-            email_status = hunter_status
+            email_status = "Unverified" if not person else hunter_status
         if email and is_generic_mailbox(email) and email_status == "Verified":
             email_status = "Published"
-        contact_role = "Named decision-maker" if person else ("Published business mailbox" if email else "Unknown")
+        contact_evidence = {
+            "person_name": person,
+            "role": role_evidence,
+            "company_affiliation": row.get("company_name", ""),
+            "source_url": evidence_url,
+            "evidence_excerpt": f"{person}, {role_evidence}" if person and role_evidence else "",
+            "email": email,
+        }
+        person_verified = contact_claim_valid(contact_evidence, row.get("domain", ""))[0]
+        if not person_verified:
+            person = ""
+        contact_role = role_evidence if person_verified else ("Published business mailbox" if email and is_generic_mailbox(email) else "Potential contact" if email else "Unknown")
         priority_rows.append({**row, "priority_reason": "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
-        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
+        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if person_verified and email and not is_generic_mailbox(email) else "Unverified", "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})
     for path, rows, fallback in [(args.priority_output, priority_rows, ["company_id", "lead_tier"]), (args.contacts_output, contacts, ["company_id", "contact_email"]), (args.evidence_output, evidence, ["company_id", "source_url"])]:
         path.parent.mkdir(parents=True, exist_ok=True)

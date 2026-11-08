@@ -63,6 +63,18 @@ def classify_signal(event_rows: list[dict[str, object]]) -> str:
     return {4: "Strong", 3: "Medium", 2: "Weak", 0: "Unknown"}[max(ranks)]
 
 
+def calculate_fit(record: dict[str, object]) -> tuple[float | None, int]:
+    inputs = {
+        "service_fit": value("service_fit", record),
+        "residential_weg": value("residential_weg", record),
+        "portfolio_potential": value("portfolio_potential", record),
+        "geographic_fit": value("berlin_relevance", record),
+    }
+    observed_weight = sum(WEIGHTS[field] for field, item in inputs.items() if item is not None)
+    fit = sum(WEIGHTS[field] * item for field, item in inputs.items() if item is not None) / 100 if observed_weight else None
+    return fit, observed_weight
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--qualification", type=Path, required=True)
@@ -71,6 +83,7 @@ def main() -> int:
     parser.add_argument("--schema", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path, required=True)
+    parser.add_argument("--signal-audit", type=Path)
     args = parser.parse_args()
     records = []
     for line in args.qualification.read_text(encoding="utf-8").splitlines():
@@ -92,7 +105,12 @@ def main() -> int:
     for link in links:
         if link.get("match_confidence") == "Verified":
             links_by_company.setdefault(link.get("company_id", ""), []).append(events_by_id.get(link.get("event_id", ""), link))
-    search_status = "Unavailable" if provider_unavailable else "Searched" if args.events.exists() else "Not searched"
+    signal_audit: dict[str, dict[str, str]] = {}
+    if args.signal_audit and args.signal_audit.exists():
+        for row in csv.DictReader(args.signal_audit.open(encoding="utf-8-sig", newline="")):
+            if row.get("company_id"):
+                signal_audit[row["company_id"]] = row
+    default_search_status = "Unavailable" if provider_unavailable else "Searched" if args.events.exists() else "Not searched"
     scores: list[dict[str, object]] = []
     audits: list[dict[str, object]] = []
     for record in records:
@@ -102,8 +120,7 @@ def main() -> int:
             "portfolio_potential": value("portfolio_potential", record),
             "geographic_fit": value("berlin_relevance", record),
         }
-        observed_weight = sum(WEIGHTS[field] for field, item in inputs.items() if item is not None)
-        fit = sum(WEIGHTS[field] * item for field, item in inputs.items() if item is not None) / observed_weight if observed_weight else None
+        fit, observed_weight = calculate_fit(record)
         coverage = observed_weight
         if coverage < 50 or fit is None or record.get("berlin_relevance") != "Confirmed":
             tier = "Research"
@@ -114,7 +131,15 @@ def main() -> int:
         else:
             tier = "C"
         matched_events = links_by_company.get(record.get("company_id", ""), [])
-        signal = "Unknown" if search_status in {"Unavailable", "Not searched"} else classify_signal(matched_events)
+        company_audit = signal_audit.get(str(record.get("company_id") or ""), {})
+        research_status = company_audit.get("research_status", company_audit.get("search_status", ""))
+        search_status = {"Completed": "Searched", "Partial": "Unknown", "Needs review": "Unknown"}.get(research_status, company_audit.get("search_status", default_search_status))
+        if research_status in {"Unavailable", "Not searched", "Partial", "Needs review"}:
+            signal = "Unknown"
+        elif company_audit.get("signal_state") == "None found":
+            signal = "None found"
+        else:
+            signal = classify_signal(matched_events)
         actionability = actionability_for(tier, coverage, signal)
         sales_priority = sales_priority_for(actionability, tier)
         signal_urls = [str(event.get("source_url")) for event in matched_events if event.get("source_url") not in (None, "", "Unknown")]

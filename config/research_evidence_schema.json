@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lead enrichment evidence envelope",
+  "oneOf": [
+    { "$ref": "#/$defs/EvidenceClaim" },
+    { "$ref": "#/$defs/VerifierDecision" },
+    { "$ref": "#/$defs/ResearchRun" }
+  ],
+  "$defs": {
+    "EvidenceClaim": {
+      "type": "object",
+      "required": ["record_type", "candidate_claim_id", "candidate_sha256", "company_id", "claim_type", "claim_value", "source_url", "source_kind", "evidence_excerpt", "retrieved_at", "account_relationship", "confidence", "research_run_id", "candidate_status"],
+      "properties": {
+        "record_type": { "const": "EvidenceClaim" },
+        "candidate_claim_id": { "type": "string", "minLength": 1 },
+        "candidate_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "company_id": { "type": "string", "minLength": 1 },
+        "claim_type": { "type": "string", "minLength": 1 },
+        "claim_value": {},
+        "unit": { "type": ["string", "null"] },
+        "scope": { "type": ["string", "null"] },
+        "source_url": { "type": "string", "format": "uri" },
+        "source_domain": { "type": ["string", "null"] },
+        "source_kind": { "type": "string", "minLength": 1 },
+        "evidence_excerpt": { "type": "string", "minLength": 1 },
+        "retrieved_at": { "type": "string", "format": "date-time" },
+        "published_at": { "type": ["string", "null"], "format": "date" },
+        "as_of_date": { "type": ["string", "null"], "format": "date" },
+        "account_relationship": { "enum": ["direct", "same_domain", "directory", "inferred", "unknown"] },
+        "confidence": { "enum": ["high", "medium", "low", "unknown"] },
+        "research_run_id": { "type": "string", "minLength": 1 },
+        "candidate_status": { "enum": ["Candidate", "Verified", "Rejected", "Needs review"] },
+        "person_name": { "type": ["string", "null"] },
+        "role": { "type": ["string", "null"] },
+        "company_affiliation": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"] },
+        "verifier_run_id": { "type": ["string", "null"] },
+        "verified_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "allOf": [
+        { "if": { "properties": { "claim_type": { "enum": ["buying_signal", "event"] } } }, "then": { "required": ["published_at"] } },
+        { "if": { "properties": { "claim_type": { "enum": ["portfolio_size", "portfolio_value"] } } }, "then": { "required": ["unit", "scope", "as_of_date"] } },
+        { "if": { "properties": { "claim_type": { "const": "contact" } } }, "then": { "required": ["person_name", "role", "company_affiliation"] } }
+      ],
+      "additionalProperties": false
+    },
+    "VerifierDecision": {
+      "type": "object",
+      "required": ["record_type", "candidate_claim_id", "candidate_sha256", "decision", "reason_codes", "verifier_id", "verifier_run_id", "verified_at"],
+      "properties": {
+        "record_type": { "const": "VerifierDecision" },
+        "candidate_claim_id": { "type": "string", "minLength": 1 },
+        "candidate_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "decision": { "enum": ["Verified", "Rejected", "Needs review"] },
+        "reason_codes": { "type": "array", "items": { "type": "string" } },
+        "verifier_id": { "type": "string", "minLength": 1 },
+        "verifier_run_id": { "type": "string", "minLength": 1 },
+        "verified_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "ResearchAttempt": {
+      "type": "object",
+      "required": ["attempt_id", "query_or_source", "status", "truncated"],
+      "properties": {
+        "attempt_id": { "type": "string", "minLength": 1 },
+        "query_or_source": { "type": "string", "minLength": 1 },
+        "provider": { "type": ["string", "null"] },
+        "page_or_cursor": { "type": ["string", "integer", "null"] },
+        "cap": { "type": ["integer", "null"], "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "status": { "enum": ["Completed", "Partial", "Unavailable", "Needs review"] },
+        "error_code": { "type": ["string", "null"] },
+        "candidate_claim_ids": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "ResearchRun": {
+      "type": "object",
+      "required": ["record_type", "run_id", "company_id", "research_type", "source", "scope", "status", "started_at", "completed_at", "result_count", "truncated", "provider_status", "scope_version", "scope_hash", "attempts"],
+      "properties": {
+        "record_type": { "const": "ResearchRun" },
+        "run_id": { "type": "string", "minLength": 1 },
+        "company_id": { "type": "string", "minLength": 1 },
+        "research_type": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "scope": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["Not searched", "Completed", "Partial", "Unavailable", "Needs review"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "result_count": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" },
+        "provider_status": { "enum": ["Available", "Unavailable", "Unknown"] },
+        "error_code": { "type": ["string", "null"] },
+        "scope_version": { "type": "string", "minLength": 1 },
+        "scope_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "attempts": { "type": "array", "items": { "$ref": "#/$defs/ResearchAttempt" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

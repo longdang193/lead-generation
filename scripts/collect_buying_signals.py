@@ -35,12 +35,21 @@ def normalize_name(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def account_research_state(*, configured: bool, successful_terms: int, required_terms: int, event_count: int) -> tuple[str, str]:
+    if successful_terms == required_terms and configured:
+        return "Completed", "Candidate" if event_count else "None found"
+    if successful_terms == 0 or not configured:
+        return "Unavailable", "Unknown"
+    return "Partial", "Unknown"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--companies", type=Path, required=True)
     parser.add_argument("--ted-output", type=Path, required=True)
     parser.add_argument("--links-output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path, required=True)
+    parser.add_argument("--run-id", default="signal-research")
     args = parser.parse_args()
     config = RuntimeConfig.from_env()
     with args.companies.open(encoding="utf-8-sig", newline="") as handle:
@@ -98,6 +107,27 @@ def main() -> int:
                 audit.append({"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": str(exc), "retrieved_at": stamp()})
     else:
         audit = [{"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": "TED_API_BASE_URL not configured", "retrieved_at": stamp()} for term in terms]
+    links_by_company: dict[str, list[dict[str, str]]] = {}
+    for link in links:
+        links_by_company.setdefault(link["company_id"], []).append(link)
+    for company in companies:
+        company_id = str(company.get("company_id") or "")
+        research_status, signal_state = account_research_state(
+            configured=bool(config.ted_api_base_url),
+            successful_terms=successful_terms,
+            required_terms=len(terms),
+            event_count=len(links_by_company.get(company_id, [])),
+        )
+        audit.append({
+            "company_id": company_id,
+            "research_run_id": args.run_id,
+            "research_status": research_status,
+            "search_status": "Searched" if research_status == "Completed" else "Unavailable" if research_status == "Unavailable" else "Unknown",
+            "signal_state": signal_state,
+            "event_count": str(len(links_by_company.get(company_id, []))),
+            "reason": "account-scoped exact buyer match" if links_by_company.get(company_id) else "all required searches completed with no verified account match",
+            "retrieved_at": stamp(),
+        })
     args.ted_output.parent.mkdir(parents=True, exist_ok=True)
     if not config.ted_api_base_url or successful_terms == 0:
         payload = {"items": [], "status": "Unavailable", "reason": "TED search did not complete successfully"}

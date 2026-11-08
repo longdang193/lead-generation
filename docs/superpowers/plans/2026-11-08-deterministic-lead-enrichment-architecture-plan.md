@@ -757,12 +757,11 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] Promote only `Verified` claims whose source, excerpt, company binding,
   freshness, and policy checks pass.
 - [ ] Calculate observed fit, confirmed weighted fit, and evidence coverage
-  separately; unknown components remain unknown rather than zero. Preserve the
-  exact formula `confirmed_fit = sum(weight * observed_component) /
-  sum(observed_weights)` and `evidence_coverage = sum(observed_weights)` with
-  the fixed 100-point denominator represented by the configured weights; a
-  null fit sorts after numeric fit and coverage is never silently renormalized
-  into a false completeness claim.
+  separately; unknown components remain unknown rather than zero. Use the
+  fixed-denominator formula `confirmed_fit = sum(weight * observed_component) /
+  100` and `evidence_coverage = sum(observed_weights)`. Missing components
+  therefore reduce the maximum possible fit instead of silently renormalizing
+  into a false completeness claim; a null fit sorts after numeric fit.
 - [ ] Derive `buying_signal` from verified account-scoped events and the
   completed research run, not from a global events file.
 - [ ] Derive actionability and sales priority from explicit deterministic rules:
@@ -943,3 +942,20 @@ The plan is ready for completion verification when:
   lead controller owns the run manifest and coordination state.
 - Task sizing: contract, identity, evidence, orchestration, research, contact,
   promotion, and final QA are separated at their actual promotion barriers.
+
+## Execution Record
+
+- 2026-11-08: patched the evidence envelope into record-type-specific branches
+  so `EvidenceClaim`, `VerifierDecision`, and `ResearchRun` no longer inherit
+  each other’s required fields.
+- 2026-11-08: implemented immutable candidate-claim hashing and verifier-only
+  promotion, deterministic lane queues, clean-revision manifest checks, the
+  account-scoped buying-signal state machine, fixed-denominator fit scoring,
+  and person-first contact validation.
+- 2026-11-08: added focused contract, promotion, orchestration, scoring, and
+  contact regression tests; added repository-owned worker profiles and shared
+  evidence/research/contact skills.
+- 2026-11-08: external provider enrichment and regenerated workbook/deck
+  artifacts remain intentionally unrun because this execution does not publish
+  leads, send email, or incur provider spend; the deterministic code path is
+  ready for a committed, manifest-bound run.

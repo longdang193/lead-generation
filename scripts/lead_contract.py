@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -9,8 +10,12 @@ from urllib.parse import urlparse
 
 BUYING_SIGNALS = ("Strong", "Medium", "Weak", "None found", "Unknown")
 SEARCH_STATUSES = ("Searched", "Not searched", "Unavailable", "Unknown")
+RESEARCH_STATUSES = ("Not searched", "Completed", "Partial", "Unavailable", "Needs review")
+CLAIM_STATUSES = ("Candidate", "Verified", "Rejected", "Needs review")
 ACTIONABILITY = ("Ready", "Research", "Monitor", "Unknown")
 SALES_PRIORITIES = ("Pursue", "Research", "Defer")
+TIME_SENSITIVE_CLAIMS = {"buying_signal", "event"}
+QUANTITATIVE_CLAIMS = {"portfolio_size", "portfolio_value"}
 
 
 def is_unknown(value: object) -> bool:
@@ -55,8 +60,28 @@ def is_valid_business_email(value: object, company_domain: object = "") -> bool:
 
 def is_plausible_full_name(value: object) -> bool:
     words = re.findall(r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'’-]+", str(value or ""))
-    rejected = {"haben", "unseren", "immobilienfonds", "cookie", "kontakt", "zusammenarbeit", "mit", "verwalten", "immobilienverwaltung", "hausverwaltung", "immobilien", "immobilie", "atriensis", "erarbeiten", "klare", "prozesse", "jahre", "erfahrung", "erfahrungen", "service", "management", "unternehmen", "team", "familie", "ansprechpartner", "verwaltung", "geschäftsführung", "leitung"}
+    rejected = {"haben", "unseren", "immobilienfonds", "cookie", "kontakt", "zusammenarbeit", "mit", "verwalten", "immobilienverwaltung", "hausverwaltung", "immobilien", "immobilie", "atriensis", "erarbeiten", "klare", "prozesse", "jahre", "erfahrung", "erfahrungen", "service", "management", "unternehmen", "team", "familie", "ansprechpartner", "verwaltung", "geschäftsführung", "leitung", "schadensmeldungen", "mitgliedschaften"}
     return len(words) in {2, 3} and all(len(word) >= 2 and (word[0].isupper() or word.isupper()) for word in words) and not any(word.lower() in rejected for word in words)
+
+
+def contact_claim_valid(contact: dict[str, object], company_domain: object = "") -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    for field in ("person_name", "role", "company_affiliation", "source_url", "evidence_excerpt"):
+        if contact.get(field) in (None, "", "Unknown"):
+            missing.append(field)
+    if not is_plausible_full_name(contact.get("person_name")):
+        missing.append("person_name_plausibility")
+    if not is_public_http_url(contact.get("source_url")):
+        missing.append("source_url_http")
+    excerpt = str(contact.get("evidence_excerpt") or "").casefold()
+    name = str(contact.get("person_name") or "").casefold()
+    if name and name not in excerpt:
+        missing.append("person_name_not_in_excerpt")
+    if company_domain and contact.get("email") not in (None, "", "Unknown") and not is_valid_business_email(contact.get("email"), company_domain):
+        missing.append("email_company_domain")
+    if is_generic_mailbox(contact.get("email")):
+        missing.append("generic_mailbox_is_not_personal")
+    return not missing, missing
 
 
 def is_plausible_company_name(value: object) -> bool:
@@ -78,6 +103,73 @@ def is_plausible_company_name(value: object) -> bool:
 
 def signal_rank(value: object) -> int:
     return {"Strong": 4, "Medium": 3, "Weak": 2, "None found": 1, "Unknown": 0}.get(str(value), 0)
+
+
+def canonical_json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def candidate_claim_id(claim: dict[str, object]) -> str:
+    payload = "|".join(str(claim.get(key, "")) for key in ("company_id", "claim_type", "claim_value", "source_url"))
+    return "claim-" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
+
+
+def candidate_sha256(claim: dict[str, object]) -> str:
+    immutable = {key: value for key, value in claim.items() if key != "candidate_sha256"}
+    return hashlib.sha256(canonical_json(immutable).encode("utf-8")).hexdigest()
+
+
+def claim_requirements_met(claim: dict[str, object]) -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    for field in ("company_id", "claim_type", "claim_value", "source_url", "source_kind", "evidence_excerpt", "retrieved_at", "research_run_id"):
+        if claim.get(field) in (None, "", []):
+            missing.append(field)
+    if claim.get("claim_type") in TIME_SENSITIVE_CLAIMS and claim.get("published_at") in (None, "", "Unknown"):
+        missing.append("published_at")
+    if claim.get("claim_type") in QUANTITATIVE_CLAIMS:
+        for field in ("unit", "scope", "as_of_date"):
+            if claim.get(field) in (None, "", "Unknown"):
+                missing.append(field)
+    if claim.get("claim_type") == "contact":
+        for field in ("person_name", "role", "company_affiliation"):
+            if claim.get(field) in (None, "", "Unknown"):
+                missing.append(field)
+    if not is_public_http_url(claim.get("source_url")):
+        missing.append("source_url_http")
+    return not missing, missing
+
+
+def verifier_decision_valid(decision: dict[str, object], claim: dict[str, object]) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    allowed_fields = {"record_type", "candidate_claim_id", "candidate_sha256", "decision", "reason_codes", "verifier_id", "verifier_run_id", "verified_at"}
+    unexpected = sorted(set(decision) - allowed_fields)
+    if unexpected:
+        errors.append("decision_mutates_candidate")
+    if decision.get("candidate_claim_id") != claim.get("candidate_claim_id"):
+        errors.append("candidate_claim_id_mismatch")
+    if decision.get("candidate_sha256") != candidate_sha256(claim):
+        errors.append("candidate_sha256_mismatch")
+    if decision.get("decision") not in {"Verified", "Rejected", "Needs review"}:
+        errors.append("invalid_decision")
+    for field in ("reason_codes", "verifier_id", "verifier_run_id", "verified_at"):
+        if decision.get(field) in (None, "", []):
+            errors.append(field)
+    if any(field in decision for field in ("claim_value", "source_url", "evidence_excerpt")):
+        errors.append("decision_mutates_candidate")
+    return not errors, errors
+
+
+def none_found_allowed(research_run: dict[str, object], verified_claims: list[dict[str, object]]) -> bool:
+    if research_run.get("status") != "Completed":
+        return False
+    if research_run.get("provider_status") != "Available":
+        return False
+    if research_run.get("truncated") is True:
+        return False
+    attempts = research_run.get("attempts") or []
+    if not attempts or any(attempt.get("status") != "Completed" or attempt.get("truncated") for attempt in attempts if isinstance(attempt, dict)):
+        return False
+    return not verified_claims
 
 
 def priority_rank(value: object) -> int:
