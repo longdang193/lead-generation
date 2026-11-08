@@ -78,6 +78,21 @@ class RuntimeConfig:
         }
 
 
+def provider_limitation(config: RuntimeConfig) -> str:
+    missing = [
+        name
+        for name, configured in (
+            ("Apify", bool(config.apify_api_token)),
+            ("TED", bool(config.ted_api_base_url)),
+            ("Hunter", bool(config.hunter_api_key)),
+        )
+        if not configured
+    ]
+    if missing:
+        return f"Provider credentials not configured: {', '.join(missing)}; public/manual sources remain authoritative for those lanes."
+    return "Apify, TED, and Hunter provider access was configured and exercised; Overpass used its public endpoint."
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=Path, default=ROOT / ".env")

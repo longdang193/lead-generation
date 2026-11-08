@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
+from provider_clients import ProviderError, hunter_domain_search
 
 
 def fetch_contacts(url: str, config: RuntimeConfig) -> tuple[str, str, str]:
@@ -33,6 +34,29 @@ def fetch_contacts(url: str, config: RuntimeConfig) -> tuple[str, str, str]:
         return person, email, response.url
     except requests.RequestException:
         return "", "", ""
+
+
+def fetch_hunter_contact(domain: str, config: RuntimeConfig) -> tuple[str, str, str, str]:
+    if not config.hunter_api_key or not domain:
+        return "", "", "", ""
+    try:
+        data = hunter_domain_search(domain, config.hunter_api_key, timeout=config.request_timeout_seconds)
+    except ProviderError:
+        return "", "", "", ""
+    emails = data.get("emails") if isinstance(data, dict) else []
+    if not isinstance(emails, list):
+        return "", "", "", ""
+    candidates = [item for item in emails if item.get("value")]
+    candidates.sort(key=lambda item: float(item.get("confidence") or 0), reverse=True)
+    if not candidates:
+        return "", "", "", ""
+    item = candidates[0]
+    verification = item.get("verification") if isinstance(item.get("verification"), dict) else {}
+    status = str(verification.get("status") or "Unverified")
+    email_status = "Verified" if status.lower() in {"valid", "accept_all"} else "Unverified"
+    sources = item.get("sources") if isinstance(item.get("sources"), list) else []
+    source_url = sources[0].get("uri") if sources and isinstance(sources[0], dict) else ""
+    return str(item.get("first_name") or ""), str(item.get("value")), source_url, email_status
 
 
 def main() -> int:
@@ -59,6 +83,12 @@ def main() -> int:
     for row in shortlist:
         person, email, evidence_url = fetch_contacts(row.get("source_url", ""), config)
         email_status = "Published" if email else "Not found"
+        hunter_person, hunter_email, hunter_source, hunter_status = fetch_hunter_contact(row.get("domain", ""), config)
+        if hunter_email and (not email or hunter_status == "Verified"):
+            person = hunter_person or person
+            email = hunter_email
+            evidence_url = hunter_source or evidence_url or row.get("source_url", "")
+            email_status = hunter_status
         priority_rows.append({**row, "priority_reason": "Highest structural fit and evidence coverage available", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact and buying signal unavailable" if not email else "Buying signal unavailable", "next_action": "Review official contact page and validate outreach owner"})
         contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": "Unknown" if not person else "Publicly named management/contact", "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})

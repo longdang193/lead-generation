@@ -560,12 +560,14 @@ capabilities only as Phase 2 architecture.
 
 ## Execution Record
 
-- Completed the approved MVP on the attached `main` checkout.
-- Discovery: 302 public VDIV Berlin-Brandenburg records imported; 302 canonical rows retained after deterministic normalization.
-- Website evidence: 279 domains fetched successfully; 23 fetch failures remain explicit in `evidence/website_capture_index_2026-11-08.csv`.
-- Shortlist: 30 accounts selected; 26 published business emails retained with source and status evidence.
-- Deliverables: five-tab workbook and five-slide methodology deck generated and reconciled.
-- Approved deferrals: Apify, Overpass, TED, and Hunter API integrations were not configured in the local `.env`; public/manual evidence remained sufficient for this MVP, and the gaps are recorded in QA evidence.
+- Completed the approved MVP on the attached `main` checkout and reran the configured provider lanes.
+- Discovery: 302 VDIV records, 20 Apify records, and 5 bounded Overpass elements imported; 311 canonical rows retained after deterministic normalization, with 1 usable Overpass company record.
+- Website evidence: 288 domains fetched successfully; 23 fetch failures remain explicit in `evidence/website_capture_index_2026-11-08.csv`.
+- Buying signals: 98 TED notices collected in the separate event dataset; no company-event link was asserted without a verified match.
+- Shortlist: 30 accounts selected; 28 published or Hunter-verified business emails retained with source and status evidence.
+- Deliverables: five-tab workbook and five-slide methodology deck generated and reconciled against the current counts.
+- Provider status: Apify, TED, and Hunter access was configured and exercised; Overpass used its public endpoint and succeeded on the bounded query. Credentials remain local in ignored `.env` and are not committed.
+- Confirmed fixes: source-register truthiness, normalized Apify field import, Overpass timeout floor, and stale provider limitation reporting were patched with focused regression tests.
 - Visual inspection: all five PowerPoint slides were rendered through the installed PowerPoint runtime and inspected for clipping, unreadable text, and slide-count mismatch.
 
 ## Verification

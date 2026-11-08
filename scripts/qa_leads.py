@@ -7,6 +7,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+from runtime_config import RuntimeConfig, provider_limitation
+
 
 def rows(ws):
     values = list(ws.values)
@@ -50,7 +52,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(sample)
     tier_counts = Counter(row.get("lead_tier") for row in qualification)
-    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Errors: {len(errors)}", "", "## Limitations", "- Apify, Overpass, TED, and Hunter API credentials were not configured in the local `.env`; public/manual sources remain the authoritative MVP evidence.", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
+    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Errors: {len(errors)}", "", "## Limitations", f"- {provider_limitation(RuntimeConfig.from_env())}", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
     if errors:
         report.extend(["", "## Errors", *[f"- {error}" for error in errors]])
     else:

@@ -9,6 +9,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from runtime_config import RuntimeConfig
+from provider_clients import ProviderError, normalize_apify_items, overpass_query, run_apify_actor
+
+OVERPASS_MIN_TIMEOUT_SECONDS = 30
 
 
 def now() -> str:
@@ -23,15 +26,16 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
             return [dict(row) for row in csv.DictReader(handle)]
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
-        payload = payload.get("items") or payload.get("results") or payload.get("data") or []
+        payload = payload.get("items") or payload.get("results") or payload.get("data") or payload.get("elements") or []
     rows = []
     for item in payload:
         if not isinstance(item, dict):
             continue
-        name = item.get("name") or item.get("title") or item.get("company") or ""
-        url = item.get("url") or item.get("website") or item.get("link") or ""
+        tags = item.get("tags") if isinstance(item.get("tags"), dict) else {}
+        name = item.get("company_name") or item.get("name") or item.get("title") or item.get("company") or tags.get("name") or ""
+        url = item.get("source_url") or item.get("url") or item.get("website") or item.get("link") or tags.get("website") or tags.get("contact:website") or ""
         if name or url:
-            rows.append({"company_name": str(name), "source_url": str(url), "source_type": source, "source_record_id": str(item.get("id") or "")})
+            rows.append({"company_name": str(name), "source_url": str(url), "source_type": source, "source_record_id": str(item.get("source_record_id") or item.get("id") or "")})
     return rows
 
 
@@ -44,6 +48,14 @@ def normalize_url(value: str) -> str:
     return value
 
 
+def source_access_limitation(metadata: dict[str, object], rows: list[dict[str, str]]) -> str:
+    return str(metadata.get("reason") or ("" if rows else "optional provider unavailable"))
+
+
+def overpass_timeout(config: RuntimeConfig) -> int:
+    return max(config.request_timeout_seconds, OVERPASS_MIN_TIMEOUT_SECONDS)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--vdiv", type=Path)
@@ -51,8 +63,37 @@ def main() -> int:
     parser.add_argument("--overpass", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-register", type=Path, default=Path("evidence/source_register_2026-11-07.csv"))
+    parser.add_argument("--fetch-providers", action="store_true")
+    parser.add_argument("--apify-query", action="append", dest="apify_queries")
     args = parser.parse_args()
     config = RuntimeConfig.from_env()
+    if args.fetch_providers:
+        if config.apify_api_token:
+            queries = args.apify_queries or ["Hausverwaltung Berlin WEG Verwaltung", "Immobilienverwaltung Berlin Mietverwaltung"]
+            try:
+                items, run_id, usage = run_apify_actor(
+                    "apify/google-search-scraper",
+                    {"queries": "\n".join(queries), "maxPagesPerQuery": 1, "resultsPerPage": 10, "countryCode": "de"},
+                    config.apify_api_token,
+                    config.request_timeout_seconds,
+                    config.apify_max_spend_usd,
+                )
+                args.apify.parent.mkdir(parents=True, exist_ok=True)
+                args.apify.write_text(json.dumps({"items": normalize_apify_items(items, "apify/google-search-scraper", run_id), "actor_id": "apify/google-search-scraper", "actor_run_id": run_id, "usage_total_usd": usage}, ensure_ascii=False, indent=2), encoding="utf-8")
+            except ProviderError as exc:
+                args.apify.parent.mkdir(parents=True, exist_ok=True)
+                args.apify.write_text(json.dumps({"items": [], "status": "Unavailable", "reason": str(exc)}, indent=2), encoding="utf-8")
+        else:
+            args.apify.parent.mkdir(parents=True, exist_ok=True)
+            args.apify.write_text(json.dumps({"items": [], "status": "Unavailable", "reason": "APIFY_API_TOKEN is not configured"}, indent=2), encoding="utf-8")
+        if config.overpass_api_url:
+            query = '[out:json][timeout:10];nwr["office"="property_management"](52.48,13.28,52.52,13.45);out center tags 5;'
+            try:
+                args.overpass.parent.mkdir(parents=True, exist_ok=True)
+                args.overpass.write_text(json.dumps(overpass_query(config.overpass_api_url, query, timeout=overpass_timeout(config), retries=config.max_fetch_retries), ensure_ascii=False, indent=2), encoding="utf-8")
+            except ProviderError as exc:
+                args.overpass.parent.mkdir(parents=True, exist_ok=True)
+                args.overpass.write_text(json.dumps({"elements": [], "status": "Unavailable", "reason": str(exc)}, indent=2), encoding="utf-8")
     sources = [("VDIV", args.vdiv), ("Apify", args.apify), ("Overpass", args.overpass)]
     records: list[dict[str, str]] = []
     register: list[dict[str, str]] = []
@@ -79,15 +120,22 @@ def main() -> int:
                 "actor_id": row.get("actor_id", ""),
                 "actor_run_id": row.get("actor_run_id", ""),
             })
+        metadata = {}
+        if path and path.exists() and path.suffix.lower() == ".json":
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                metadata = payload if isinstance(payload, dict) else {}
+            except (OSError, ValueError):
+                metadata = {}
         register.append({
             "source_type": source,
             "retrieved_at": now(),
             "query_or_export_id": path.name if path else "not supplied",
-            "access_limitation": "optional provider unavailable" if not rows else "",
-            "actor_id": "",
-            "actor_run_id": "",
-            "extraction_method": "bounded local import",
-            "source_reuse_status": "Existing export" if source != "VDIV" else "New retrieval",
+            "access_limitation": source_access_limitation(metadata, rows),
+            "actor_id": metadata.get("actor_id", ""),
+            "actor_run_id": metadata.get("actor_run_id", ""),
+            "extraction_method": metadata.get("actor_id", "bounded local import"),
+            "source_reuse_status": "New retrieval" if source in {"Apify", "Overpass"} and rows else "Existing export" if source != "VDIV" else "New retrieval",
             "source_url": "https://vdiv-bb.de/mitglieder/" if source == "VDIV" else config.overpass_api_url if source == "Overpass" else "",
         })
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -1,1 +1,207 @@
-[]
+{
+  "items": [
+    {
+      "source_record_id": "1",
+      "company_name": "Hausverwaltung Berlin – WEG- & Mietverwaltung",
+      "source_url": "https://hallotheo.de/berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "2",
+      "company_name": "Erste Hausverwaltung Berlin - WEG- & Mietverwaltung",
+      "source_url": "https://www.erste-hausverwaltung.de/lokal/berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "3",
+      "company_name": "WEG Verwaltung | Wohneigentümergemeinschaften Berlin",
+      "source_url": "https://www.topcon-hausverwaltung.de/WEG-Hausverwaltung",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "4",
+      "company_name": "Hausverwaltung in Berlin: WEG- und Mietverwaltung",
+      "source_url": "https://zenveo.de/standorte/berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "5",
+      "company_name": "WEG-Verwaltung für groß und klein - Alles aus einer Hand",
+      "source_url": "https://havika-hausverwaltung.de/weg-verwaltung/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "6",
+      "company_name": "WEG-Verwaltung Berlin & Brandenburg",
+      "source_url": "https://rps-iv.de/weg-verwaltung",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "7",
+      "company_name": "Findus Hausverwaltung: Hausverwaltung Berlin & Brandenburg",
+      "source_url": "https://findus-hv.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "8",
+      "company_name": "Hausverwaltung Berlin – Digital, Persönlich & Transparent",
+      "source_url": "https://www.processcie.com/hausverwaltung-berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "9",
+      "company_name": "Hausverwaltung in Berlin Steglitz: Ihre WEG-Verwaltung",
+      "source_url": "https://matera.eu/de/hausverwaltung/berlin-steglitz",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "10",
+      "company_name": "WEG-Verwaltung Berlin | Olschewski & Schade Hausverwaltung",
+      "source_url": "https://www.olschewski-schade.de/weg-verwaltung",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "11",
+      "company_name": "Hausverwaltung in Berlin – Rundumservice | Classic Immobilien",
+      "source_url": "https://www.classic-immobilien-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "12",
+      "company_name": "Hausverwaltung Berlin: WEG, Miete & Gewerbe",
+      "source_url": "https://www.abakus-immobilien.de/leistungen/hausverwaltung-berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "13",
+      "company_name": "Erste Hausverwaltung Berlin - WEG- & Mietverwaltung",
+      "source_url": "https://www.erste-hausverwaltung.de/lokal/berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "14",
+      "company_name": "Hausverwaltung Berlin – Digital, Persönlich & Transparent",
+      "source_url": "https://www.processcie.com/hausverwaltung-berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "15",
+      "company_name": "Hausverwaltung in Berlin mit persönlicher Betreuung",
+      "source_url": "https://matera.eu/de/hausverwaltung/berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "16",
+      "company_name": "Hausverwaltung in Berlin: WEG- und Mietverwaltung",
+      "source_url": "https://zenveo.de/standorte/berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "17",
+      "company_name": "Hubert Hausverwaltung GmbH - seit 1969 in Berlin",
+      "source_url": "https://www.hubert-hausverwaltung-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "18",
+      "company_name": "Hausverwaltung Berlin - Dick Haus",
+      "source_url": "https://www.atriensis.de/hausverwaltung-berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "19",
+      "company_name": "MEG Hausverwaltung Berlin – Miethausverwaltung, WEG ...",
+      "source_url": "https://www.meg-hausverwaltung.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    },
+    {
+      "source_record_id": "20",
+      "company_name": "Mietverwaltung in Berlin, Potsdam und Brandenburg",
+      "source_url": "https://www.mj-immobilien.de/mietverwaltung.html",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "RByDxgwBumGPVnxYz"
+    }
+  ],
+  "actor_id": "apify/google-search-scraper",
+  "actor_run_id": "RByDxgwBumGPVnxYz",
+  "usage_total_usd": 5e-05
+}

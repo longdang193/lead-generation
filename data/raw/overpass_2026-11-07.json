@@ -1,1 +1,81 @@
-[]
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-11-07T23:54:21Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 2879802157,
+      "lat": 52.4946513,
+      "lon": 13.3568633,
+      "tags": {
+        "name": "DeGeWo",
+        "office": "property_management"
+      }
+    },
+    {
+      "type": "node",
+      "id": 3478842472,
+      "lat": 52.4946414,
+      "lon": 13.3599248,
+      "tags": {
+        "addr:city": "Berlin",
+        "addr:country": "DE",
+        "addr:housenumber": "3",
+        "addr:postcode": "10781",
+        "addr:street": "Pallasstraße",
+        "addr:suburb": "Schöneberg",
+        "check_date": "2026-01-31",
+        "name": "Pallasseum Wohnbauten",
+        "office": "property_management",
+        "official_name": "Pallasseum Wohnbauten KG"
+      }
+    },
+    {
+      "type": "node",
+      "id": 3965859657,
+      "lat": 52.4963082,
+      "lon": 13.3243422,
+      "tags": {
+        "name": "Habitar Concept",
+        "office": "property_management"
+      }
+    },
+    {
+      "type": "node",
+      "id": 4301655595,
+      "lat": 52.489353,
+      "lon": 13.316014,
+      "tags": {
+        "addr:city": "Berlin",
+        "addr:country": "DE",
+        "addr:housenumber": "12",
+        "addr:postcode": "10713",
+        "addr:street": "Brandenburgische Straße",
+        "addr:suburb": "Wilmersdorf",
+        "check_date": "2026-02-26",
+        "name": "condo Hausverwaltung",
+        "office": "property_management",
+        "website": "https://www.condohausverwaltung.com/de/"
+      }
+    },
+    {
+      "type": "node",
+      "id": 5055536822,
+      "lat": 52.4939141,
+      "lon": 13.3651537,
+      "tags": {
+        "addr:housenumber": "10",
+        "addr:postcode": "10783",
+        "addr:street": "Goebenstraße",
+        "check_date": "2023-05-16",
+        "name": "Quartierbüro Tempelhof-Schöneberg Gewobag",
+        "office": "property_management",
+        "operator": "Gewobag"
+      }
+    }
+  ]
+}

@@ -3,14 +3,36 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from runtime_config import RuntimeConfig
+from provider_clients import ProviderError, ted_search
 
 
 def stamp() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def text_value(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    if isinstance(value, dict):
+        for key in ("eng", "deu", "mul"):
+            if value.get(key):
+                return text_value(value[key])
+        for item in value.values():
+            if item:
+                return text_value(item)
+    return ""
+
+
+def normalize_name(value: str) -> str:
+    value = re.sub(r"[^a-z0-9]+", " ", value.lower())
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def main() -> int:
@@ -25,7 +47,48 @@ def main() -> int:
         companies = list(csv.DictReader(handle))
     events: list[dict[str, object]] = []
     links: list[dict[str, str]] = []
-    audit = [{"company_id": row.get("company_id", ""), "search_status": "Unavailable" if not config.ted_api_base_url else "Searched", "event_count": "0", "reason": "TED_API_BASE_URL not configured" if not config.ted_api_base_url else "No event import configured", "retrieved_at": stamp()} for row in companies]
+    audit: list[dict[str, str]] = []
+    terms = ["Zählertausch", "Fernablesung", "Heizkostenabrechnung", "Wärmezähler"]
+    known = {normalize_name(row.get("company_name", "")): row for row in companies if row.get("company_name")}
+    seen: set[str] = set()
+    if config.ted_api_base_url:
+        for term in terms:
+            try:
+                notices = ted_search(config.ted_api_base_url, term, timeout=config.request_timeout_seconds, limit=50)
+                term_count = 0
+                for notice in notices:
+                    publication_number = text_value(notice.get("publication-number")) or text_value(notice.get("id"))
+                    event_id = f"TED:{publication_number}" if publication_number else f"TED:{term}:{term_count}"
+                    if event_id in seen:
+                        continue
+                    seen.add(event_id)
+                    buyer = text_value(notice.get("buyer-name"))
+                    title = text_value(notice.get("notice-title"))
+                    links_value = notice.get("links") if isinstance(notice.get("links"), dict) else {}
+                    html_links = links_value.get("html", {}) if isinstance(links_value, dict) else {}
+                    source_url = text_value(html_links.get("deu")) or text_value(html_links.get("eng"))
+                    event = {
+                        "event_id": event_id,
+                        "source_type": "TED",
+                        "event_type": term,
+                        "buyer": buyer or "Unknown",
+                        "title": title or "Unknown",
+                        "publication_date": notice.get("publication-date") or "Unknown",
+                        "deadline": notice.get("deadline") or "Unknown",
+                        "scope": text_value(notice.get("buyer-country")) or "Unknown",
+                        "source_url": source_url or "Unknown",
+                        "retrieved_at": stamp(),
+                    }
+                    events.append(event)
+                    buyer_key = normalize_name(buyer)
+                    if buyer_key in known and buyer_key:
+                        links.append({"event_id": event_id, "company_id": known[buyer_key]["company_id"], "match_method": "exact normalized buyer name", "match_confidence": "Verified", "source_url": source_url or "Unknown"})
+                    term_count += 1
+                audit.append({"search_term": term, "search_status": "Searched", "event_count": str(term_count), "reason": "TED search completed; only exact buyer-name links are verified", "retrieved_at": stamp()})
+            except ProviderError as exc:
+                audit.append({"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": str(exc), "retrieved_at": stamp()})
+    else:
+        audit = [{"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": "TED_API_BASE_URL not configured", "retrieved_at": stamp()} for term in terms]
     args.ted_output.parent.mkdir(parents=True, exist_ok=True)
     args.ted_output.write_text(json.dumps(events, indent=2), encoding="utf-8")
     args.links_output.parent.mkdir(parents=True, exist_ok=True)

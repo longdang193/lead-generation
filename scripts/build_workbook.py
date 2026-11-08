@@ -7,6 +7,8 @@ from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.formatting.rule import ColorScaleRule
+
+from runtime_config import RuntimeConfig, provider_limitation
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -86,7 +88,7 @@ def main() -> int:
         {"Topic": "A tier", "Definition": "Structural fit >= 70 and evidence coverage >= 75%."},
         {"Topic": "Source policy", "Definition": "VDIV directory for discovery; official websites for qualification; public contact pages for contacts."},
         {"Topic": "Buying signals", "Definition": "Separate event dataset; no account signal without verified company-event match."},
-        {"Topic": "Limitations", "Definition": "Apify, TED, Hunter API and Overpass were optional; local public retrieval completed without credentials."},
+        {"Topic": "Limitations", "Definition": provider_limitation(RuntimeConfig.from_env())},
         {"Topic": "Retrieval", "Definition": "Public VDIV page and official company websites retrieved during 2026-11-07/08 execution."},
     ]
     ws = wb.create_sheet("05_Methodology_Sources")
