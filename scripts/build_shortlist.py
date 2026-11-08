@@ -68,6 +68,11 @@ def fetch_hunter_contact(domain: str, config: RuntimeConfig) -> tuple[str, str, 
     return full_name, str(item.get("value")), source_url, email_status
 
 
+def same_person(left: object, right: object) -> bool:
+    normalize = lambda value: re.sub(r"\s+", " ", str(value or "").casefold()).strip()
+    return bool(normalize(left) and normalize(left) == normalize(right))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scores", type=Path, required=True)
@@ -101,7 +106,7 @@ def main() -> int:
         if hunter_email and not email:
             email = hunter_email
             evidence_url = hunter_source or evidence_url or row.get("source_url", "")
-            email_status = "Unverified" if not person else hunter_status
+            email_status = hunter_status if person and same_person(person, hunter_person) else "Unverified"
         if email and is_generic_mailbox(email) and email_status == "Verified":
             email_status = "Published"
         contact_evidence = {
@@ -113,11 +118,12 @@ def main() -> int:
             "email": email,
         }
         person_verified = contact_claim_valid(contact_evidence, row.get("domain", ""))[0]
+        email_owner_match = bool(person_verified and email and not is_generic_mailbox(email) and (not hunter_email or same_person(person, hunter_person)))
         if not person_verified:
             person = ""
         contact_role = role_evidence if person_verified else ("Published business mailbox" if email and is_generic_mailbox(email) else "Potential contact" if email else "Unknown")
         priority_rows.append({**row, "priority_reason": "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
-        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if person_verified and email and not is_generic_mailbox(email) else "Unverified", "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
+        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if email_owner_match else "Unverified", "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})
     for path, rows, fallback in [(args.priority_output, priority_rows, ["company_id", "lead_tier"]), (args.contacts_output, contacts, ["company_id", "contact_email"]), (args.evidence_output, evidence, ["company_id", "source_url"])]:
         path.parent.mkdir(parents=True, exist_ok=True)

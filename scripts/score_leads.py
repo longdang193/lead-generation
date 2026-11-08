@@ -75,6 +75,18 @@ def calculate_fit(record: dict[str, object]) -> tuple[float | None, int]:
     return fit, observed_weight
 
 
+def derive_account_signal(company_audit: dict[str, str], matched_events: list[dict[str, object]], default_search_status: str) -> tuple[str, str]:
+    if not company_audit:
+        return "Unknown", "Unknown"
+    research_status = company_audit.get("research_status", company_audit.get("search_status", ""))
+    search_status = {"Completed": "Searched", "Partial": "Unknown", "Needs review": "Unknown"}.get(research_status, company_audit.get("search_status", default_search_status))
+    if research_status in {"Unavailable", "Not searched", "Partial", "Needs review"}:
+        return "Unknown", search_status
+    if company_audit.get("signal_state") == "None found":
+        return "None found", search_status
+    return classify_signal(matched_events), search_status
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--qualification", type=Path, required=True)
@@ -132,14 +144,7 @@ def main() -> int:
             tier = "C"
         matched_events = links_by_company.get(record.get("company_id", ""), [])
         company_audit = signal_audit.get(str(record.get("company_id") or ""), {})
-        research_status = company_audit.get("research_status", company_audit.get("search_status", ""))
-        search_status = {"Completed": "Searched", "Partial": "Unknown", "Needs review": "Unknown"}.get(research_status, company_audit.get("search_status", default_search_status))
-        if research_status in {"Unavailable", "Not searched", "Partial", "Needs review"}:
-            signal = "Unknown"
-        elif company_audit.get("signal_state") == "None found":
-            signal = "None found"
-        else:
-            signal = classify_signal(matched_events)
+        signal, search_status = derive_account_signal(company_audit, matched_events, default_search_status)
         actionability = actionability_for(tier, coverage, signal)
         sales_priority = sales_priority_for(actionability, tier)
         signal_urls = [str(event.get("source_url")) for event in matched_events if event.get("source_url") not in (None, "", "Unknown")]
