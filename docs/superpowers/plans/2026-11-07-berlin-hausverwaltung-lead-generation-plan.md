@@ -590,6 +590,12 @@ Expected final evidence:
 - Approximately 10–20 relevant named contacts where public evidence supports them.
 - Evidence URLs for all important non-`Unknown` claims.
 - Explicit records for inaccessible sources, unresolved entities, missing signals, and deferred work.
+
+## Review Readiness
+
+- Execution commit `4d74159` is already present on `main`; this review branch preserves that implementation history without rewriting the protected branch.
+- The review branch records the completed provider run, regression fixes, and final verification so the pull request has a durable acceptance trail.
+- Required review evidence: `py -3 -m unittest discover -s tests -v`, `py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json`, and `py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09.pptx --qa-report evidence/qa_report_2026-11-09.md`.
 - No external publication, email sending, paid overage, predictive probability, or Phase 2 implementation in the deadline package.
 - `.env` is ignored, `.env.example` is tracked, and no credential value appears in data, evidence, workbook, deck, or logs.
 - Company discovery records and buying-event records remain separate; only verified company-event links can create account-specific Buying Signals.
