@@ -6,13 +6,13 @@ from collections import Counter
 import re
 from datetime import date
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
-from lead_contract import is_generic_mailbox, is_plausible_full_name, priority_rank, signal_rank, tier_rank
+from lead_contract import is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
 from provider_clients import ProviderError, hunter_domain_search
 
 
@@ -28,12 +28,13 @@ def fetch_contacts(url: str, config: RuntimeConfig) -> tuple[str, str, str]:
             tag.decompose()
         text = " ".join(soup.get_text(" ", strip=True).split())
         emails = re.findall(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", response.text, flags=re.I)
-        email = next((item for item in emails if not item.lower().endswith(("example.com", "example.org"))), "")
+        company_host = (urlparse(response.url).hostname or "").lower().removeprefix("www.")
+        email = next((item for item in emails if is_valid_business_email(item, company_host)), "")
         role_match = re.search(r"([A-ZÄÖÜ][\wÄÖÜäöüß.-]+\s+[A-ZÄÖÜ][\wÄÖÜäöüß.-]+).{0,80}(Geschäftsführer|Inhaber|Leitung|Geschäftsleitung)", text, flags=re.I)
         if not role_match:
             role_match = re.search(r"(Geschäftsführer|Inhaber|Leitung|Geschäftsleitung).{0,80}([A-ZÄÖÜ][\wÄÖÜäöüß.-]+\s+[A-ZÄÖÜ][\wÄÖÜäöüß.-]+)", text, flags=re.I)
         person = (role_match.group(1) if role_match and "Geschäft" not in role_match.group(1) and "Leitung" not in role_match.group(1) else role_match.group(2)) if role_match else ""
-        return person, email, response.url
+        return person if is_plausible_full_name(person) else "", email, response.url
     except requests.RequestException:
         return "", "", ""
 
@@ -59,6 +60,8 @@ def fetch_hunter_contact(domain: str, config: RuntimeConfig) -> tuple[str, str, 
     sources = item.get("sources") if isinstance(item.get("sources"), list) else []
     source_url = sources[0].get("uri") if sources and isinstance(sources[0], dict) else ""
     full_name = " ".join(part for part in (str(item.get("first_name") or ""), str(item.get("last_name") or "")) if part).strip()
+    if not is_plausible_full_name(full_name) or not is_valid_business_email(item.get("value"), domain):
+        return "", "", "", ""
     return full_name, str(item.get("value")), source_url, email_status
 
 
@@ -87,6 +90,8 @@ def main() -> int:
         person, email, evidence_url = fetch_contacts(row.get("source_url", ""), config)
         if not is_plausible_full_name(person):
             person = ""
+        if email and not is_valid_business_email(email, row.get("domain", "")):
+            email = ""
         email_status = "Published" if email else "Not found"
         hunter_person, hunter_email, hunter_source, hunter_status = fetch_hunter_contact(row.get("domain", ""), config)
         if hunter_email and not email:
@@ -96,7 +101,7 @@ def main() -> int:
             email_status = hunter_status
         if email and is_generic_mailbox(email) and email_status == "Verified":
             email_status = "Published"
-        contact_role = "Publicly named management/contact" if person else "Unknown"
+        contact_role = "Named decision-maker" if person else ("Published business mailbox" if email else "Unknown")
         priority_rows.append({**row, "priority_reason": "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
         contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})

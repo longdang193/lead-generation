@@ -82,7 +82,7 @@ def main() -> int:
     event_payload = json.loads(args.events.read_text(encoding="utf-8")) if args.events.exists() else []
     if isinstance(event_payload, dict):
         events = event_payload.get("items") or event_payload.get("events") or []
-        provider_unavailable = str(event_payload.get("status", "")).lower() == "unavailable"
+        provider_unavailable = str(event_payload.get("status", "")).lower() in {"unavailable", "partial"}
     else:
         events = event_payload if isinstance(event_payload, list) else []
         provider_unavailable = False
@@ -105,7 +105,7 @@ def main() -> int:
         observed_weight = sum(WEIGHTS[field] for field, item in inputs.items() if item is not None)
         fit = sum(WEIGHTS[field] * item for field, item in inputs.items() if item is not None) / observed_weight if observed_weight else None
         coverage = observed_weight
-        if coverage < 50 or fit is None:
+        if coverage < 50 or fit is None or record.get("berlin_relevance") != "Confirmed":
             tier = "Research"
         elif fit >= 70 and coverage >= 75:
             tier = "A"

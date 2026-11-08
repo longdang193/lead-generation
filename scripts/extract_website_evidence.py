@@ -97,12 +97,12 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
                 pages.append(link)
     text = re.sub(r"\s+", " ", all_text).strip()
     service_patterns = [r"hausverwaltung", r"immobilienverwaltung", r"property management", r"verwaltung von immobilien"]
-    weg_patterns = [r"\bweg\b", r"wohnungseigent[üu]mergemeinschaft", r"residential property"]
+    weg_patterns = [r"wohnungseigent[üu]mergemeinschaft", r"\bweg[- ]verwaltung\b", r"eigent[üu]mergemeinschaft", r"residential property management"]
     for page_url, page_text in page_texts:
         service, confidence, excerpt = claim(page_text, service_patterns)
         if service != "Unknown" and result["service_fit"] == "Unknown":
             result["service_fit"] = service
-            result["management_type"] = "WEG-Verwaltung" if re.search(r"\bweg\b|wohnungseigent", page_text, re.I) else "Hausverwaltung"
+            result["management_type"] = "WEG-Verwaltung" if re.search(r"wohnungseigent[üu]mergemeinschaft|\bweg[- ]verwaltung\b|eigent[üu]mergemeinschaft", page_text, re.I) else "Hausverwaltung"
             result["claims"].append({"field": "service_fit", "value": service, "confidence": confidence, "evidence_url": page_url, "evidence_excerpt": excerpt})
         weg, weg_conf, weg_excerpt = claim(page_text, weg_patterns)
         if weg != "Unknown" and result["residential_weg"] == "Unknown":
@@ -113,9 +113,22 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
             result["portfolio_size"] = int(portfolio.group(1))
             result["portfolio_size_status"] = "Confirmed"
             result["claims"].append({"field": "portfolio_size", "value": int(portfolio.group(1)), "confidence": "High", "evidence_url": page_url, "evidence_excerpt": portfolio.group(0)})
-    if result["berlin_relevance"] == "Unknown" and re.search(r"\bberlin\b", text, re.I):
+    berlin_patterns = [
+        r"(?:sitz|standort|büro|niederlassung|kanzlei|geschäftsstelle)\s+(?:in|:)?\s*berlin",
+        r"(?:in|für|rund um|im raum)\s+berlin",
+        r"berlin(?:er)?\s+(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)",
+        r"(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)\s+(?:in|aus)\s+berlin",
+    ]
+    if result["berlin_relevance"] == "Unknown" and row.get("city", "").strip().lower() == "berlin":
         result["berlin_relevance"] = "Confirmed"
-        result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": claim(text, [r"\bberlin\b"])[2]})
+        if url and url not in checked_urls:
+            checked_urls.append(url)
+        result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": url, "evidence_excerpt": row.get("address") or "Company discovery record lists Berlin as city."})
+    if result["berlin_relevance"] == "Unknown":
+        berlin_match = next((re.search(pattern, text, re.I) for pattern in berlin_patterns if re.search(pattern, text, re.I)), None)
+        if berlin_match:
+            result["berlin_relevance"] = "Confirmed"
+            result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": text[max(0, berlin_match.start() - 120):berlin_match.end() + 180].strip()[:420]})
     result["evidence_urls"] = checked_urls
     result["text_excerpt"] = text[:900]
     capture = {"company_id": row.get("company_id", ""), "url": checked_urls[0] if checked_urls else url, "status": result["fetch_status"], "pages_checked": str(result["pages_checked"]), "retrieved_at": result["retrieved_at"]}

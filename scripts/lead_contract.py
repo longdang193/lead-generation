@@ -32,11 +32,31 @@ def is_generic_mailbox(value: object) -> bool:
     return local in {"info", "kontakt", "contact", "office", "hello", "support", "service", "mail", "verwaltung", "buchhaltung"}
 
 
+def is_placeholder_email(value: object) -> bool:
+    if not value or "@" not in str(value):
+        return True
+    address = str(value).strip().lower()
+    local, host = address.split("@", 1)
+    return host in {"example.com", "example.org", "example.net", "mail.com", "domain.com", "test.com"} or local in {
+        "max.musterman", "max.mustermann", "mustermann", "test", "user", "benutzer", "privacy"
+    }
+
+
+def is_valid_business_email(value: object, company_domain: object = "") -> bool:
+    if is_placeholder_email(value):
+        return False
+    address = str(value).strip().lower()
+    host = address.rsplit("@", 1)[-1]
+    company_host = str(company_domain or "").lower().removeprefix("www.").strip()
+    if not company_host:
+        return False
+    return host == company_host or host.endswith("." + company_host)
+
+
 def is_plausible_full_name(value: object) -> bool:
     words = re.findall(r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'’-]+", str(value or ""))
-    return len(words) >= 2 and all(len(word) >= 2 for word in words[:2]) and not any(
-        token in str(value).lower() for token in ("haben", "unseren", "immobilienfonds", "cookie", "kontakt")
-    )
+    rejected = {"haben", "unseren", "immobilienfonds", "cookie", "kontakt", "zusammenarbeit", "mit", "verwalten", "immobilienverwaltung", "hausverwaltung", "immobilien", "immobilie", "atriensis", "erarbeiten", "klare", "prozesse", "jahre", "erfahrung", "erfahrungen", "service", "management", "unternehmen", "team", "familie", "ansprechpartner", "verwaltung", "geschäftsführung", "leitung"}
+    return len(words) in {2, 3} and all(len(word) >= 2 and (word[0].isupper() or word.isupper()) for word in words) and not any(word.lower() in rejected for word in words)
 
 
 def signal_rank(value: object) -> int:
@@ -81,6 +101,16 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def update_run_manifest(path: Path, *, inputs: dict[str, Path] | None = None, outputs: dict[str, Path] | None = None) -> None:
+    manifest = __import__("json").loads(path.read_text(encoding="utf-8"))
+    for section, values in (("supporting_inputs", inputs or {}), ("outputs", outputs or {})):
+        bucket = manifest.setdefault(section, {})
+        for name, item in values.items():
+            if item.exists():
+                bucket[name] = {"path": str(item), "sha256": file_sha256(item)}
+    path.write_text(__import__("json").dumps(manifest, indent=2), encoding="utf-8")
 
 
 def is_public_http_url(value: object) -> bool:

@@ -1,23 +1,23 @@
 {
-  "run_id": "lead-63856dbb52757423",
-  "generated_at": "2026-11-08T11:02:49+00:00",
+  "run_id": "lead-df781aa48eca04c8",
+  "generated_at": "2026-11-08T11:55:19+00:00",
   "config_version": "lead-generation-contract-v2",
   "inputs": {
     "companies": {
       "path": "data\\intermediate\\companies_normalized_2026-11-07.csv",
-      "sha256": "b27f9d8f7f5415610c46dbebea9b4aafee7e71abe021b0b43ae9e5b422229cff"
+      "sha256": "67e34a3dbf63f27f7ed0cea6fc0bb82e0d5d277d19efc5f69c1f395c1765e120"
     },
     "scores": {
       "path": "data\\processed\\lead_scores_2026-11-08.csv",
-      "sha256": "c3a5cb5ff5a9bd96f6b99cbd6bd6396db90421ac5411c3299d4180994d78918e"
+      "sha256": "9a92eab0acdb28b28be59c5206aada518d1be77128739f8ca5b3cd3b224bd7de"
     },
     "priority": {
       "path": "data\\processed\\priority_leads_2026-11-08.csv",
-      "sha256": "99f113048d521d66ff9bcf51eda95eaca976219e37610726ac575b83f4d3b947"
+      "sha256": "6e82d56ed1a210fde3b095c5a140a8a09bed02c8cd6744c54a6641b2e1e6cceb"
     },
     "contacts": {
       "path": "data\\processed\\contacts_2026-11-08.csv",
-      "sha256": "9fa8d64f12d632d5ea1ff5404dff05c93f6bfae32ca92a7e7ecae29daa83abe8"
+      "sha256": "8f6ad1593a7d537b5629ee7db639d7c978cf9ad0b606a3186a47a4ad6aa5a6b1"
     },
     "sources": {
       "path": "evidence\\source_register_2026-11-07.csv",
@@ -27,18 +27,40 @@
   "outputs": {
     "workbook": {
       "path": "output\\berlin-hausverwaltung-leads_2026-11-09.xlsx",
-      "sha256": "2e7a242526ed944d90c419482cb27d3dcf02cfd601124fe7f4acb2af700d4811"
+      "sha256": "e0c2df651fc979277b22ec78b40eeaf5a8b72a9a8e6c92a51108b15295e30191"
     },
     "build_report": {
       "path": "evidence\\workbook_build_2026-11-09.json",
-      "sha256": "681961ad817e0e08e5a3a848a312f1f850ff555bc8d83263ac0622544d42ca1d"
+      "sha256": "32afdf404d5da4e40be9c09ce7bb3584fb28494c0272342d7909c77587387f33"
+    },
+    "qa_report": {
+      "path": "evidence\\qa_report_2026-11-09.md",
+      "sha256": "c0c585b460369e909e0d3da59511360b07f3e43c2013a6a7a76c8d763ab51817"
+    },
+    "qa_sample": {
+      "path": "evidence\\qa_sample_2026-11-09.csv",
+      "sha256": "05524c6f00e2f25defa6e0523c6b18d110589810845f73ded8e92160a43da0c4"
+    },
+    "deck": {
+      "path": "output\\berlin-hausverwaltung-methodology_2026-11-09.pptx",
+      "sha256": "d517a9eb076b6a7fd430cb91e7764414e0ccbdb7fde21539f2092b1b631e7c56"
     }
   },
   "counts": {
     "companies": 323,
-    "scores": 213,
+    "scores": 201,
     "priority": 30,
     "contacts": 30,
     "sources": 3
+  },
+  "supporting_inputs": {
+    "schema": {
+      "path": "config\\lead_generation_schema.json",
+      "sha256": "903344e1791691e99d0bd1c20fcf6d3781c098255ed640c780f56f3b229e06e3"
+    },
+    "website_evidence": {
+      "path": "data\\intermediate\\website_evidence_2026-11-08.jsonl",
+      "sha256": "c3255ee1eb0ab73bec1ca996dc9254e9ce924f25728dd4966960d17bb69b2609"
+    }
   }
 }

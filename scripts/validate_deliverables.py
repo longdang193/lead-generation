@@ -17,6 +17,7 @@ def main() -> int:
     parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
     args = parser.parse_args()
     errors = []
+    qualification = priority = contacts = []
     if not args.workbook.exists():
         errors.append("workbook missing")
     else:
@@ -24,10 +25,34 @@ def main() -> int:
         required = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
         if workbook.sheetnames != required:
             errors.append("workbook tabs mismatch")
+        else:
+            def rows(sheet):
+                values = list(workbook[sheet].values)
+                return [dict(zip(values[0], row)) for row in values[1:] if any(value not in (None, "") for value in row)]
+            qualification = rows("02_Qualification")
+            priority = rows("03_Priority_Leads")
+            contacts = rows("04_Contacts")
     if not args.deck.exists():
         errors.append("deck missing")
     elif len(Presentation(args.deck).slides) != 5:
         errors.append("deck must contain exactly five slides")
+    elif qualification:
+        deck_text = "\n".join(shape.text for slide in Presentation(args.deck).slides for shape in slide.shapes if hasattr(shape, "text"))
+        tier_counts = {}
+        for row in qualification:
+            tier_counts[row.get("lead_tier")] = tier_counts.get(row.get("lead_tier"), 0) + 1
+        email_count = sum(row.get("contact_email") not in (None, "", "Unknown") for row in contacts)
+        named_count = sum(row.get("contact_name") not in (None, "", "Unknown") for row in contacts)
+        expected_fragments = [
+            f"Qualified Accounts ({len(qualification)} accepted)",
+            f"Priority Leads ({len(priority)})",
+            f"Email-evidence contacts ({email_count} Published; {named_count} named decision-makers)",
+            f"A {tier_counts.get('A', 0)}",
+            f"Research {tier_counts.get('Research', 0)}",
+        ]
+        for fragment in expected_fragments:
+            if fragment not in deck_text:
+                errors.append(f"deck metric is stale: {fragment}")
     if not args.qa_report.exists() or "Errors: 0" not in args.qa_report.read_text(encoding="utf-8"):
         errors.append("QA report missing or reports errors")
     if not args.run_manifest.exists():
@@ -35,10 +60,21 @@ def main() -> int:
     else:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
-            expected = manifest.get("outputs", {}).get("workbook", {}).get("sha256")
+            output_manifest = manifest.get("outputs", {})
+            expected = output_manifest.get("workbook", {}).get("sha256")
             digest = hashlib.sha256(args.workbook.read_bytes()).hexdigest() if args.workbook.exists() else ""
             if expected != digest:
                 errors.append("workbook does not match run manifest")
+            for key, item in output_manifest.items():
+                path = Path(item.get("path", ""))
+                if path.exists() and item.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
+                    errors.append(f"manifest hash mismatch: {key}")
+            for key in ("qa_report", "deck"):
+                if key not in output_manifest:
+                    errors.append(f"run manifest missing {key} output")
+            for key in ("schema", "website_evidence"):
+                if key not in manifest.get("supporting_inputs", {}):
+                    errors.append(f"run manifest missing {key} supporting input")
         except (OSError, ValueError):
             errors.append("run manifest unreadable")
     if errors:

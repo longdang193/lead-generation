@@ -364,14 +364,15 @@ Acceptance checks:
 ## Execution Record
 
 - 2026-11-08: Published execution began after this plan was reviewed and patched.
-- Discovery refresh completed with 323 records; 109 malformed/unresolved VDIV
-  identities remain in `data/intermediate/discovery_quarantine_2026-11-08.csv`
-  and 110 canonical rows carry `resolution_status=Review`.
-- Bounded official-site retrieval completed for 323 companies: 300 fetched,
-  23 failed, with page-local captures and multi-page traversal preserved.
-- Accepted qualification excludes review rows: 213 score rows, 30 priority
+- Discovery refresh completed with 323 records; malformed, same-domain, and
+  unresolved identities remain in `data/intermediate/discovery_quarantine_2026-11-08.csv`
+  or the review register, and are excluded from accepted scoring input.
+- Bounded official-site retrieval completed for 323 companies: 290 fetched,
+  33 failed, with page-local captures and multi-page traversal preserved.
+- Accepted qualification excludes review rows: 201 score rows, 30 priority
   rows, and 30 contact rows. Buying signals are explicitly `None found` after
-  a completed search, not `Unknown`.
+  a completed search, not `Unknown`; 18 same-domain public mailboxes remain
+  Published and no named decision-maker is asserted without evidence.
 - Remediated artifacts pass 17 unit tests, JSON validation, semantic QA with
   `Errors: 0`, workbook validation, five-slide deck generation, and deliverable
   validation. The canonical regenerated run is bound by
@@ -381,8 +382,14 @@ Acceptance checks:
   running. The canonical workbook, QA report, build report, and five-slide deck
   now share the same validated input/output run manifest; no user workbook was
   terminated or discarded.
-- Final local verification on 2026-11-08: 17 tests passed, `qa_errors=0`, the
+- Final local verification on 2026-11-08: 18 tests passed, `qa_errors=0`, the
   workbook has five sheets, deliverables validated, `git diff --check` passed,
   and the credential scan was clean. A native slide renderer is not installed
   in this workspace; deck structure and five-slide count were validated by the
   repository validator instead of claiming visual-render inspection.
+- Review cycle 1 at PR head `985780fa012c64441d7d87fde3e6593dfd6addee`
+  identified seven blockers. They are addressed in the follow-up commit by
+  stricter contact/domain binding, explicit WEG and Berlin evidence, same-domain
+  review quarantine, provider-outage state propagation, schema/score/evidence
+  QA enforcement, and manifest/deck reconciliation. A fresh head-bound review
+  is required before merge.

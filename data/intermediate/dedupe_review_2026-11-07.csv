@@ -109,4 +109,28 @@ raw_source_record_id,candidate_company_id,company_name,reason,status
 301,,www.vbs-wohnen.de,identity or location requires fresh official-source resolution,Manual review
 249,,www.serda-immobilien.de,identity or location requires fresh official-source resolution,Manual review
 265,,www.kaufmann-hausverwaltung-kg.de,identity or location requires fresh official-source resolution,Manual review
+6,DE-BER-4f2243326c6c,WEG-Verwaltung Berlin & Brandenburg,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+6,,WEG-Verwaltung Berlin & Brandenburg,identity or location requires fresh official-source resolution,Manual review
+7,DE-BER-117fda5656b0,Findus Hausverwaltung: Hausverwaltung Berlin & Brandenburg,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+7,,Findus Hausverwaltung: Hausverwaltung Berlin & Brandenburg,identity or location requires fresh official-source resolution,Manual review
+8,DE-BER-53b72f7a7fbd,"Hausverwaltung Berlin – Digital, Persönlich & Transparent",same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+8,,"Hausverwaltung Berlin – Digital, Persönlich & Transparent",identity or location requires fresh official-source resolution,Manual review
+9,DE-BER-8244f256c377,Hausverwaltung in Berlin Steglitz: Ihre WEG-Verwaltung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+9,,Hausverwaltung in Berlin Steglitz: Ihre WEG-Verwaltung,identity or location requires fresh official-source resolution,Manual review
+10,DE-BER-ef0fb283d017,WEG-Verwaltung Berlin | Olschewski & Schade Hausverwaltung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+10,,WEG-Verwaltung Berlin | Olschewski & Schade Hausverwaltung,identity or location requires fresh official-source resolution,Manual review
+13,DE-BER-b25786837641,Erste Hausverwaltung Berlin - WEG- & Mietverwaltung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+13,,Erste Hausverwaltung Berlin - WEG- & Mietverwaltung,identity or location requires fresh official-source resolution,Manual review
+14,DE-BER-53b72f7a7fbd,"Hausverwaltung Berlin – Digital, Persönlich & Transparent",same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+14,,"Hausverwaltung Berlin – Digital, Persönlich & Transparent",identity or location requires fresh official-source resolution,Manual review
+15,DE-BER-8244f256c377,Hausverwaltung in Berlin mit persönlicher Betreuung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+15,,Hausverwaltung in Berlin mit persönlicher Betreuung,identity or location requires fresh official-source resolution,Manual review
+16,DE-BER-0a1c4859130b,Hausverwaltung in Berlin: WEG- und Mietverwaltung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+16,,Hausverwaltung in Berlin: WEG- und Mietverwaltung,identity or location requires fresh official-source resolution,Manual review
+17,DE-BER-4623a8743d1a,Hubert Hausverwaltung GmbH - seit 1969 in Berlin,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+17,,Hubert Hausverwaltung GmbH - seit 1969 in Berlin,identity or location requires fresh official-source resolution,Manual review
+20,DE-BER-28c906b92441,"Mietverwaltung in Berlin, Potsdam und Brandenburg",same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+20,,"Mietverwaltung in Berlin, Potsdam und Brandenburg",identity or location requires fresh official-source resolution,Manual review
+4301655595,DE-BER-c2a8d3605ff9,condo Hausverwaltung,same verified domain has a distinct identity; manual branch/duplicate resolution required,Manual review
+4301655595,,condo Hausverwaltung,identity or location requires fresh official-source resolution,Manual review
 4301655595,DE-BER-c2a8d3605ff9,condo Hausverwaltung,fuzzy name and same postcode,Manual review

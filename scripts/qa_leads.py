@@ -11,7 +11,8 @@ from urllib.parse import urlparse
 from openpyxl import load_workbook
 
 from runtime_config import RuntimeConfig, provider_limitation
-from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_plausible_full_name, parse_evidence_urls, sales_priority_for
+from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
+from score_leads import WEIGHTS, value
 
 
 def rows(ws):
@@ -47,6 +48,27 @@ def valid_http_url(value: object) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+def numeric(value: object) -> float | None:
+    if value in (None, "", "Unknown"):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def append_schema_errors(errors: list[str], row: dict[str, object], properties: dict[str, object], required: list[str]) -> None:
+    for field in required:
+        if row.get(field) in (None, ""):
+            errors.append(f"missing required field {field}: {row.get('company_id')}")
+    for field, definition in properties.items():
+        value = row.get(field)
+        if value in (None, ""):
+            continue
+        if isinstance(definition, dict) and definition.get("enum") and value not in definition["enum"]:
+            errors.append(f"schema enum violation {field}: {row.get('company_id')}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workbook", type=Path, required=True)
@@ -57,6 +79,7 @@ def main() -> int:
     parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
     args = parser.parse_args()
     wb = load_workbook(args.workbook, read_only=True, data_only=False)
+    companies = rows(wb["01_All_Leads"])
     qualification = rows(wb["02_Qualification"])
     priority = rows(wb["03_Priority_Leads"])
     contacts = rows(wb["04_Contacts"])
@@ -76,16 +99,40 @@ def main() -> int:
     try:
         schema = json.loads(args.schema.read_text(encoding="utf-8"))
         properties = schema.get("properties", {})
+        required = schema.get("required", [])
     except (OSError, ValueError):
         properties = {}
+        required = []
         errors.append("schema is unreadable")
+    if not args.evidence_dir.is_dir():
+        errors.append("evidence directory is missing")
+    evidence_root = args.evidence_dir.parent
+    website_evidence_path = evidence_root / "data" / "intermediate" / "website_evidence_2026-11-08.jsonl"
+    website_claims: dict[str, dict[str, dict[str, object]]] = {}
+    if website_evidence_path.exists():
+        for line in website_evidence_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except ValueError:
+                errors.append("website evidence contains invalid JSON")
+                continue
+            website_claims[record.get("company_id", "")] = {str(claim.get("field")): claim for claim in record.get("claims", []) if isinstance(claim, dict)}
+    else:
+        errors.append("website evidence artifact is missing")
     company_ids = [row.get("company_id") for row in qualification]
     duplicates = [item for item, count in Counter(company_ids).items() if item and count > 1]
     if duplicates:
         errors.append(f"duplicate company IDs: {duplicates[:5]}")
+    for row in companies:
+        append_schema_errors(errors, row, properties, required)
     for row in qualification:
         fit = row.get("structural_lead_fit")
-        if fit not in (None, "", "Unknown") and not 0 <= float(fit) <= 100:
+        fit_value = numeric(fit)
+        if fit not in (None, "", "Unknown") and fit_value is None:
+            errors.append(f"score is not numeric: {row.get('company_id')}")
+        if fit_value is not None and not 0 <= fit_value <= 100:
             errors.append(f"score out of range: {row.get('company_id')}")
         if row.get("lead_tier") not in {"A", "B", "C", "Research"}:
             errors.append(f"invalid tier: {row.get('company_id')}")
@@ -105,11 +152,30 @@ def main() -> int:
             errors.append(f"actionability mismatch: {row.get('company_id')}")
         if row.get("sales_priority") != sales_priority_for(expected_actionability, row.get("lead_tier", "")):
             errors.append(f"sales priority mismatch: {row.get('company_id')}")
+        inputs = {
+            "service_fit": value("service_fit", row),
+            "residential_weg": value("residential_weg", row),
+            "portfolio_potential": value("portfolio_potential", row),
+            "geographic_fit": value("berlin_relevance", row),
+        }
+        observed_weight = sum(WEIGHTS[field] for field, item in inputs.items() if item is not None)
+        expected_fit = sum(WEIGHTS[field] * item for field, item in inputs.items() if item is not None) / observed_weight if observed_weight else None
+        expected_coverage = observed_weight
+        if numeric(row.get("evidence_coverage")) != expected_coverage:
+            errors.append(f"evidence coverage mismatch: {row.get('company_id')}")
+        if expected_fit is None and fit_value is not None or expected_fit is not None and (fit_value is None or abs(fit_value - expected_fit) > 0.01):
+            errors.append(f"structural score mismatch: {row.get('company_id')}")
+        expected_tier = "Research" if expected_fit is None or expected_coverage < 50 or row.get("berlin_relevance") != "Confirmed" else "A" if expected_fit >= 70 and expected_coverage >= 75 else "B" if expected_fit >= 55 else "C"
+        if row.get("lead_tier") != expected_tier:
+            errors.append(f"lead tier mismatch: {row.get('company_id')}")
         for field in ("service_fit", "residential_weg", "berlin_relevance"):
             if row.get(field) not in (None, "", "Unknown"):
                 urls = parse_evidence_urls(row.get("evidence_urls"))
                 if not urls or not all(valid_http_url(url) for url in urls):
                     errors.append(f"{field} claim lacks valid evidence URL: {row.get('company_id')}")
+                claim = website_claims.get(row.get("company_id", ""), {}).get(field)
+                if not claim or not valid_http_url(claim.get("evidence_url")) or not claim.get("evidence_excerpt") or claim.get("confidence") in (None, "", "None"):
+                    errors.append(f"{field} claim lacks page-local evidence: {row.get('company_id')}")
         if row.get("lead_tier") == "A" and row.get("sales_priority") == "Pursue" and row.get("actionability") != "Ready":
             errors.append(f"Pursue row is not Ready: {row.get('company_id')}")
     for row in contacts:
@@ -120,12 +186,27 @@ def main() -> int:
                 errors.append(f"generic mailbox marked Verified: {row.get('company_id')}")
         if row.get("contact_name") not in (None, "", "Unknown") and not is_plausible_full_name(row.get("contact_name")):
             errors.append(f"contact name is not a plausible full name: {row.get('company_id')}")
+        if row.get("contact_email") not in (None, "", "Unknown"):
+            if is_placeholder_email(row.get("contact_email")):
+                errors.append(f"placeholder contact email: {row.get('company_id')}")
+            email_host = urlparse(str(row.get("email_source") or "")).hostname or ""
+            if row.get("verification_status") == "Verified" and not is_valid_business_email(row.get("contact_email"), email_host):
+                errors.append(f"verified contact email is not company-domain bound: {row.get('company_id')}")
+            if row.get("verification_status") == "Verified" and row.get("contact_name") in (None, "", "Unknown"):
+                errors.append(f"verified contact lacks named owner: {row.get('company_id')}")
     qualification_ids = {row.get("company_id") for row in qualification}
     priority_ids = [row.get("company_id") for row in priority]
     if any(company_id not in qualification_ids for company_id in priority_ids):
         errors.append("priority contains company IDs absent from qualification")
     if len(priority_ids) != len(set(priority_ids)):
         errors.append("priority contains duplicate company IDs")
+    domains = [str(row.get("domain") or "").lower() for row in qualification if row.get("domain") not in (None, "", "Unknown")]
+    duplicate_domains = [item for item, count in Counter(domains).items() if count > 1]
+    if duplicate_domains:
+        errors.append(f"duplicate accepted domains: {duplicate_domains[:5]}")
+    for row in priority:
+        if row.get("berlin_relevance") != "Confirmed":
+            errors.append(f"priority row lacks confirmed Berlin eligibility: {row.get('company_id')}")
     sample = priority[:10] + [row for row in qualification if row not in priority][:1]
     args.sample_output.parent.mkdir(parents=True, exist_ok=True)
     with args.sample_output.open("w", encoding="utf-8", newline="") as handle:
@@ -141,6 +222,8 @@ def main() -> int:
         report.extend(["", "All deterministic QA checks passed."])
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
+    if args.run_manifest.exists():
+        update_run_manifest(args.run_manifest, inputs={"schema": args.schema, "website_evidence": website_evidence_path}, outputs={"qa_report": args.report, "qa_sample": args.sample_output})
     print("qa_errors=%d" % len(errors))
     return 1 if errors else 0
 

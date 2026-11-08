@@ -8,6 +8,8 @@ from openpyxl import load_workbook
 from pptx import Presentation
 from pptx.util import Inches, Pt
 
+from lead_contract import update_run_manifest
+
 
 def parse_slides(path: Path) -> list[tuple[str, list[str]]]:
     slides: list[tuple[str, list[str]]] = []
@@ -31,6 +33,7 @@ def main() -> int:
     parser.add_argument("--content", type=Path, required=True)
     parser.add_argument("--workbook", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
     args = parser.parse_args()
     slides = parse_slides(args.content)
     if len(slides) != 5:
@@ -61,6 +64,8 @@ def main() -> int:
             paragraph.font.color.rgb = __import__("pptx").dml.color.RGBColor(45, 45, 45)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     prs.save(args.output)
+    if args.run_manifest.exists():
+        update_run_manifest(args.run_manifest, outputs={"deck": args.output})
     print(f"created {args.output} with {len(prs.slides)} slides")
     return 0
 

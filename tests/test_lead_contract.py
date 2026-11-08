@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from lead_contract import actionability_for, is_generic_mailbox, is_plausible_full_name, parse_evidence_urls, sales_priority_for
+from lead_contract import actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_full_name, is_valid_business_email, parse_evidence_urls, sales_priority_for
 
 
 class LeadContractTests(unittest.TestCase):
@@ -16,7 +16,11 @@ class LeadContractTests(unittest.TestCase):
     def test_contact_helpers_reject_generic_or_fragment_names(self):
         self.assertTrue(is_generic_mailbox("info@example.com"))
         self.assertFalse(is_plausible_full_name("unseren Immobilienverwaltern"))
+        self.assertFalse(is_plausible_full_name("Klare Prozesse"))
         self.assertTrue(is_plausible_full_name("Anna Schmidt"))
+        self.assertTrue(is_placeholder_email("max.musterman@mail.com"))
+        self.assertFalse(is_valid_business_email("privacy@hubspot.com", "example.de"))
+        self.assertTrue(is_valid_business_email("anna@example.de", "example.de"))
 
     def test_actionability_and_priority_are_deterministic(self):
         self.assertEqual(actionability_for("A", 75, "Strong"), "Ready")

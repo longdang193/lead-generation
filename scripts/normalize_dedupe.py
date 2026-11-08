@@ -69,7 +69,8 @@ def is_url_like_name(value: str) -> bool:
 
 
 def explicit_berlin_evidence(row: dict[str, str]) -> str:
-    if row.get("city", "").strip().lower() == "berlin":
+    postal = re.sub(r"\D", "", row.get("postal_code", ""))
+    if row.get("city", "").strip().lower() == "berlin" and (not postal or 10115 <= int(postal) <= 14199):
         return "Confirmed"
     if re.search(r"\bberlin\b", row.get("berlin_evidence", ""), re.I):
         return "Probable"
@@ -100,7 +101,14 @@ def main() -> int:
             postcode_text = postcode.group(0) if postcode else ""
         address_key = re.sub(r"\W+", " ", row.get("address", "").lower()).strip()
         key = (norm, postcode_text, address_key)
+        city = row.get("city", "")
+        if city.strip().lower() == "berlin" and postcode_text and not 10115 <= int(re.sub(r"\D", "", postcode_text) or 0) <= 14199:
+            city = ""
         requires_review = is_url_like_name(name) or row.get("identity_status") == "Review"
+        same_domain = [item for item in canonical if host and item.get("domain") == host]
+        if same_domain:
+            requires_review = True
+            review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": same_domain[0].get("company_id", ""), "company_name": name, "reason": "same verified domain has a distinct identity; manual branch/duplicate resolution required", "status": "Manual review"})
         if requires_review:
             review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": "", "company_name": name, "reason": "identity or location requires fresh official-source resolution", "status": "Manual review"})
         existing = by_key.get(key)
@@ -124,7 +132,7 @@ def main() -> int:
             "verified_company_domain": host,
             "address": row.get("address", ""),
             "postal_code": postcode_text,
-            "city": row.get("city", ""),
+            "city": city,
             "region": row.get("region", ""),
             "contact": row.get("contact", ""),
             "email": row.get("email", ""),
@@ -138,7 +146,7 @@ def main() -> int:
             "source_url": row.get("source_url", ""),
             "retrieved_at": row.get("retrieved_at", stamp()),
             "evidence_level": "Primary" if row.get("source_type") == "VDIV" else "Secondary",
-            "berlin_relevance": explicit_berlin_evidence(row),
+            "berlin_relevance": explicit_berlin_evidence({**row, "city": city}),
             "management_type": "Unknown",
             "residential_weg": "Unknown",
             "portfolio_size": "",

@@ -55,6 +55,7 @@ def main() -> int:
         if key:
             known.setdefault(key, []).append(row)
     seen: set[str] = set()
+    successful_terms = 0
     if config.ted_api_base_url:
         for term in terms:
             try:
@@ -92,12 +93,18 @@ def main() -> int:
                         audit.append({"search_term": term, "search_status": "Searched", "event_count": "0", "reason": f"ambiguous buyer match for {buyer}; retained for review", "retrieved_at": stamp()})
                     term_count += 1
                 audit.append({"search_term": term, "search_status": "Searched", "event_count": str(term_count), "reason": "TED search completed; only exact buyer-name links are verified", "retrieved_at": stamp()})
+                successful_terms += 1
             except ProviderError as exc:
                 audit.append({"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": str(exc), "retrieved_at": stamp()})
     else:
         audit = [{"search_term": term, "search_status": "Unavailable", "event_count": "0", "reason": "TED_API_BASE_URL not configured", "retrieved_at": stamp()} for term in terms]
     args.ted_output.parent.mkdir(parents=True, exist_ok=True)
-    payload = events if config.ted_api_base_url else {"items": [], "status": "Unavailable", "reason": "TED_API_BASE_URL not configured"}
+    if not config.ted_api_base_url or successful_terms == 0:
+        payload = {"items": [], "status": "Unavailable", "reason": "TED search did not complete successfully"}
+    elif successful_terms < len(terms):
+        payload = {"items": events, "status": "Partial", "reason": "One or more TED searches were unavailable"}
+    else:
+        payload = {"items": events, "status": "Searched"}
     args.ted_output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     args.links_output.parent.mkdir(parents=True, exist_ok=True)
     with args.links_output.open("w", encoding="utf-8", newline="") as handle:
