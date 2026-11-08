@@ -138,11 +138,8 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         raise ValueError(f"missing verifier decisions: {', '.join(missing_decisions)}")
 
     if active_run_id:
-        campaign = manifest.get("campaign") if isinstance(manifest, dict) else None
-        normalized = campaign.get("normalized") if isinstance(campaign, dict) else None
-        adapter_policy = normalized.get("adapter_policy") if isinstance(normalized, dict) else None
         execution_mode = str(manifest.get("execution_mode") or "production")
-        if isinstance(adapter_policy, dict) and adapter_policy.get("verification_mode") == "source_verification" and execution_mode != "fixture":
+        if execution_mode != "fixture":
             capabilities = {str(item.get("capability")) for item in verifier_registry.values() if isinstance(item, dict)}
             if capabilities != {"source_verification"}:
                 raise ValueError("production promotion requires source_verification verifier capability")

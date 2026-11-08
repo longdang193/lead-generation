@@ -8,13 +8,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import jsonschema
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from orchestrate_enrichment import _native_command_builder
-from worker_dispatch import NativeExecutorConfig, dispatch_native_lane, reconcile_lane_outputs
+from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs
 
 
 class NativeAdapterTests(unittest.TestCase):
+    def validate_research_run(self, research_run: dict[str, object]) -> None:
+        schema = json.loads((Path(__file__).resolve().parents[1] / "config" / "research_evidence_schema.json").read_text(encoding="utf-8"))
+        jsonschema.Draft202012Validator(schema).validate(research_run)
+
     def test_dispatch_discards_stale_output_and_honors_nonzero_retry(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -50,6 +56,21 @@ class NativeAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 reconcile_lane_outputs(records, [item], "run-1", "signals")
 
+    def test_verifier_reconciliation_rejects_foreign_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claims_path = root / "claims.jsonl"
+            claim = {"candidate_claim_id": "claim-1", "candidate_sha256": "a" * 64}
+            claims_path.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            output_dir = root / "evidence" / "verifier" / "run-1" / "outputs"
+            output_dir.mkdir(parents=True)
+            output_path = output_dir / "verifier-C1.json"
+            output_path.write_text(json.dumps({"decisions": [{"candidate_claim_id": "foreign", "candidate_sha256": "b" * 64}]}), encoding="utf-8")
+            item = {"run_id": "run-1", "lane": "verifier", "company_id": "C1", "claims_path": claims_path}
+            records = [{"run_id": "run-1", "lane": "verifier", "company_id": "C1", "status": "succeeded", "output_path": output_path.as_posix(), "output_sha256": __import__("hashlib").sha256(output_path.read_bytes()).hexdigest(), "attempts": 1}]
+            with self.assertRaisesRegex(ValueError, "foreign decision"):
+                reconcile_lane_outputs(records, [item], "run-1", "verifier")
+
     def test_repository_owned_worker_and_verifier_execute(self):
         repository_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
@@ -78,6 +99,7 @@ class NativeAdapterTests(unittest.TestCase):
             payload = json.loads(worker_output.read_text(encoding="utf-8"))
             self.assertEqual(payload["research_run"]["status"], "Completed")
             self.assertEqual(payload["research_run"]["provider_status"], "Available")
+            self.validate_research_run(payload["research_run"])
             verifier_input = root / "claims.jsonl"
             verifier_input.write_text("", encoding="utf-8")
             verifier_output = root / "verifier.jsonl"
@@ -94,6 +116,11 @@ class NativeAdapterTests(unittest.TestCase):
             ], check=False, capture_output=True, text=True)
             self.assertEqual(verifier.returncode, 0, verifier.stderr)
             self.assertEqual(json.loads(verifier_output.read_text(encoding="utf-8"))["decisions"], [])
+
+            fixture_item = {"run_id": "run-1", "lane": "signals", "company_id": "C1", "company_name": "Company", "trusted_domain": "example.de", "location": "Berlin", "campaign_id": "campaign-1", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "a" * 64}
+            fixture_results = dispatch_fixture_lanes({"signals": [fixture_item]}, "run-1", root / "fixture")
+            fixture_payload = json.loads(Path(fixture_results["signals"][0]["output_path"]).read_text(encoding="utf-8"))
+            self.validate_research_run(fixture_payload["research_run"])
 
     def test_native_verifier_accepts_controller_scope_command(self):
         repository_root = Path(__file__).resolve().parents[1]

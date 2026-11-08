@@ -224,6 +224,34 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
             decisions = payload.get("decisions", [])
             if not isinstance(decisions, list) or any(not isinstance(decision, dict) for decision in decisions):
                 raise ValueError(f"verifier output decisions are not objects: {output_path}")
+            claims_path = Path(str(item.get("claims_path") or ""))
+            if not claims_path.exists():
+                raise ValueError(f"verifier claims input is missing: {claims_path}")
+            expected_claims: dict[str, str] = {}
+            for line in claims_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                claim = json.loads(line)
+                if not isinstance(claim, dict):
+                    raise ValueError(f"verifier claims input is not an object: {claims_path}")
+                claim_id = str(claim.get("candidate_claim_id") or "")
+                claim_hash = str(claim.get("candidate_sha256") or "")
+                if not claim_id or not claim_hash or claim_id in expected_claims:
+                    raise ValueError(f"verifier claims input has invalid or duplicate claim: {claims_path}")
+                expected_claims[claim_id] = claim_hash
+            seen_decisions: set[str] = set()
+            for decision in decisions:
+                claim_id = str(decision.get("candidate_claim_id") or "")
+                if claim_id in seen_decisions:
+                    raise ValueError(f"verifier output has duplicate decision: {claim_id}")
+                if claim_id not in expected_claims:
+                    raise ValueError(f"verifier output contains foreign decision: {claim_id}")
+                if str(decision.get("candidate_sha256") or "") != expected_claims[claim_id]:
+                    raise ValueError(f"verifier output hash mismatch: {claim_id}")
+                seen_decisions.add(claim_id)
+            missing_decisions = sorted(set(expected_claims) - seen_decisions)
+            if missing_decisions:
+                raise ValueError(f"verifier output missing decisions: {', '.join(missing_decisions)}")
             continue
         research_run = payload.get("research_run", payload)
         if not isinstance(research_run, dict):
