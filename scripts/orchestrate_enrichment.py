@@ -80,6 +80,7 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "git_ref": git_output(root, "branch", "--show-current"),
         "status": "prepared",
         "config_version": "lead-enrichment-run-v1",
+        "delivery_policy": campaign.delivery_policy,
         "campaign": campaign.manifest_record(),
         "accepted_company_ids": sorted(accepted_company_ids or set()),
         "inputs": {path.stem: manifest_entry(root, path) for path in inputs},
@@ -137,6 +138,7 @@ def write_lane_queue(
             campaign_id,
             lane,
             require_trusted_identity=accepted_company_ids is not None or require_qualification,
+            require_confirmed_location=required_location_evidence is not None,
             required_location_evidence=required_location_evidence,
         )
         queue.append({**admitted.as_dict(), "status": "pending"})
@@ -309,9 +311,13 @@ def _native_command_builder(item: dict[str, object], output_path: Path, config: 
     return [str(config.executable), *getattr(config, "adapter_args", ()), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--campaign-id", str(item.get("campaign_id") or "legacy"), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--company-name", str(item.get("company_name") or ""), "--trusted-domain", str(item["trusted_domain"]), "--location", str(item["location"]), "--scope-version", str(item.get("scope_version") or ""), "--scope-hash", str(item["scope_hash"]), "--output", str(output_path)]
 
 
-def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepted_ids: set[str], target_count: int | None = None) -> None:
+def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepted_ids: set[str], target_count: int | None = None, delivery_policy: str = "strict") -> None:
     priority_ids = [str(row.get("company_id") or "") for row in priority_rows]
     expected_count = target_count if target_count is not None else len(accepted_ids)
+    if delivery_policy == "personal":
+        if len(priority_rows) > expected_count or len(set(priority_ids)) != len(priority_rows) or not set(priority_ids).issubset(accepted_ids):
+            raise ValueError(f"personal priority shortlist must contain at most {expected_count} admitted companies")
+        return
     if len(priority_rows) != expected_count or len(set(priority_ids)) != expected_count or set(priority_ids) != accepted_ids:
         raise ValueError(f"final priority shortlist must contain exactly the admitted {expected_count} companies")
 
@@ -326,8 +332,10 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         raise ValueError("requested campaign config does not match manifest campaign path")
     run_id = str(manifest["run_id"])
     shortlist = _load_csv(shortlist_path)
-    if len(shortlist) != campaign.target_count:
+    if campaign.delivery_policy == "strict" and len(shortlist) != campaign.target_count:
         raise ValueError(f"run requires exactly {campaign.target_count} provisional companies, got {len(shortlist)}")
+    if len(shortlist) < campaign.target_count:
+        raise ValueError(f"run requires at least {campaign.target_count} provisional companies, got {len(shortlist)}")
     recorded_inputs = manifest.get("inputs", {})
     def recorded_path(item: object) -> Path:
         raw = Path(str(item or ""))
@@ -337,8 +345,10 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         raise ValueError("provisional shortlist is not the manifest-bound input")
     accepted_ids = {str(value) for value in manifest.get("accepted_company_ids", [])}
     shortlist_ids = {str(row.get("company_id") or "") for row in shortlist}
-    if accepted_ids != shortlist_ids or len(accepted_ids) != campaign.target_count:
+    if campaign.delivery_policy == "strict" and (accepted_ids != shortlist_ids or len(accepted_ids) != campaign.target_count):
         raise ValueError(f"manifest accepted company scope does not exactly match the provisional {campaign.target_count}-company shortlist")
+    if not shortlist_ids.issubset(accepted_ids) or len(accepted_ids) < campaign.target_count:
+        raise ValueError("manifest accepted company scope must cover the provisional shortlist and target count")
     fixture_inputs = _fixture_inputs(root, shortlist, run_id) if fixture else {
         name: root / relative_path for name, relative_path in campaign.input_bindings.items()
     }
@@ -358,6 +368,8 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     queue_dir = root / "evidence" / "queues" / run_id
     company_rows = {str(row.get("company_id") or ""): row for row in _load_csv(fixture_inputs["companies"]) if row.get("company_id")}
     required_location_evidence = str(campaign.qualification.get("berlin_relevance") or "").strip() or None
+    if campaign.delivery_policy == "personal":
+        required_location_evidence = None
     queues = {}
     for lane in campaign.lanes:
         queue_path = queue_dir / f"{lane}.jsonl"
@@ -374,7 +386,11 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         )
     admitted_items = [item for lane in campaign.lanes for item in queues[lane]]
     domain_by_company = {str(item["company_id"]): str(item["trusted_domain"]) for item in admitted_items}
-    update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, registries={"execution_mode": "fixture" if fixture else "production", "admitted_work_items": admitted_items, "source_policy": {"allowed_domains": sorted(set(domain_by_company.values())), "company_domains": domain_by_company}}, status="queued", barriers={"provisional_shortlist": True})
+    source_policy = {"allowed_domains": sorted(set(domain_by_company.values())), "company_domains": domain_by_company}
+    configured_source_policy = campaign.adapter_policy.get("source_policy")
+    if isinstance(configured_source_policy, dict):
+        source_policy.update(configured_source_policy)
+    update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, registries={"execution_mode": "fixture" if fixture else "production", "delivery_policy": campaign.delivery_policy, "admitted_work_items": admitted_items, "source_policy": source_policy}, status="queued", barriers={"provisional_shortlist": True})
     from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs
     if fixture:
         results = dispatch_fixture_lanes(queues, run_id, root / "evidence" / "candidate" / run_id)
@@ -382,7 +398,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         worker_config = NativeExecutorConfig(worker_executable, worker_profile, adapter_args=worker_adapter_args)
         results = {lane: dispatch_native_lane(queues[lane], run_id, lane, root / "evidence" / "candidate" / run_id / lane, worker_config, command_builder=_native_command_builder) for lane in queues}
     for lane, records in results.items():
-        reconcile_lane_outputs(records, queues[lane], run_id, lane)
+        reconcile_lane_outputs(records, queues[lane], run_id, lane, allow_partial=campaign.delivery_policy == "personal")
     research_runs, claims = _worker_payloads(results, queues)
     candidate_path = root / "evidence" / "candidate" / run_id / "claims.jsonl"
     decision_path = root / "evidence" / "verifier" / run_id / "decisions.jsonl"
@@ -390,7 +406,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     decision_path.parent.mkdir(parents=True, exist_ok=True)
     _write_jsonl(candidate_path, claims)
     verifier_run_id = f"{run_id}:verifier"
-    verifier_capability = "replay" if fixture else "structural_validation"
+    verifier_capability = "replay" if fixture else str(campaign.adapter_policy.get("verification_mode") or "structural_validation")
     if fixture:
         decisions = _fixture_decisions(claims, run_id)
     else:
@@ -410,7 +426,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
         verifier_results = dispatch_native_lane(verifier_queue, run_id, "verifier", root / "evidence" / "verifier" / run_id / "outputs", verifier_config, command_builder=verifier_command_builder)
-        reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier")
+        reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
         decisions = []
         for record in verifier_results:
             if record.get("status") != "succeeded":
@@ -434,7 +450,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     promote_verified_claims(candidate_path, decision_path, verified_path, manifest_path)
     update_manifest_file(manifest_path, root, outputs={"verified_evidence": verified_path}, status="evidence_promoted", barriers={"verified_evidence": True})
     from canonical_projection import project_verified_evidence
-    canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root)
+    canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root, delivery_policy=campaign.delivery_policy)
     scoring_audit = root / "evidence" / "reports" / run_id / "scoring_audit.csv"
     scripts_dir = Path(__file__).resolve().parent
     score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit)]
@@ -445,7 +461,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     qualification = {row["company_id"]: row for row in _load_records_jsonl(canonical["qualification"])}
     from select_for_enrichment import select_accounts, write_provisional_shortlist
     priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, accepted_ids)
-    validate_final_priority_rows(priority_rows, accepted_ids, campaign.target_count)
+    validate_final_priority_rows(priority_rows, accepted_ids, campaign.target_count, campaign.delivery_policy)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"
     shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
     write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)

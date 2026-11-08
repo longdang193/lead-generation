@@ -58,22 +58,32 @@ def project_verified_evidence(
     run_id: str,
     manifest_path: Path | None = None,
     root: Path | None = None,
+    delivery_policy: str = "strict",
 ) -> dict[str, Path]:
     claims = sorted(load_records(promoted_path), key=lambda row: str(row.get("candidate_claim_id") or ""))
     by_company: dict[str, list[dict[str, object]]] = defaultdict(list)
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, str]] = set()
     for claim in claims:
         if claim.get("candidate_status") != "Verified":
             raise ValueError("canonical projection accepts only Verified claims")
         if not run_scope_matches(claim.get("verifier_run_id"), run_id):
             raise ValueError(f"claim is outside active run: {claim.get('candidate_claim_id')}")
-        key = (str(claim.get("company_id") or ""), str(claim.get("claim_type") or ""))
-        if not key[0] or not key[1]:
+        company_id = str(claim.get("company_id") or "")
+        claim_type = str(claim.get("claim_type") or "")
+        value = _claim_value(claim)
+        if claim_type == "event" and isinstance(value, dict):
+            stable_value = value.get("event_id") or claim.get("candidate_claim_id")
+        elif claim_type == "contact":
+            stable_value = (claim.get("person_name"), claim.get("email"), claim.get("source_url"))
+        else:
+            stable_value = claim.get("candidate_claim_id")
+        key = (company_id, claim_type, json.dumps(stable_value, ensure_ascii=False, sort_keys=True, default=str))
+        if not company_id or not claim_type:
             raise ValueError("verified claim lacks company_id or claim_type")
         if key in seen:
             raise ValueError(f"duplicate canonical claim: {key[0]}:{key[1]}")
         seen.add(key)
-        by_company[key[0]].append(claim)
+        by_company[company_id].append(claim)
 
     qualification = load_records(base_qualification_path)
     qualification = sorted(qualification, key=lambda row: str(row.get("company_id") or ""))
@@ -92,6 +102,13 @@ def project_verified_evidence(
                 urls.append(str(claim["source_url"]))
         if urls:
             row["evidence_urls"] = " | ".join(sorted(set(url for url in urls if url)))
+        if "eligible" not in row:
+            trusted_domain = str(row.get("verified_company_domain") or row.get("domain") or "").strip()
+            resolution = str(row.get("resolution_status") or "").strip()
+            relevance = str(row.get("berlin_relevance") or "").strip()
+            row["eligible"] = resolution == "Accepted" and bool(trusted_domain) and (
+                relevance == "Confirmed" or (delivery_policy == "personal" and relevance == "Probable")
+            )
         row["projection_run_id"] = run_id
 
     scores = sorted(load_records(base_scores_path), key=lambda row: str(row.get("company_id") or ""))
@@ -157,19 +174,23 @@ def project_verified_evidence(
         row["projection_run_id"] = run_id
 
     contacts = sorted(load_records(base_contacts_path), key=lambda row: str(row.get("company_id") or ""))
+    projected_contacts: list[dict[str, object]] = []
     for row in contacts:
         company_id = str(row.get("company_id") or "")
         contact_claims = [claim for claim in by_company.get(company_id, []) if claim.get("claim_type") == "contact"]
-        if contact_claims:
-            claim = contact_claims[0]
-            row["contact_name"] = claim.get("person_name") or row.get("contact_name", "Unknown")
-            row["contact_role"] = claim.get("role") or row.get("contact_role", "Unknown")
-            row["contact_email"] = claim.get("email") or row.get("contact_email", "Unknown")
-            row["email_source"] = claim.get("source_url") or row.get("email_source", "Unknown")
-            row["verification_status"] = "Verified"
-            verified_at = str(claim.get("verified_at") or row.get("last_verified", "Unknown"))
-            row["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
-        row["projection_run_id"] = run_id
+        for claim in contact_claims or [None]:
+            projected = dict(row)
+            if claim:
+                projected["contact_name"] = claim.get("person_name") or projected.get("contact_name", "Unknown")
+                projected["contact_role"] = claim.get("role") or projected.get("contact_role", "Unknown")
+                projected["contact_email"] = claim.get("email") or projected.get("contact_email", "Unknown")
+                projected["email_source"] = claim.get("source_url") or projected.get("email_source", "Unknown")
+                projected["verification_status"] = "Verified"
+                verified_at = str(claim.get("verified_at") or projected.get("last_verified", "Unknown"))
+                projected["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
+            projected["projection_run_id"] = run_id
+            projected_contacts.append(projected)
+    contacts = projected_contacts
 
     outputs = {
         "qualification": output_dir / "qualification.jsonl",

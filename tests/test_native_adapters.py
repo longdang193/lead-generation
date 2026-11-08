@@ -56,6 +56,24 @@ class NativeAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 reconcile_lane_outputs(records, [item], "run-1", "signals")
 
+    def test_personal_reconciliation_keeps_successful_outputs_when_one_worker_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
+
+            def command_builder(item, output_path, config):
+                if item["company_id"] == "C2":
+                    return [sys.executable, "-c", "raise SystemExit(1)"]
+                return [sys.executable, "-c", "from pathlib import Path; import json,sys; Path(sys.argv[1]).write_text(json.dumps({'research_run': {'run_id': 'run-1:signals:C1', 'campaign_id': 'campaign-1', 'company_id': 'C1', 'scope': 'signals:C1', 'scope_version': 'v1', 'scope_hash': 'hash'}, 'claims': []}))", str(output_path)]
+
+            queue = [
+                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"},
+                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C2", "lane": "signals", "scope": "signals:C2", "scope_version": "v1", "scope_hash": "hash"},
+            ]
+            records = dispatch_native_lane(queue, "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1), command_builder=command_builder)
+            self.assertEqual([record["status"] for record in records], ["succeeded", "failed"])
+            reconcile_lane_outputs(records, queue, "run-1", "signals", allow_partial=True)
+
     def test_verifier_reconciliation_rejects_foreign_decision(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -97,8 +115,8 @@ class NativeAdapterTests(unittest.TestCase):
             ], check=False, capture_output=True, text=True)
             self.assertEqual(worker.returncode, 0, worker.stderr)
             payload = json.loads(worker_output.read_text(encoding="utf-8"))
-            self.assertEqual(payload["research_run"]["status"], "Completed")
-            self.assertEqual(payload["research_run"]["provider_status"], "Available")
+            self.assertEqual(payload["research_run"]["status"], "Not searched")
+            self.assertEqual(payload["research_run"]["provider_status"], "Unavailable")
             self.validate_research_run(payload["research_run"])
             verifier_input = root / "claims.jsonl"
             verifier_input.write_text("", encoding="utf-8")

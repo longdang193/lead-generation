@@ -90,6 +90,26 @@ class CanonicalProjectionTests(unittest.TestCase):
             self.assertEqual(audit["search_status"], "Unavailable")
             self.assertEqual(audit["signal_state"], "Unknown")
 
+    def test_projection_keeps_multiple_event_claims_for_one_company(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claims = []
+            for index in (1, 2):
+                claim = {
+                    "record_type": "EvidenceClaim", "candidate_claim_id": f"event-claim-{index}", "company_id": "C1", "claim_type": "event",
+                    "claim_value": {"event_id": f"E{index}", "publication_date": f"2026-11-0{index}", "deadline": None}, "source_url": f"https://ted.europa.eu/{index}",
+                    "source_kind": "procurement", "evidence_excerpt": f"Event {index}", "retrieved_at": "2026-11-08T10:00:00+00:00", "published_at": f"2026-11-0{index}",
+                    "account_relationship": "directory", "confidence": "high", "research_run_id": "run-1:signals:C1", "candidate_status": "Verified", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00",
+                }
+                claims.append(claim)
+            (root / "promoted.jsonl").write_text("\n".join(json.dumps(claim) for claim in claims) + "\n", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name\nC1,Unknown\n", encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
+            events = json.loads(outputs["events"].read_text(encoding="utf-8"))
+            self.assertEqual([event["event_id"] for event in events], ["E1", "E2"])
+
 
 if __name__ == "__main__":
     unittest.main()

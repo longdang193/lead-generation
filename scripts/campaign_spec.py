@@ -15,10 +15,9 @@ REQUIRED_FIELDS = (
     "input_bindings",
     "lanes",
     "adapter_policy",
-    "scoring_profile",
-    "export_profile",
-    "qa_profile",
 )
+
+DELIVERY_POLICIES = {"personal", "strict"}
 
 
 def _resolve_under_root(root: Path, path: Path) -> Path:
@@ -55,9 +54,7 @@ class CampaignSpec:
     input_bindings: dict[str, str]
     lanes: tuple[str, ...]
     adapter_policy: dict[str, Any]
-    scoring_profile: str
-    export_profile: str
-    qa_profile: str
+    delivery_policy: str
     normalized: dict[str, Any]
     normalized_json: str
     sha256: str
@@ -74,6 +71,7 @@ class CampaignSpec:
             "path": self.relative_path,
             "sha256": self.sha256,
             "normalized": self.normalized,
+            "delivery_policy": self.delivery_policy,
         }
 
 
@@ -111,6 +109,7 @@ def admit_work_item(
     lane: str,
     *,
     require_trusted_identity: bool = False,
+    require_confirmed_location: bool = True,
     required_location_evidence: str | None = None,
 ) -> AdmittedWorkItem:
     company_id = str(row.get("company_id") or "").strip()
@@ -121,7 +120,7 @@ def admit_work_item(
         raise ValueError(f"shortlist company lacks trusted domain: {company_id}")
     trusted_domain = trusted_value or str(row.get("domain") or "").strip()
     location = str(row.get("city") or "").strip()
-    if require_trusted_identity and not location:
+    if require_trusted_identity and require_confirmed_location and not location:
         raise ValueError(f"shortlist company lacks confirmed city: {company_id}")
     if required_location_evidence and str(row.get("berlin_relevance") or "").strip() != required_location_evidence:
         raise ValueError(f"shortlist company lacks {required_location_evidence.lower()} location evidence: {company_id}")
@@ -180,9 +179,9 @@ def load_campaign_spec(root: Path, path: Path) -> CampaignSpec:
         raise ValueError("campaign lanes must be unique")
     if not isinstance(adapter_policy, dict):
         raise ValueError("campaign adapter_policy must be an object")
-    scoring_profile = _require_text(raw["scoring_profile"], "scoring_profile")
-    export_profile = _require_text(raw["export_profile"], "export_profile")
-    qa_profile = _require_text(raw["qa_profile"], "qa_profile")
+    delivery_policy = str(raw.get("delivery_policy") or "strict").strip().lower()
+    if delivery_policy not in DELIVERY_POLICIES:
+        raise ValueError(f"campaign delivery_policy must be one of: {', '.join(sorted(DELIVERY_POLICIES))}")
 
     normalized = _normalize(raw)
     normalized_json = json.dumps(normalized, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -195,9 +194,7 @@ def load_campaign_spec(root: Path, path: Path) -> CampaignSpec:
         input_bindings={str(key): str(value) for key, value in input_bindings.items()},
         lanes=tuple(str(lane) for lane in lanes),
         adapter_policy=adapter_policy,
-        scoring_profile=scoring_profile,
-        export_profile=export_profile,
-        qa_profile=qa_profile,
+        delivery_policy=delivery_policy,
         normalized=normalized,
         normalized_json=normalized_json,
         sha256=digest,

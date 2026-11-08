@@ -251,6 +251,11 @@ def main() -> int:
     else:
         errors.append("website evidence artifact is missing")
     company_ids = [row.get("company_id") for row in qualification]
+    manifest_scope = set()
+    delivery_policy = "strict"
+    if isinstance(manifest_data, dict):
+        manifest_scope = {str(value) for value in manifest_data.get("accepted_company_ids", []) if str(value)}
+        delivery_policy = str(manifest_data.get("delivery_policy") or "strict")
     duplicates = [item for item, count in Counter(company_ids).items() if item and count > 1]
     if duplicates:
         errors.append(f"duplicate company IDs: {duplicates[:5]}")
@@ -335,12 +340,17 @@ def main() -> int:
         errors.append("priority contains company IDs absent from qualification")
     if len(priority_ids) != len(set(priority_ids)):
         errors.append("priority contains duplicate company IDs")
+    if manifest_scope:
+        if not set(priority_ids).issubset(manifest_scope):
+            errors.append("priority contains company IDs outside the admitted manifest scope")
+        if delivery_policy == "strict" and set(priority_ids) != manifest_scope:
+            errors.append("strict priority scope does not exactly match the admitted manifest scope")
     domains = [str(row.get("domain") or "").lower() for row in qualification if row.get("domain") not in (None, "", "Unknown")]
     duplicate_domains = [item for item, count in Counter(domains).items() if count > 1]
     if duplicate_domains:
         errors.append(f"duplicate accepted domains: {duplicate_domains[:5]}")
     for row in priority:
-        if row.get("berlin_relevance") != "Confirmed":
+        if delivery_policy == "strict" and row.get("berlin_relevance") != "Confirmed":
             errors.append(f"priority row lacks confirmed Berlin eligibility: {row.get('company_id')}")
     sample = priority[:10] + [row for row in qualification if row not in priority][:1]
     args.sample_output.parent.mkdir(parents=True, exist_ok=True)
