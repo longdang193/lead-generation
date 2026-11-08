@@ -110,6 +110,20 @@ class CanonicalProjectionTests(unittest.TestCase):
             events = json.loads(outputs["events"].read_text(encoding="utf-8"))
             self.assertEqual([event["event_id"] for event in events], ["E1", "E2"])
 
+    def test_projection_replaces_base_contacts_without_cross_person_inheritance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claims = []
+            for claim_id, person, email in (("contact-1", "Alice Smith", "alice@example.de"), ("contact-2", "Bob Jones", None)):
+                claims.append({"record_type": "EvidenceClaim", "candidate_claim_id": claim_id, "company_id": "C1", "claim_type": "contact", "claim_value": person, "person_name": person, "role": "Owner", "email": email, "company_affiliation": "Example", "source_url": "https://example.de/contact", "source_kind": "official", "evidence_excerpt": person, "retrieved_at": "2026-11-08T10:00:00+00:00", "account_relationship": "direct", "confidence": "high", "research_run_id": "run-1:contacts:C1", "candidate_status": "Verified", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"})
+            (root / "promoted.jsonl").write_text("\n".join(json.dumps(claim) for claim in claims) + "\n", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name,contact_email\nC1,Legacy Alice,alice@example.de\nC1,Legacy Bob,bob@example.de\n", encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
+            contacts = list(csv.DictReader(outputs["contacts"].open(encoding="utf-8", newline="")))
+            self.assertEqual([(row["contact_name"], row["contact_email"]) for row in contacts], [("Alice Smith", "alice@example.de"), ("Bob Jones", "Unknown")])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -334,7 +334,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     shortlist = _load_csv(shortlist_path)
     if campaign.delivery_policy == "strict" and len(shortlist) != campaign.target_count:
         raise ValueError(f"run requires exactly {campaign.target_count} provisional companies, got {len(shortlist)}")
-    if len(shortlist) < campaign.target_count:
+    if campaign.delivery_policy == "strict" and len(shortlist) < campaign.target_count:
         raise ValueError(f"run requires at least {campaign.target_count} provisional companies, got {len(shortlist)}")
     recorded_inputs = manifest.get("inputs", {})
     def recorded_path(item: object) -> Path:
@@ -347,8 +347,8 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     shortlist_ids = {str(row.get("company_id") or "") for row in shortlist}
     if campaign.delivery_policy == "strict" and (accepted_ids != shortlist_ids or len(accepted_ids) != campaign.target_count):
         raise ValueError(f"manifest accepted company scope does not exactly match the provisional {campaign.target_count}-company shortlist")
-    if not shortlist_ids.issubset(accepted_ids) or len(accepted_ids) < campaign.target_count:
-        raise ValueError("manifest accepted company scope must cover the provisional shortlist and target count")
+    if not shortlist_ids.issubset(accepted_ids):
+        raise ValueError("manifest accepted company scope must cover the provisional shortlist")
     fixture_inputs = _fixture_inputs(root, shortlist, run_id) if fixture else {
         name: root / relative_path for name, relative_path in campaign.input_bindings.items()
     }

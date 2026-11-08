@@ -67,7 +67,7 @@ class EvidencePromotionTests(unittest.TestCase):
                 ("ted-claim", "https://ted.europa.eu/notice/1", "procurement"),
             ):
                 claim = self.claim()
-                claim.update({"candidate_claim_id": claim_id, "research_run_id": "run-1:signals:company-1", "source_url": source_url, "source_kind": source_kind})
+                claim.update({"candidate_claim_id": claim_id, "research_run_id": "run-1:signals:company-1", "source_url": source_url, "source_kind": source_kind, "claim_type": "event" if source_kind == "procurement" else claim["claim_type"], "published_at": "2026-11-08T00:00:00+00:00" if source_kind == "procurement" else None})
                 claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
                 claims.append(claim)
             decisions = [{"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["source_bound"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"} for claim in claims]
@@ -75,13 +75,40 @@ class EvidencePromotionTests(unittest.TestCase):
             candidates_path.write_text("\n".join(json.dumps(claim) for claim in claims) + "\n", encoding="utf-8")
             decisions_path.write_text("\n".join(json.dumps(decision) for decision in decisions) + "\n", encoding="utf-8")
             manifest_path.write_text(json.dumps({
-                "run_id": "run-1", "delivery_policy": "personal", "accepted_company_ids": ["company-1"],
+                "run_id": "run-1", "delivery_policy": "personal", "execution_mode": "fixture", "accepted_company_ids": ["company-1"],
                 "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}},
                 "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier", "capability": "structural_validation"}},
                 "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}, "company_domain_aliases": {"company-1": ["portal.example.de"]}, "approved_external_domains": ["ted.europa.eu"], "external_source_kinds": ["procurement"]},
             }), encoding="utf-8")
             promoted = promote_verified_claims(candidates_path, decisions_path, output_path, manifest_path)
             self.assertEqual({claim["candidate_claim_id"] for claim in promoted}, {"alias-claim", "ted-claim"})
+
+    def test_personal_replay_claims_are_quarantined_instead_of_verified(self):
+        claim = self.claim()
+        claim.update({"research_run_id": "run-1:signals:company-1"})
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["native_contract"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = (root / name for name in ("candidates.jsonl", "decisions.jsonl", "promoted.jsonl", "active_run.json"))
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "delivery_policy": "personal", "execution_mode": "production", "accepted_company_ids": ["company-1"], "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1", "adapter_capability": "replay", "status": "Not searched", "provider_status": "Unavailable"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier", "capability": "structural_validation"}}, "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}}}), encoding="utf-8")
+            promoted = promote_verified_claims(candidates, decisions, output, manifest)
+            self.assertEqual(promoted, [])
+            self.assertIn("research_assurance", output.parent.joinpath("quarantine.jsonl").read_text(encoding="utf-8"))
+
+    def test_external_source_is_not_authorized_for_company_fact_claim(self):
+        claim = self.claim()
+        claim.update({"research_run_id": "run-1:signals:company-1", "source_url": "https://ted.europa.eu/notice/1", "source_kind": "procurement"})
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = (root / name for name in ("candidates.jsonl", "decisions.jsonl", "promoted.jsonl", "active_run.json"))
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text("", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "delivery_policy": "personal", "execution_mode": "fixture", "accepted_company_ids": ["company-1"], "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}}, "verifier_runs": {}, "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}, "approved_external_domains": ["ted.europa.eu"], "external_source_kinds": ["procurement"]}}), encoding="utf-8")
+            self.assertEqual(promote_verified_claims(candidates, decisions, output, manifest), [])
 
     def test_active_run_rejects_cross_run_claim(self):
         with tempfile.TemporaryDirectory() as directory:

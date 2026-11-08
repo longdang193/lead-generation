@@ -175,21 +175,28 @@ def project_verified_evidence(
 
     contacts = sorted(load_records(base_contacts_path), key=lambda row: str(row.get("company_id") or ""))
     projected_contacts: list[dict[str, object]] = []
+    rows_by_company: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in contacts:
-        company_id = str(row.get("company_id") or "")
+        rows_by_company[str(row.get("company_id") or "")].append(row)
+    contact_company_ids = sorted(set(rows_by_company) | {str(claim.get("company_id") or "") for claims_for_company in by_company.values() for claim in claims_for_company if claim.get("claim_type") == "contact"})
+    for company_id in contact_company_ids:
+        base_rows = rows_by_company.get(company_id, [{"company_id": company_id}])
+        row = base_rows[0]
         contact_claims = [claim for claim in by_company.get(company_id, []) if claim.get("claim_type") == "contact"]
         for claim in contact_claims or [None]:
             projected = dict(row)
             if claim:
-                projected["contact_name"] = claim.get("person_name") or projected.get("contact_name", "Unknown")
-                projected["contact_role"] = claim.get("role") or projected.get("contact_role", "Unknown")
-                projected["contact_email"] = claim.get("email") or projected.get("contact_email", "Unknown")
-                projected["email_source"] = claim.get("source_url") or projected.get("email_source", "Unknown")
+                projected["contact_name"] = claim.get("person_name") or "Unknown"
+                projected["contact_role"] = claim.get("role") or "Unknown"
+                projected["contact_email"] = claim.get("email") or "Unknown"
+                projected["email_source"] = claim.get("source_url") or "Unknown"
                 projected["verification_status"] = "Verified"
-                verified_at = str(claim.get("verified_at") or projected.get("last_verified", "Unknown"))
+                verified_at = str(claim.get("verified_at") or "Unknown")
                 projected["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
             projected["projection_run_id"] = run_id
             projected_contacts.append(projected)
+        if not contact_claims:
+            projected_contacts.extend(dict(base_row, projection_run_id=run_id) for base_row in base_rows)
     contacts = projected_contacts
 
     outputs = {

@@ -87,7 +87,7 @@ def _source_allowed(source_url: object, policy: dict[str, object], company_id: s
         return True
     external_domains = {str(item).lower().removeprefix("www.") for item in policy.get("approved_external_domains", []) if str(item).strip()}
     external_kinds = {str(item).lower() for item in policy.get("external_source_kinds", [])}
-    return source_kind.lower() in external_kinds and any(hostname == domain or hostname.endswith(f".{domain}") for domain in external_domains)
+    return claim_type in {"buying_signal", "event"} and source_kind.lower() in external_kinds and any(hostname == domain or hostname.endswith(f".{domain}") for domain in external_domains)
 
 
 def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_path: Path, run_manifest: Path | None = None) -> list[dict[str, object]]:
@@ -122,6 +122,11 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             raise ValueError(f"candidate research run is not registered: {claim_id}")
         if active_run_id and research_registry[str(claim["research_run_id"])].get("company_id") != claim.get("company_id"):
             raise ValueError(f"candidate research run is bound to another company: {claim_id}")
+        if active_run_id and delivery_policy == "personal" and str(manifest.get("execution_mode") or "production") != "fixture":
+            research_run = research_registry[str(claim["research_run_id"])]
+            if research_run.get("adapter_capability") != "live_research" or research_run.get("status") != "Completed" or research_run.get("provider_status") != "Available":
+                quarantined.append({"claim": claim, "reason": "research_assurance"})
+                continue
         if active_run_id and not _source_allowed(claim.get("source_url"), source_policy, str(claim.get("company_id") or ""), claim_type=str(claim.get("claim_type") or ""), source_kind=str(claim.get("source_kind") or "")):
             if delivery_policy == "personal":
                 quarantined.append({"claim": claim, "reason": "source_policy"})
