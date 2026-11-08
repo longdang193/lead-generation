@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+from lead_contract import actionability_for, sales_priority_for, signal_rank
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
 
@@ -33,6 +34,35 @@ def value(field: str, record: dict[str, object]) -> float | None:
     return None
 
 
+def parse_date(value: object) -> date | None:
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def classify_signal(event_rows: list[dict[str, object]]) -> str:
+    if not event_rows:
+        return "None found"
+    today = datetime.now(timezone.utc).date()
+    ranks = []
+    for event in event_rows:
+        published = parse_date(event.get("publication_date"))
+        deadline = parse_date(event.get("deadline"))
+        if deadline and deadline < today:
+            ranks.append(2)
+            continue
+        if published is None:
+            ranks.append(3)
+        elif published >= today - timedelta(days=180):
+            ranks.append(4)
+        elif published >= today - timedelta(days=365):
+            ranks.append(3)
+        else:
+            ranks.append(2)
+    return {4: "Strong", 3: "Medium", 2: "Weak"}[max(ranks)]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--qualification", type=Path, required=True)
@@ -42,9 +72,27 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path, required=True)
     args = parser.parse_args()
-    records = [json.loads(line) for line in args.qualification.read_text(encoding="utf-8").splitlines() if line.strip()]
+    records = []
+    for line in args.qualification.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        if record.get("resolution_status", "Accepted") != "Review":
+            records.append(record)
+    event_payload = json.loads(args.events.read_text(encoding="utf-8")) if args.events.exists() else []
+    if isinstance(event_payload, dict):
+        events = event_payload.get("items") or event_payload.get("events") or []
+        provider_unavailable = str(event_payload.get("status", "")).lower() == "unavailable"
+    else:
+        events = event_payload if isinstance(event_payload, list) else []
+        provider_unavailable = False
+    events_by_id = {str(event.get("event_id")): event for event in events if isinstance(event, dict) and event.get("event_id")}
     links = list(csv.DictReader(args.event_links.open(encoding="utf-8-sig", newline=""))) if args.event_links.exists() else []
-    linked_by_company = {row.get("company_id", "") for row in links if row.get("match_confidence") == "Verified"}
+    links_by_company: dict[str, list[dict[str, object]]] = {}
+    for link in links:
+        if link.get("match_confidence") == "Verified":
+            links_by_company.setdefault(link.get("company_id", ""), []).append(events_by_id.get(link.get("event_id", ""), link))
+    search_status = "Unavailable" if provider_unavailable else "Searched" if args.events.exists() else "Not searched"
     scores: list[dict[str, object]] = []
     audits: list[dict[str, object]] = []
     for record in records:
@@ -65,9 +113,12 @@ def main() -> int:
             tier = "B"
         else:
             tier = "C"
-        signal = "Strong" if record.get("company_id") in linked_by_company else "Unknown"
-        actionability = "Unknown"
-        sales_priority = "Research" if tier in {"A", "B"} else "Defer"
+        matched_events = links_by_company.get(record.get("company_id", ""), [])
+        signal = "Unknown" if search_status in {"Unavailable", "Not searched"} else classify_signal(matched_events)
+        actionability = actionability_for(tier, coverage, signal)
+        sales_priority = sales_priority_for(actionability, tier)
+        signal_urls = [str(event.get("source_url")) for event in matched_events if event.get("source_url") not in (None, "", "Unknown")]
+        signal_event_ids = [str(event.get("event_id")) for event in matched_events if event.get("event_id")]
         scores.append({
             "company_id": record.get("company_id", ""),
             "company_name": record.get("company_name", ""),
@@ -81,14 +132,16 @@ def main() -> int:
             "structural_lead_fit": round(fit, 2) if fit is not None else "Unknown",
             "evidence_coverage": coverage,
             "buying_signal": signal,
-            "signal_search_status": "Unavailable" if signal == "Unknown" else "Searched",
+            "signal_search_status": search_status,
             "actionability": actionability,
             "sales_priority": sales_priority,
             "lead_tier": tier,
             "evidence_urls": " | ".join(record.get("evidence_urls", [])),
+            "buying_signal_event_ids": " | ".join(signal_event_ids),
+            "buying_signal_evidence_urls": " | ".join(signal_urls),
             "retrieved_at": record.get("retrieved_at", stamp()),
         })
-        audits.append({"company_id": record.get("company_id", ""), "service_weight": 35, "residential_weight": 30, "portfolio_weight": 25, "geography_weight": 10, "observed_weight": observed_weight, "structural_lead_fit": fit if fit is not None else "Unknown", "evidence_coverage": coverage, "tier": tier, "buying_signal": signal, "actionability": actionability, "sales_priority": sales_priority, "calculated_at": stamp()})
+        audits.append({"company_id": record.get("company_id", ""), "service_weight": 35, "residential_weight": 30, "portfolio_weight": 25, "geography_weight": 10, "observed_weight": observed_weight, "structural_lead_fit": fit if fit is not None else "Unknown", "evidence_coverage": coverage, "tier": tier, "buying_signal": signal, "signal_search_status": search_status, "actionability": actionability, "sales_priority": sales_priority, "signal_rank": signal_rank(signal), "calculated_at": stamp()})
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8", newline="") as handle:
         fields = list(scores[0]) if scores else ["company_id", "lead_tier"]

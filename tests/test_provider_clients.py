@@ -73,7 +73,11 @@ class ProviderClientTests(unittest.TestCase):
             path = Path(directory) / "apify.json"
             path.write_text(json.dumps({"items": [{"company_name": "Example", "source_url": "https://example.com", "source_record_id": "1"}]}), encoding="utf-8")
             rows = read_rows(path, "Apify")
-        self.assertEqual(rows, [{"company_name": "Example", "source_url": "https://example.com", "source_type": "Apify", "source_record_id": "1"}])
+        self.assertEqual(rows[0]["company_name"], "Example")
+        self.assertEqual(rows[0]["source_url"], "https://example.com")
+        self.assertEqual(rows[0]["source_type"], "Apify")
+        self.assertEqual(rows[0]["source_record_id"], "1")
+        self.assertIn("discovery_source_url", rows[0])
 
     def test_qa_provider_limitation_reflects_configured_credentials(self):
         configured = RuntimeConfig(apify_api_token="token", hunter_api_key="key", ted_api_base_url="https://ted.example")

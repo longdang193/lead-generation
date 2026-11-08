@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
+from lead_contract import is_generic_mailbox, is_plausible_full_name, priority_rank, signal_rank, tier_rank
 from provider_clients import ProviderError, hunter_domain_search
 
 
@@ -54,10 +55,11 @@ def fetch_hunter_contact(domain: str, config: RuntimeConfig) -> tuple[str, str, 
     item = candidates[0]
     verification = item.get("verification") if isinstance(item.get("verification"), dict) else {}
     status = str(verification.get("status") or "Unverified")
-    email_status = "Verified" if status.lower() in {"valid", "accept_all"} else "Unverified"
+    email_status = "Verified" if status.lower() == "valid" else "Unverified"
     sources = item.get("sources") if isinstance(item.get("sources"), list) else []
     source_url = sources[0].get("uri") if sources and isinstance(sources[0], dict) else ""
-    return str(item.get("first_name") or ""), str(item.get("value")), source_url, email_status
+    full_name = " ".join(part for part in (str(item.get("first_name") or ""), str(item.get("last_name") or "")) if part).strip()
+    return full_name, str(item.get("value")), source_url, email_status
 
 
 def main() -> int:
@@ -72,26 +74,31 @@ def main() -> int:
     config = RuntimeConfig.from_env()
     with args.scores.open(encoding="utf-8-sig", newline="") as handle:
         scores = list(csv.DictReader(handle))
-    def sort_key(row: dict[str, str]) -> tuple[int, float, float]:
-        priority = 0 if row.get("sales_priority") == "Pursue" else 1
+    def sort_key(row: dict[str, str]) -> tuple[int, int, float, float, float, int, str]:
         fit = float(row["structural_lead_fit"]) if row.get("structural_lead_fit") not in (None, "", "Unknown") else -1
         coverage = float(row["evidence_coverage"]) if row.get("evidence_coverage") not in (None, "", "Unknown") else -1
-        return priority, -fit, -coverage
+        portfolio = float(row["portfolio_potential"]) if row.get("portfolio_potential") not in (None, "", "Unknown") else -1
+        return priority_rank(row.get("sales_priority")), tier_rank(row.get("lead_tier")), -coverage, -fit, -portfolio, -signal_rank(row.get("buying_signal")), row.get("company_id", "")
     shortlist = sorted(scores, key=sort_key)[: args.max_priority_accounts]
     priority_rows = []
     contacts = []
     evidence = []
     for row in shortlist:
         person, email, evidence_url = fetch_contacts(row.get("source_url", ""), config)
+        if not is_plausible_full_name(person):
+            person = ""
         email_status = "Published" if email else "Not found"
         hunter_person, hunter_email, hunter_source, hunter_status = fetch_hunter_contact(row.get("domain", ""), config)
-        if hunter_email and (not email or hunter_status == "Verified"):
+        if hunter_email and not email:
             person = hunter_person or person
             email = hunter_email
             evidence_url = hunter_source or evidence_url or row.get("source_url", "")
             email_status = hunter_status
-        priority_rows.append({**row, "priority_reason": "Highest structural fit and evidence coverage available", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact and buying signal unavailable" if not email else "Buying signal unavailable", "next_action": "Review official contact page and validate outreach owner"})
-        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": "Unknown" if not person else "Publicly named management/contact", "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
+        if email and is_generic_mailbox(email) and email_status == "Verified":
+            email_status = "Published"
+        contact_role = "Publicly named management/contact" if person else "Unknown"
+        priority_rows.append({**row, "priority_reason": "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order", "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
+        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})
     for path, rows, fallback in [(args.priority_output, priority_rows, ["company_id", "lead_tier"]), (args.contacts_output, contacts, ["company_id", "contact_email"]), (args.evidence_output, evidence, ["company_id", "source_url"])]:
         path.parent.mkdir(parents=True, exist_ok=True)

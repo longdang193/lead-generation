@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from openpyxl import Workbook
@@ -11,6 +13,14 @@ from openpyxl.formatting.rule import ColorScaleRule
 from runtime_config import RuntimeConfig, provider_limitation
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -57,6 +67,7 @@ def main() -> int:
     parser.add_argument("--sources", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--build-report", type=Path, required=True)
+    parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
     args = parser.parse_args()
     companies = read_csv(args.companies)
     scores = read_csv(args.scores)
@@ -98,6 +109,31 @@ def main() -> int:
     report = {"sheets": wb.sheetnames, "counts": {"companies": len(companies), "scores": len(scores), "priority": len(priority), "contacts": len(contacts), "sources": len(sources)}}
     args.build_report.parent.mkdir(parents=True, exist_ok=True)
     args.build_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    inputs = {name: {"path": str(path), "sha256": file_sha256(path)} for name, path in {
+        "companies": args.companies,
+        "scores": args.scores,
+        "priority": args.priority,
+        "contacts": args.contacts,
+        "sources": args.sources,
+    }.items() if path.exists()}
+    generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    run_seed = "|".join(item["sha256"] for item in inputs.values()) + generated_at
+    run_id = "lead-" + hashlib.sha256(run_seed.encode("utf-8")).hexdigest()[:16]
+    report["run_id"] = run_id
+    args.build_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    manifest = {
+        "run_id": run_id,
+        "generated_at": generated_at,
+        "config_version": "lead-generation-contract-v2",
+        "inputs": inputs,
+        "outputs": {
+            "workbook": {"path": str(args.output), "sha256": file_sha256(args.output)},
+            "build_report": {"path": str(args.build_report), "sha256": file_sha256(args.build_report)},
+        },
+        "counts": report["counts"],
+    }
+    args.run_manifest.parent.mkdir(parents=True, exist_ok=True)
+    args.run_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0
 

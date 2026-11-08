@@ -7,10 +7,11 @@
     "05_Methodology_Sources"
   ],
   "counts": {
-    "companies": 311,
-    "scores": 311,
+    "companies": 323,
+    "scores": 213,
     "priority": 30,
     "contacts": 30,
     "sources": 3
-  }
+  },
+  "run_id": "lead-63856dbb52757423"
 }
