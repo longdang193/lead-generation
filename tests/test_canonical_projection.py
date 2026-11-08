@@ -125,5 +125,15 @@ class CanonicalProjectionTests(unittest.TestCase):
             self.assertEqual([(row["contact_name"], row["contact_email"]) for row in contacts], [("Alice Smith", "alice@example.de"), ("Bob Jones", "Unknown")])
 
 
+    def test_projection_preserves_base_contacts_once_without_promoted_contact_claims(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "promoted.jsonl").write_text("", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name,contact_email\nC1,Alice,alice@example.de\nC1,Bob,bob@example.de\n", encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
+            contacts = list(csv.DictReader(outputs["contacts"].open(encoding="utf-8", newline="")))
+            self.assertEqual([(row["contact_name"], row["contact_email"]) for row in contacts], [("Alice", "alice@example.de"), ("Bob", "bob@example.de")])
 if __name__ == "__main__":
     unittest.main()

@@ -183,9 +183,9 @@ def project_verified_evidence(
         base_rows = rows_by_company.get(company_id, [{"company_id": company_id}])
         row = base_rows[0]
         contact_claims = [claim for claim in by_company.get(company_id, []) if claim.get("claim_type") == "contact"]
-        for claim in contact_claims or [None]:
-            projected = dict(row)
-            if claim:
+        if contact_claims:
+            for claim in contact_claims:
+                projected = dict(row)
                 projected["contact_name"] = claim.get("person_name") or "Unknown"
                 projected["contact_role"] = claim.get("role") or "Unknown"
                 projected["contact_email"] = claim.get("email") or "Unknown"
@@ -193,9 +193,9 @@ def project_verified_evidence(
                 projected["verification_status"] = "Verified"
                 verified_at = str(claim.get("verified_at") or "Unknown")
                 projected["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
-            projected["projection_run_id"] = run_id
-            projected_contacts.append(projected)
-        if not contact_claims:
+                projected["projection_run_id"] = run_id
+                projected_contacts.append(projected)
+        else:
             projected_contacts.extend(dict(base_row, projection_run_id=run_id) for base_row in base_rows)
     contacts = projected_contacts
 
