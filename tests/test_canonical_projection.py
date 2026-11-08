@@ -47,7 +47,7 @@ class CanonicalProjectionTests(unittest.TestCase):
             outputs = project_verified_evidence(promoted, qualification, scores, contacts, root / "canonical", run_id="run-1")
             row = next(csv.DictReader(outputs["scores"].open(encoding="utf-8")))
             self.assertEqual(row["buying_signal"], "Strong")
-            self.assertEqual(next(outputs["events"].open(encoding="utf-8")).strip(), "event_id,company_id,match_method,match_confidence,source_url")
+            self.assertEqual(json.loads(outputs["events"].read_text(encoding="utf-8")), [])
 
     def test_cross_run_claim_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

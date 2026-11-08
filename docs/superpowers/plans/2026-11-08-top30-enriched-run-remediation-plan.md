@@ -550,7 +550,9 @@ plan review to make controller ownership, manifest registries, native executor
 behavior, shortlist scoping, and workbook-only validation explicit.
 
 - Focused regression proof: `py -3 -m unittest tests.test_orchestration tests.test_selection tests.test_evidence_promotion tests.test_canonical_projection tests.test_artifact_manifest_side_effects -v` — passed.
-- Full regression proof: `py -3 -m unittest discover -s tests -v` — `58` tests passed.
+- Full regression proof: `py -3 -m unittest discover -s tests -v` — `60` tests passed.
+- Review-cycle-1 remediation: connected the non-fixture native worker and verifier dispatch path, made admission require the manifest-bound shortlist and accepted-company scope, enforced exact research/verifier registries and source policy during promotion, recalculated scores through `score_leads.py`, and made semantic `qa_leads.py` the readiness gate before publication.
+- Added regression proof for prefix-collision run IDs, unregistered verifiers, fresh post-projection reranking, 30-row readiness QA, and final `Errors: 0` workbook publication.
 - Provider-free controller proof: `lead-fixture-v3-6381fd60` executed queue, three fixture research lanes, verifier barrier, promotion, canonical projection, manifest-scoped reranking, workbook staging, workbook validation, and readiness settlement. Output: `output/lead-fixture-v3-6381fd60.xlsx`; manifest: `evidence/manifests/fixture_run_v3.json`.
 - Workbook boundary proof: `py -3 scripts/validate_workbook.py --workbook output/lead-fixture-v3-6381fd60.xlsx` — passed with five required sheets.
 - Deliverable boundary proof: `py -3 scripts/validate_deliverables.py --workbook output/lead-fixture-v3-6381fd60.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/lead-fixture-v3-6381fd60/qa.md --run-manifest evidence/manifests/fixture_run_v3.json --workbook-only` — passed without requiring a deck.
@@ -568,6 +570,7 @@ Berlin-confirmed companies with trusted domains.
 - `GPT-5.6-Sol` review context: `longdang193-lead-generation-bd4d236-top30-enriched-run`; result: `FAIL` for the mandatory end-to-end requirement.
 - `GPT-6` review context: `longdang193-lead-generation-bd4d236-top30-enriched-run-gpt6`; result: `FAIL` for the mandatory end-to-end requirement.
 - Both reviews verified commit `bd4d236828fbd54b0d513d635b601a469fe01e50` through commit-pinned GitHub files and independently identified the disconnected controller, missing dispatch barriers, absent canonical projection, broken manifest lineage, and missing E2E proof.
+- PR #5 review cycle 1 at `2be785e08b08becdd7588626b16f937d3962803a` independently reproduced five blockers: fixture-only execution, synthetic QA, stale reranking, weak promotion authorization, and missing manifest admission. The implementation was patched on the review branch with focused regression coverage; a real provider-backed run remains blocked by the 24/30 shortlist-quality gate.
 - The source-of-truth files are `scripts/orchestrate_enrichment.py`, `scripts/promote_evidence.py`, `scripts/score_leads.py`, `scripts/qa_leads.py`, `scripts/build_workbook.py`, `scripts/validate_deliverables.py`, `scripts/select_for_enrichment.py`, and the tests named in Tasks 1–6.
 
 ## Plan Self-Review

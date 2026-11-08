@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from lead_contract import run_scope_matches
 from run_manifest import portable_path, update as update_manifest
 
 
@@ -64,7 +65,7 @@ def project_verified_evidence(
     for claim in claims:
         if claim.get("candidate_status") != "Verified":
             raise ValueError("canonical projection accepts only Verified claims")
-        if str(claim.get("verifier_run_id") or "").startswith(run_id) is False:
+        if not run_scope_matches(claim.get("verifier_run_id"), run_id):
             raise ValueError(f"claim is outside active run: {claim.get('candidate_claim_id')}")
         key = (str(claim.get("company_id") or ""), str(claim.get("claim_type") or ""))
         if not key[0] or not key[1]:
@@ -95,6 +96,7 @@ def project_verified_evidence(
 
     scores = sorted(load_records(base_scores_path), key=lambda row: str(row.get("company_id") or ""))
     events: list[dict[str, object]] = []
+    event_links: list[dict[str, object]] = []
     signal_audit: list[dict[str, object]] = []
     for row in scores:
         company_id = str(row.get("company_id") or "")
@@ -104,17 +106,21 @@ def project_verified_evidence(
             value = _claim_value(claim)
             if claim.get("claim_type") == "buying_signal":
                 row["buying_signal"] = value
-            event = value if isinstance(value, dict) else {}
-            events.append({
-                "event_id": event.get("event_id", claim.get("candidate_claim_id")),
-                "company_id": company_id,
-                "match_method": "verified_evidence",
-                "match_confidence": "Verified",
-                "source_url": claim.get("source_url", ""),
-            })
+            if claim.get("claim_type") == "event":
+                event = value if isinstance(value, dict) else {}
+                event_id = event.get("event_id", claim.get("candidate_claim_id"))
+                events.append({
+                    "event_id": event_id,
+                    "company_id": company_id,
+                    "publication_date": event.get("publication_date") or claim.get("published_at"),
+                    "deadline": event.get("deadline"),
+                    "source_url": claim.get("source_url", ""),
+                })
+                event_links.append({"event_id": event_id, "company_id": company_id, "match_confidence": "Verified"})
         if signal_claims:
             row["buying_signal_evidence_urls"] = " | ".join(sorted({str(claim.get("source_url")) for claim in signal_claims if claim.get("source_url")}))
-        signal_audit.append({"company_id": company_id, "status": "Completed", "verified_claim_count": len(signal_claims), "run_id": run_id})
+        signal_value = next((str(_claim_value(claim)) for claim in signal_claims if claim.get("claim_type") == "buying_signal"), "None found")
+        signal_audit.append({"company_id": company_id, "research_status": "Completed", "signal_state": signal_value, "search_status": "Searched", "verified_claim_count": len(signal_claims), "run_id": run_id})
         row["projection_run_id"] = run_id
 
     contacts = sorted(load_records(base_contacts_path), key=lambda row: str(row.get("company_id") or ""))
@@ -128,20 +134,25 @@ def project_verified_evidence(
             row["contact_email"] = claim.get("email") or row.get("contact_email", "Unknown")
             row["email_source"] = claim.get("source_url") or row.get("email_source", "Unknown")
             row["verification_status"] = "Verified"
+            verified_at = str(claim.get("verified_at") or row.get("last_verified", "Unknown"))
+            row["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
         row["projection_run_id"] = run_id
 
     outputs = {
         "qualification": output_dir / "qualification.jsonl",
         "scores": output_dir / "scores.csv",
         "contacts": output_dir / "contacts.csv",
-        "events": output_dir / "events.csv",
+        "events": output_dir / "events.json",
+        "event_links": output_dir / "event_links.csv",
         "signal_audit": output_dir / "signal_audit.csv",
     }
     _write_jsonl(outputs["qualification"], qualification)
     _write_csv(outputs["scores"], scores, ["company_id", "buying_signal"])
     _write_csv(outputs["contacts"], contacts, ["company_id", "contact_name", "contact_email"])
-    _write_csv(outputs["events"], sorted(events, key=lambda row: (str(row["company_id"]), str(row["event_id"]))), ["event_id", "company_id", "match_method", "match_confidence", "source_url"])
-    _write_csv(outputs["signal_audit"], signal_audit, ["company_id", "status", "verified_claim_count", "run_id"])
+    outputs["events"].parent.mkdir(parents=True, exist_ok=True)
+    outputs["events"].write_text(json.dumps(sorted(events, key=lambda row: (str(row["company_id"]), str(row["event_id"]))), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_csv(outputs["event_links"], sorted(event_links, key=lambda row: (str(row["company_id"]), str(row["event_id"]))), ["event_id", "company_id", "match_confidence"])
+    _write_csv(outputs["signal_audit"], signal_audit, ["company_id", "research_status", "signal_state", "search_status", "verified_claim_count", "run_id"])
     if manifest_path and root:
         update_manifest(manifest_path, root, outputs=outputs, registries={"projection": {"outputs": {name: {"path": portable_path(root, path), "format": path.suffix} for name, path in outputs.items()}, "run_id": run_id}}, barriers={"projection": True})
     return outputs

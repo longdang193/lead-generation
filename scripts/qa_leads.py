@@ -328,8 +328,8 @@ def main() -> int:
     sample = priority[:10] + [row for row in qualification if row not in priority][:1]
     args.sample_output.parent.mkdir(parents=True, exist_ok=True)
     with args.sample_output.open("w", encoding="utf-8", newline="") as handle:
-        fields = list(sample[0]) if sample else ["company_id"]
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        fields = list(dict.fromkeys(key for row in sample for key in row)) if sample else ["company_id"]
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(sample)
     tier_counts = Counter(row.get("lead_tier") for row in qualification)
@@ -341,7 +341,7 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
     if args.run_manifest and args.run_manifest.exists():
-        update_run_manifest(args.run_manifest, inputs={"schema": args.schema, "website_evidence": website_evidence_path}, outputs={"qa_report": args.report, "qa_sample": args.sample_output})
+        update_run_manifest(args.run_manifest, supporting_inputs={"schema": args.schema, "website_evidence": website_evidence_path}, outputs={"qa_report": args.report, "qa_sample": args.sample_output})
     print("qa_errors=%d" % len(errors))
     return 1 if errors else 0
 

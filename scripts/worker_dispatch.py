@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from orchestrate_enrichment import validate_lane_output
+from lead_contract import candidate_claim_id, candidate_sha256
 
 
 TERMINAL = {"succeeded", "failed", "cancelled", "timed_out"}
@@ -118,8 +119,55 @@ def dispatch_fixture_lanes(queues: dict[str, list[dict[str, object]]], run_id: s
                 "scope_hash": "0" * 64,
                 "attempts": [{"attempt_id": f"{run_id}:{lane}:{company_id}:1", "query_or_source": "fixture", "status": "Completed", "truncated": False}],
             }
+            domain = str(item.get("trusted_domain") or "example.invalid")
+            source_url = f"https://{domain}/"
+            claims: list[dict[str, object]] = []
+            if lane == "portfolio":
+                claims.extend([
+                    {"claim_type": "service_fit", "claim_value": "Confirmed", "source_url": source_url + "services", "source_kind": "official", "evidence_excerpt": "Hausverwaltung und Immobilienverwaltung für Wohnobjekte in Berlin.", "published_at": None},
+                    {"claim_type": "residential_weg", "claim_value": "Confirmed", "source_url": source_url + "services", "source_kind": "official", "evidence_excerpt": "Verwaltung von Wohnungseigentümergemeinschaften und Wohnimmobilien.", "published_at": None},
+                    {"claim_type": "berlin_relevance", "claim_value": "Confirmed", "source_url": source_url, "source_kind": "official", "evidence_excerpt": "Hausverwaltung für Eigentümer in Berlin.", "published_at": None},
+                    {"claim_type": "portfolio_size", "claim_value": 1000, "unit": "units", "scope": "managed residential portfolio", "as_of_date": "2026-10-01", "source_url": source_url + "portfolio", "source_kind": "official", "evidence_excerpt": "The company manages approximately 1,000 residential units in Berlin.", "published_at": None},
+                ])
+            elif lane == "signals":
+                claims.extend([
+                    {"claim_type": "buying_signal", "claim_value": "Strong", "source_url": source_url + "news", "source_kind": "official", "evidence_excerpt": "A current Berlin procurement notice names the company as an active participant.", "published_at": "2026-10-01"},
+                    {"claim_type": "event", "claim_value": {"event_id": f"event-{company_id}", "publication_date": "2026-10-01", "deadline": "2026-12-01"}, "source_url": source_url + "news", "source_kind": "official", "evidence_excerpt": "A current Berlin procurement notice names the company as an active participant.", "published_at": "2026-10-01"},
+                ])
+            elif lane == "contacts":
+                claims.append({"claim_type": "contact", "claim_value": "Anna Schmidt", "person_name": "Anna Schmidt", "role": "Geschäftsführung", "company_affiliation": str(item.get("company_name") or ""), "email": f"anna.schmidt@{domain}", "source_url": source_url + "contact", "source_kind": "official", "evidence_excerpt": "Anna Schmidt — Geschäftsführung", "published_at": None})
+            normalized_claims: list[dict[str, object]] = []
+            for claim in claims:
+                normalized = {
+                    "record_type": "EvidenceClaim",
+                    "candidate_claim_id": candidate_claim_id({"company_id": company_id, **claim}),
+                    "company_id": company_id,
+                    "claim_type": claim["claim_type"],
+                    "claim_value": claim["claim_value"],
+                    "unit": claim.get("unit"),
+                    "scope": claim.get("scope"),
+                    "source_url": claim["source_url"],
+                    "source_domain": domain,
+                    "source_kind": claim["source_kind"],
+                    "evidence_excerpt": claim["evidence_excerpt"],
+                    "retrieved_at": "2026-11-08T00:00:00+00:00",
+                    "published_at": claim.get("published_at"),
+                    "as_of_date": claim.get("as_of_date"),
+                    "account_relationship": "direct",
+                    "confidence": "high",
+                    "research_run_id": research_run["run_id"],
+                    "candidate_status": "Candidate",
+                    "person_name": claim.get("person_name"),
+                    "role": claim.get("role"),
+                    "company_affiliation": claim.get("company_affiliation"),
+                    "email": claim.get("email"),
+                    "verifier_run_id": None,
+                    "verified_at": None,
+                }
+                normalized["candidate_sha256"] = candidate_sha256(normalized)
+                normalized_claims.append(normalized)
             path = lane_dir / f"{company_id}.json"
-            path.write_text(json.dumps(research_run, sort_keys=True) + "\n", encoding="utf-8")
+            path.write_text(json.dumps({"research_run": research_run, "claims": normalized_claims}, sort_keys=True) + "\n", encoding="utf-8")
             lane_results.append({
                 "run_id": run_id,
                 "lane": lane,

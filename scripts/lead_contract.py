@@ -220,7 +220,13 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def update_run_manifest(path: Path, *, inputs: dict[str, Path] | None = None, outputs: dict[str, Path] | None = None) -> None:
+def update_run_manifest(
+    path: Path,
+    *,
+    inputs: dict[str, Path] | None = None,
+    supporting_inputs: dict[str, Path] | None = None,
+    outputs: dict[str, Path] | None = None,
+) -> None:
     from run_manifest import repository_root, update
 
     root = repository_root(path.parent)
@@ -228,8 +234,14 @@ def update_run_manifest(path: Path, *, inputs: dict[str, Path] | None = None, ou
     if not manifest.get("run_id") or not manifest.get("head_sha"):
         return
     existing_inputs = {name: item for name, item in (inputs or {}).items() if item.exists()}
+    existing_supporting = {name: item for name, item in (supporting_inputs or {}).items() if item.exists()}
     existing_outputs = {name: item for name, item in (outputs or {}).items() if item.exists()}
-    update(path, root, supporting_inputs=existing_inputs, outputs=existing_outputs)
+    update(path, root, inputs=existing_inputs, supporting_inputs=existing_supporting, outputs=existing_outputs)
+
+
+def run_scope_matches(value: object, run_id: str) -> bool:
+    text = str(value or "")
+    return text == run_id or text.startswith(f"{run_id}:")
 
 
 def is_public_http_url(value: object) -> bool:
