@@ -59,6 +59,37 @@ class CanonicalProjectionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "outside active run"):
                 project_verified_evidence(promoted, root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
 
+    def test_unavailable_signal_research_stays_unknown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            promoted = root / "promoted.jsonl"
+            promoted.write_text("", encoding="utf-8")
+            qualification = root / "qualification.jsonl"
+            qualification.write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            scores = root / "scores.csv"
+            scores.write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            contacts = root / "contacts.csv"
+            contacts.write_text("company_id,contact_name\nC1,Unknown\n", encoding="utf-8")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({
+                "run_id": "run-1",
+                "head_sha": "a" * 40,
+                "research_runs": {"run-1:signals:C1": {
+                    "run_id": "run-1:signals:C1",
+                    "company_id": "C1",
+                    "research_type": "signals",
+                    "status": "Unavailable",
+                    "provider_status": "Unavailable",
+                    "truncated": False,
+                    "attempts": [],
+                }},
+            }), encoding="utf-8")
+            outputs = project_verified_evidence(promoted, qualification, scores, contacts, root / "canonical", run_id="run-1", manifest_path=manifest, root=root)
+            audit = next(csv.DictReader(outputs["signal_audit"].open(encoding="utf-8")))
+            self.assertEqual(audit["research_status"], "Unavailable")
+            self.assertEqual(audit["search_status"], "Unavailable")
+            self.assertEqual(audit["signal_state"], "Unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

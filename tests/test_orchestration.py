@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import create_run_manifest, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
@@ -51,6 +51,13 @@ class OrchestrationTests(unittest.TestCase):
         queue = [{"company_id": "A"}, {"company_id": "B"}]
         with self.assertRaisesRegex(ValueError, "missing queued companies"):
             validate_lane_output([{"run_id": "run-1", "lane": "signals", "company_id": "A", "status": "succeeded"}], queue, "run-1", "signals")
+
+    def test_final_priority_rows_require_exact_admitted_membership(self):
+        accepted = {f"C{index:02d}" for index in range(30)}
+        rows = [{"company_id": company_id} for company_id in sorted(accepted)]
+        validate_final_priority_rows(rows, accepted)
+        with self.assertRaisesRegex(ValueError, "exactly the admitted 30"):
+            validate_final_priority_rows(rows[:-1], accepted)
 
 
 if __name__ == "__main__":

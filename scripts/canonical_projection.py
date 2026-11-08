@@ -6,8 +6,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
-from lead_contract import run_scope_matches
-from run_manifest import portable_path, update as update_manifest
+from lead_contract import none_found_allowed, run_scope_matches
+from run_manifest import load as load_manifest, portable_path, update as update_manifest
 
 
 def load_records(path: Path) -> list[dict[str, object]]:
@@ -98,10 +98,26 @@ def project_verified_evidence(
     events: list[dict[str, object]] = []
     event_links: list[dict[str, object]] = []
     signal_audit: list[dict[str, object]] = []
+    research_registry: dict[str, object] = {}
+    if manifest_path:
+        manifest = load_manifest(manifest_path)
+        raw_registry = manifest.get("research_runs", {})
+        if isinstance(raw_registry, dict):
+            research_registry = raw_registry
+
+    def signal_research_run(company_id: str) -> dict[str, object]:
+        for value in research_registry.values():
+            if not isinstance(value, dict):
+                continue
+            if str(value.get("company_id") or "") == company_id and str(value.get("research_type") or "") == "signals":
+                return value
+        return {}
+
     for row in scores:
         company_id = str(row.get("company_id") or "")
         row_claims = by_company.get(company_id, [])
         signal_claims = [claim for claim in row_claims if claim.get("claim_type") in {"buying_signal", "event"}]
+        research_run = signal_research_run(company_id)
         for claim in signal_claims:
             value = _claim_value(claim)
             if claim.get("claim_type") == "buying_signal":
@@ -119,8 +135,25 @@ def project_verified_evidence(
                 event_links.append({"event_id": event_id, "company_id": company_id, "match_confidence": "Verified"})
         if signal_claims:
             row["buying_signal_evidence_urls"] = " | ".join(sorted({str(claim.get("source_url")) for claim in signal_claims if claim.get("source_url")}))
-        signal_value = next((str(_claim_value(claim)) for claim in signal_claims if claim.get("claim_type") == "buying_signal"), "None found")
-        signal_audit.append({"company_id": company_id, "research_status": "Completed", "signal_state": signal_value, "search_status": "Searched", "verified_claim_count": len(signal_claims), "run_id": run_id})
+        signal_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "buying_signal"), None)
+        research_status = str(research_run.get("status") or "Needs review")
+        if signal_claim:
+            signal_value = str(_claim_value(signal_claim))
+        elif none_found_allowed(research_run, signal_claims):
+            signal_value = "None found"
+            research_status = "Completed"
+        else:
+            signal_value = "Unknown"
+            if research_status not in {"Not searched", "Completed", "Partial", "Unavailable", "Needs review"}:
+                research_status = "Needs review"
+        search_status = {
+            "Completed": "Searched",
+            "Unavailable": "Unavailable",
+            "Not searched": "Not searched",
+            "Partial": "Unknown",
+            "Needs review": "Unknown",
+        }.get(research_status, "Unknown")
+        signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "verified_claim_count": len(signal_claims), "run_id": run_id})
         row["projection_run_id"] = run_id
 
     contacts = sorted(load_records(base_contacts_path), key=lambda row: str(row.get("company_id") or ""))

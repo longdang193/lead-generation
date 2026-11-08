@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: active
 template_id: implementation-plan
 contract_version: "1"
 name: top30-enriched-run-remediation
@@ -57,6 +57,31 @@ The reviews also identified source-confirmed hardening required for the same
 acceptance goal: active-run binding at promotion, accepted-identity and
 verified-provenance enforcement in scoring, repository-root manifest path
 resolution, and rejection of missing or stale workbook inputs.
+
+## Final Review Remediation
+
+The final independent review found four additional P1 execution defects. They
+were confirmed against the source and patched before publication:
+
+- The non-fixture controller now defaults to repository-owned `native_worker.py`
+  and `native_verifier.py` adapters when no executable is supplied. The adapters
+  produce and verify the existing evidence contracts without requiring an
+  external provider executable.
+- Canonical signal projection now preserves `Unavailable`, `Partial`, `Needs
+  review`, and `Not searched` research states. It emits `None found` only when
+  the research contract permits a negative conclusion; otherwise it emits
+  `Unknown` with the corresponding search status.
+- Final ranking now fails closed unless the output contains exactly 30 unique
+  company IDs and the set exactly equals the manifest-admitted company scope.
+- Workbook publication is atomic and staged through workbook validation,
+  semantic QA, and deliverable validation. The existing final workbook remains
+  untouched when any readiness check fails; only a validated staging file is
+  replaced into the final path, after which the manifest records the final
+  artifact hash and path.
+
+Focused regression coverage proves unavailable signal preservation, exact
+admitted top-30 membership, runnable repository-owned adapters, and protection
+of an existing workbook on semantic-QA failure.
 
 ## Implementation Outcomes
 
@@ -550,7 +575,7 @@ plan review to make controller ownership, manifest registries, native executor
 behavior, shortlist scoping, and workbook-only validation explicit.
 
 - Focused regression proof: `py -3 -m unittest tests.test_orchestration tests.test_selection tests.test_evidence_promotion tests.test_canonical_projection tests.test_artifact_manifest_side_effects -v` — passed.
-- Full regression proof: `py -3 -m unittest discover -s tests -v` — `60` tests passed.
+- Full regression proof: `py -3 -m unittest discover -s tests -v` — `64` tests passed.
 - Review-cycle-1 remediation: connected the non-fixture native worker and verifier dispatch path, made admission require the manifest-bound shortlist and accepted-company scope, enforced exact research/verifier registries and source policy during promotion, recalculated scores through `score_leads.py`, and made semantic `qa_leads.py` the readiness gate before publication.
 - Added regression proof for prefix-collision run IDs, unregistered verifiers, fresh post-projection reranking, 30-row readiness QA, and final `Errors: 0` workbook publication.
 - Provider-free controller proof: `lead-fixture-v3-6381fd60` executed queue, three fixture research lanes, verifier barrier, promotion, canonical projection, manifest-scoped reranking, workbook staging, workbook validation, and readiness settlement. Output: `output/lead-fixture-v3-6381fd60.xlsx`; manifest: `evidence/manifests/fixture_run_v3.json`.
@@ -558,12 +583,16 @@ behavior, shortlist scoping, and workbook-only validation explicit.
 - Deliverable boundary proof: `py -3 scripts/validate_deliverables.py --workbook output/lead-fixture-v3-6381fd60.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/lead-fixture-v3-6381fd60/qa.md --run-manifest evidence/manifests/fixture_run_v3.json --workbook-only` — passed without requiring a deck.
 - Real provisional-top-30 probe: stopped fail-closed before queue creation because only `24/30` existing priority rows had confirmed city, accepted identity, and trusted domain. No Berlin location was synthesized and no external provider was called.
 - Final strict manifest verification: `py -3 scripts/orchestrate_enrichment.py verify --root . --manifest evidence/manifests/fixture_run_v3.json` — rejected with `implementation worktree is dirty`; no production publication is claimed.
+- Final-review remediation proof: unavailable signal preservation, exact
+  admitted top-30 membership, repository-owned native adapter execution, and
+  atomic workbook publication each have focused regression coverage.
 
 The fixture output is regression evidence only: it contains no provider-enriched
 verified claims, so buying signals and named contacts remain explicit
-`Unknown`. Task 7 remains blocked until the implementation revision is committed
+`Unknown`. Task 7 remains active until the implementation revision is committed
 and the provisional shortlist is repaired or requalified to exactly 30 accepted,
-Berlin-confirmed companies with trusted domains.
+Berlin-confirmed companies with trusted domains. The current code and fixture
+proof do not claim a provider-backed production enrichment run.
 
 ## Consolidated Review Evidence
 
@@ -572,6 +601,7 @@ Berlin-confirmed companies with trusted domains.
 - Both reviews verified commit `bd4d236828fbd54b0d513d635b601a469fe01e50` through commit-pinned GitHub files and independently identified the disconnected controller, missing dispatch barriers, absent canonical projection, broken manifest lineage, and missing E2E proof.
 - PR #5 review cycle 1 at `2be785e08b08becdd7588626b16f937d3962803a` independently reproduced five blockers: fixture-only execution, synthetic QA, stale reranking, weak promotion authorization, and missing manifest admission. The implementation was patched on the review branch with focused regression coverage; a real provider-backed run remains blocked by the 24/30 shortlist-quality gate.
 - The source-of-truth files are `scripts/orchestrate_enrichment.py`, `scripts/promote_evidence.py`, `scripts/score_leads.py`, `scripts/qa_leads.py`, `scripts/build_workbook.py`, `scripts/validate_deliverables.py`, `scripts/select_for_enrichment.py`, and the tests named in Tasks 1–6.
+- PR #5 final review cycle 2 at `502f61a7c873622ad510315665ef5365abeff07b` found four P1 defects: no repository-owned native adapters, unavailable signal research collapsing to `None found`, missing exact admitted top-30 publication guard, and workbook replacement before semantic QA. All four were patched with regression proof before the final push.
 
 ## Plan Self-Review
 

@@ -22,6 +22,7 @@ class NativeExecutorConfig:
     profile: str
     timeout_seconds: int = 120
     max_retries: int = 0
+    adapter_args: tuple[str, ...] = ()
 
 
 def _terminal(status: str) -> str:

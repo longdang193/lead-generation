@@ -250,7 +250,13 @@ def _fixture_decisions(claims: list[dict[str, object]], run_id: str) -> list[dic
 
 
 def _native_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
-    return [str(config.executable), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--output", str(output_path)]
+    return [str(config.executable), *getattr(config, "adapter_args", ()), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--output", str(output_path)]
+
+
+def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepted_ids: set[str]) -> None:
+    priority_ids = [str(row.get("company_id") or "") for row in priority_rows]
+    if len(priority_rows) != 30 or len(set(priority_ids)) != 30 or set(priority_ids) != accepted_ids:
+        raise ValueError("final priority shortlist must contain exactly the admitted 30 companies")
 
 
 def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
@@ -280,10 +286,15 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
         "companies": root / "data" / "intermediate" / "companies_normalized_2026-11-07.csv",
         "sources": root / "evidence" / "source_register_2026-11-07.csv",
     }
+    scripts_dir = Path(__file__).resolve().parent
+    worker_adapter_args: tuple[str, ...] = ()
+    verifier_adapter_args: tuple[str, ...] = ()
     if not fixture and not worker_executable:
-        raise ValueError("production native worker executable is required")
+        worker_executable = sys.executable
+        worker_adapter_args = (str(scripts_dir / "native_worker.py"), "--repo-root", str(root))
     if not fixture and not verifier_executable:
-        raise ValueError("production verifier executable is required")
+        verifier_executable = sys.executable
+        verifier_adapter_args = (str(scripts_dir / "native_verifier.py"), "--repo-root", str(root))
     queue_dir = root / "evidence" / "queues" / run_id
     queues = {}
     for lane in ("signals", "portfolio", "contacts"):
@@ -294,7 +305,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
     if fixture:
         results = dispatch_fixture_lanes(queues, run_id, root / "evidence" / "candidate" / run_id)
     else:
-        worker_config = NativeExecutorConfig(worker_executable, worker_profile)
+        worker_config = NativeExecutorConfig(worker_executable, worker_profile, adapter_args=worker_adapter_args)
         results = {lane: dispatch_native_lane(queues[lane], run_id, lane, root / "evidence" / "candidate" / run_id / lane, worker_config, command_builder=_native_command_builder) for lane in queues}
     for lane, records in results.items():
         reconcile_lane_outputs(records, queues[lane], run_id, lane)
@@ -319,7 +330,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
             verifier_queue.append({"run_id": run_id, "lane": "verifier", "company_id": company_id, "claims_path": claims_path})
         def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
-        verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile)
+        verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
         verifier_results = dispatch_native_lane(verifier_queue, run_id, "verifier", root / "evidence" / "verifier" / run_id / "outputs", verifier_config, command_builder=verifier_command_builder)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier")
         decisions = []
@@ -332,7 +343,10 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
                 raise ValueError("verifier output decisions are not a list")
             decisions.extend(item for item in output_decisions if isinstance(item, dict))
     _write_jsonl(decision_path, decisions)
-    research_registry = {str(run["run_id"]): {"research_run_id": run["run_id"], "company_id": run["company_id"], "status": run["status"], "research_type": run["research_type"]} for run in research_runs}
+    research_registry = {
+        str(run["run_id"]): {**dict(run), "research_run_id": run["run_id"]}
+        for run in research_runs
+    }
     verifier_registry = {verifier_run_id: {"verifier_run_id": verifier_run_id, "verifier_id": "fixture-verifier" if fixture else verifier_profile, "status": "Completed", "decision_count": len(decisions)}}
     source_policy = {"allowed_domains": sorted({str(row.get("domain") or "").lower().removeprefix("www.") for row in shortlist if row.get("domain")})}
     update_manifest_file(manifest_path, root, inputs={"candidate_evidence": candidate_path, "verifier_decisions": decision_path}, registries={"accepted_company_ids": sorted(accepted_ids), "research_runs": research_registry, "verifier_runs": verifier_registry, "source_policy": source_policy}, status="research_complete", barriers={"research": True, "verifier": True})
@@ -352,6 +366,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
     qualification = {row["company_id"]: row for row in _load_records_jsonl(canonical["qualification"])}
     from select_for_enrichment import select_accounts, write_provisional_shortlist
     priority_rows = select_accounts(projected_scores, qualification, 30, accepted_ids)
+    validate_final_priority_rows(priority_rows, accepted_ids)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"
     shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
     write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)
@@ -365,26 +380,26 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixtu
     validator = subprocess.run([sys.executable, str(scripts_dir / "validate_workbook.py"), "--workbook", str(staging)], cwd=root, check=False, capture_output=True, text=True)
     if validator.returncode:
         raise RuntimeError(validator.stdout + validator.stderr)
-    final_output.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(staging, final_output)
     qa_report = root / "evidence" / "reports" / run_id / "qa.md"
     qa_sample = root / "evidence" / "reports" / run_id / "qa.csv"
     schema_path = root / "config" / "lead_generation_schema.json"
     if not schema_path.exists():
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(Path(__file__).resolve().parents[1] / "config" / "lead_generation_schema.json", schema_path)
-    update_manifest_file(manifest_path, root, supporting_inputs={"schema": schema_path}, outputs={"workbook": final_output, "build_report": build_report}, status="ready_for_validation", barriers={"projection": True})
-    qa_command = [sys.executable, str(scripts_dir / "qa_leads.py"), "--workbook", str(final_output), "--schema", str(schema_path), "--evidence-dir", str(root / "evidence"), "--report", str(qa_report), "--sample-output", str(qa_sample), "--run-manifest", str(manifest_path)]
+    update_manifest_file(manifest_path, root, supporting_inputs={"schema": schema_path}, outputs={"workbook": staging, "build_report": build_report}, status="ready_for_validation", barriers={"projection": True})
+    qa_command = [sys.executable, str(scripts_dir / "qa_leads.py"), "--workbook", str(staging), "--schema", str(schema_path), "--evidence-dir", str(root / "evidence"), "--report", str(qa_report), "--sample-output", str(qa_sample), "--run-manifest", str(manifest_path)]
     qa_result = subprocess.run(qa_command, cwd=root, check=False, capture_output=True, text=True)
     if qa_result.returncode:
         report_text = qa_report.read_text(encoding="utf-8") if qa_report.exists() else ""
         raise RuntimeError(qa_result.stdout + qa_result.stderr + report_text)
     update_manifest_file(manifest_path, root, outputs={"qa_report": qa_report, "qa_sample": qa_sample}, status="ready_for_validation", barriers={"readiness": True})
     reachability_flag = ["--allow-unreachable-revision"] if not (root / ".git").exists() else []
-    deliverable_check = subprocess.run([sys.executable, str(scripts_dir / "validate_deliverables.py"), "--workbook", str(final_output), "--deck", str(root / "output" / "missing-fixture-deck.pptx"), "--qa-report", str(qa_report), "--run-manifest", str(manifest_path), "--workbook-only", *reachability_flag], cwd=root, check=False, capture_output=True, text=True)
+    deliverable_check = subprocess.run([sys.executable, str(scripts_dir / "validate_deliverables.py"), "--workbook", str(staging), "--deck", str(root / "output" / "missing-fixture-deck.pptx"), "--qa-report", str(qa_report), "--run-manifest", str(manifest_path), "--workbook-only", *reachability_flag], cwd=root, check=False, capture_output=True, text=True)
     if deliverable_check.returncode:
         raise RuntimeError(deliverable_check.stdout + deliverable_check.stderr)
-    update_manifest_file(manifest_path, root, status="completed", barriers={"readiness": True, "published": True})
+    final_output.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staging, final_output)
+    update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, status="completed", barriers={"readiness": True, "published": True})
     return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report}
 
 
