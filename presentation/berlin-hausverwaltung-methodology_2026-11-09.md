@@ -1,6 +1,6 @@
 # Berlin Hausverwaltung Lead Generation MVP
 - Objective: turn public market discovery into an evidence-backed sales shortlist.
-- Funnel: Market (323 raw records) → Qualified Accounts (311) → Priority Leads (30) → Published business emails (28).
+- Funnel: Market (323 raw records) → Qualified Accounts (311) → Priority Leads (30) → Email-evidence contacts (28; 26 Published/Verified).
 
 # Discovery and Evidence
 - Primary discovery: VDIV Berlin-Brandenburg public member directory; 302 raw records imported.
@@ -18,7 +18,7 @@
 # Results and Contacts
 - Shortlist is capped at 30 accounts and ordered by structural fit, evidence coverage, and priority.
 - Tier distribution: A 187; B 0; C 0; Research 124.
-- 28 contacts have published or Hunter-verified business emails with source URLs; no inferred address is marked Verified.
+- 28 contacts have email evidence with source URLs: 21 Published, 5 Verified, and 2 Unverified; no inferred address is marked Verified.
 - Buying events remain separate; no account-specific event link was asserted without a verified match.
 
 # Validation and Phase 2

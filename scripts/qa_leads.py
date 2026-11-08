@@ -15,6 +15,21 @@ def rows(ws):
     return [dict(zip(values[0], row)) for row in values[1:] if any(value not in (None, "") for value in row)] if values else []
 
 
+def contact_email_status_summary(contacts: list[dict[str, object]]) -> dict[str, int]:
+    return {
+        status: sum(
+            1
+            for row in contacts
+            if row.get("contact_email") not in (None, "", "Unknown") and row.get("verification_status") == status
+        )
+        for status in ("Published", "Verified", "Unverified")
+        if any(
+            row.get("contact_email") not in (None, "", "Unknown") and row.get("verification_status") == status
+            for row in contacts
+        )
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workbook", type=Path, required=True)
@@ -52,7 +67,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(sample)
     tier_counts = Counter(row.get("lead_tier") for row in qualification)
-    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Errors: {len(errors)}", "", "## Limitations", f"- {provider_limitation(RuntimeConfig.from_env())}", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
+    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Contact email status: {contact_email_status_summary(contacts)}", f"- Errors: {len(errors)}", "", "## Limitations", f"- {provider_limitation(RuntimeConfig.from_env())}", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
     if errors:
         report.extend(["", "## Errors", *[f"- {error}" for error in errors]])
     else:

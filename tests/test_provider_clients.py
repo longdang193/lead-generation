@@ -17,7 +17,7 @@ from scripts.provider_clients import (
 )
 import build_shortlist
 from import_discovery import overpass_timeout, read_rows, source_access_limitation
-from qa_leads import provider_limitation
+from qa_leads import contact_email_status_summary, provider_limitation
 from runtime_config import RuntimeConfig
 
 
@@ -79,6 +79,15 @@ class ProviderClientTests(unittest.TestCase):
         configured = RuntimeConfig(apify_api_token="token", hunter_api_key="key", ted_api_base_url="https://ted.example")
         self.assertNotIn("all provider credentials were not configured", provider_limitation(configured).lower())
         self.assertIn("not configured", provider_limitation(RuntimeConfig()).lower())
+
+    def test_contact_email_status_summary_preserves_unverified_count(self):
+        summary = contact_email_status_summary([
+            {"contact_email": "published@example.com", "verification_status": "Published"},
+            {"contact_email": "verified@example.com", "verification_status": "Verified"},
+            {"contact_email": "unverified@example.com", "verification_status": "Unverified"},
+            {"contact_email": "Unknown", "verification_status": "Not found"},
+        ])
+        self.assertEqual(summary, {"Published": 1, "Verified": 1, "Unverified": 1})
 
 
 if __name__ == "__main__":
