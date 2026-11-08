@@ -58,6 +58,65 @@ class EvidencePromotionTests(unittest.TestCase):
                 if key != "candidate_status":
                     self.assertEqual(promoted[0][key], value)
 
+    def test_active_run_rejects_cross_run_claim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claim = self.claim()
+            claim["research_run_id"] = "other-run:signals:C1"
+            claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+            candidates = root / "candidates.jsonl"
+            decisions = root / "decisions.jsonl"
+            output = root / "promoted.jsonl"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps({
+                "record_type": "VerifierDecision",
+                "candidate_claim_id": claim["candidate_claim_id"],
+                "candidate_sha256": claim["candidate_sha256"],
+                "decision": "Verified",
+                "reason_codes": ["page_local"],
+                "verifier_id": "verifier",
+                "verifier_run_id": "run-1",
+                "verified_at": "2026-11-08T10:01:00+00:00",
+            }) + "\n", encoding="utf-8")
+            manifest = root / "active_run.json"
+            manifest.write_text(json.dumps({
+                "run_id": "run-1",
+                "accepted_company_ids": ["company-1"],
+                "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}},
+                "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier"}},
+                "source_policy": {"allowed_domains": ["example.de"]},
+            }), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "outside active run"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
+    def test_active_run_rejects_prefix_collision(self):
+        claim = self.claim()
+        claim["research_run_id"] = "run-10:signals:company-1"
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["page_local"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = root / "candidates.jsonl", root / "decisions.jsonl", root / "promoted.jsonl", root / "active_run.json"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "accepted_company_ids": ["company-1"], "research_runs": {}, "verifier_runs": {}, "source_policy": {"allowed_domains": ["example.de"]}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "outside active run"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
+    def test_active_run_rejects_unregistered_verifier(self):
+        claim = self.claim()
+        claim["research_run_id"] = "run-1:signals:company-1"
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["page_local"], "verifier_id": "verifier", "verifier_run_id": "run-1:other-verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = root / "candidates.jsonl", root / "decisions.jsonl", root / "promoted.jsonl", root / "active_run.json"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "accepted_company_ids": ["company-1"], "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier"}}, "source_policy": {"allowed_domains": ["example.de"]}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "not registered"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
     def test_hash_mutation_is_rejected(self):
         claim = self.claim()
         decision = {

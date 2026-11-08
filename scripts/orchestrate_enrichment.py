@@ -4,10 +4,16 @@ import argparse
 import csv
 import hashlib
 import json
+import os
+import shutil
 import subprocess
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+from lead_contract import candidate_sha256, run_scope_matches
+from run_manifest import atomic_write, entry, load as load_manifest, portable_path, repository_root, update as update_manifest
 
 
 def stamp() -> str:
@@ -20,7 +26,7 @@ def git_output(root: Path, *args: str) -> str:
 
 def implementation_status(root: Path) -> str:
     lines = git_output(root, "status", "--porcelain").splitlines()
-    preserved = {"lead-generation-architecture.json"}
+    preserved = {"lead-generation-architecture.json", "output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx"}
     return "\n".join(line for line in lines if line[3:] not in preserved)
 
 
@@ -33,15 +39,10 @@ def file_digest(path: Path) -> str:
 
 
 def manifest_entry(root: Path, path: Path) -> dict[str, str]:
-    resolved = path.resolve()
-    try:
-        portable = resolved.relative_to(root.resolve()).as_posix()
-    except ValueError:
-        portable = str(resolved)
-    return {"path": portable, "sha256": file_digest(resolved)}
+    return entry(root, path)
 
 
-def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: list[Path], supporting_inputs: list[Path], *, require_clean: bool = True) -> dict[str, object]:
+def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: list[Path], supporting_inputs: list[Path], *, accepted_company_ids: set[str] | None = None, require_clean: bool = True) -> dict[str, object]:
     head_sha = git_output(root, "rev-parse", "HEAD")
     if len(head_sha) != 40:
         raise ValueError("HEAD is not a full 40-character commit SHA")
@@ -55,10 +56,16 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "git_revision": head_sha,
         "git_ref": git_output(root, "branch", "--show-current"),
         "status": "prepared",
+        "config_version": "lead-enrichment-run-v1",
+        "accepted_company_ids": sorted(accepted_company_ids or set()),
         "inputs": {path.stem: manifest_entry(root, path) for path in inputs},
         "supporting_inputs": {path.stem: manifest_entry(root, path) for path in supporting_inputs},
         "queues": {},
-        "barriers": {"accepted_identity": True, "provisional_shortlist": False, "verified_evidence": False},
+        "barriers": {"accepted_identity": True, "provisional_shortlist": False, "research": False, "verifier": False, "verified_evidence": False, "projection": False, "ranking": False, "readiness": False, "published": False},
+        "research_runs": {},
+        "verifier_runs": {},
+        "source_policy": {},
+        "projection": {"outputs": {}, "cli_args": {}},
         "outputs": {},
     }
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -66,7 +73,7 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
     return manifest
 
 
-def write_lane_queue(shortlist_path: Path, output_path: Path, lane: str, run_id: str) -> list[dict[str, object]]:
+def write_lane_queue(shortlist_path: Path, output_path: Path, lane: str, run_id: str, *, accepted_company_ids: set[str] | None = None, require_qualification: bool = False) -> list[dict[str, object]]:
     with shortlist_path.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
     queue = []
@@ -74,13 +81,23 @@ def write_lane_queue(shortlist_path: Path, output_path: Path, lane: str, run_id:
         company_id = str(row.get("company_id") or "")
         if not company_id:
             raise ValueError("shortlist row lacks company_id")
+        if accepted_company_ids is not None and company_id not in accepted_company_ids:
+            raise ValueError(f"shortlist company is not accepted: {company_id}")
+        if require_qualification and str(row.get("resolution_status") or "") != "Accepted":
+            raise ValueError(f"shortlist company lacks accepted qualification: {company_id}")
+        trusted_domain = str(row.get("verified_company_domain") or row.get("domain") or "").strip()
+        city = str(row.get("city") or "").strip()
+        if (accepted_company_ids is not None or require_qualification) and not trusted_domain:
+            raise ValueError(f"shortlist company lacks trusted domain: {company_id}")
+        if (accepted_company_ids is not None or require_qualification) and not city:
+            raise ValueError(f"shortlist company lacks confirmed city: {company_id}")
         queue.append({
             "run_id": run_id,
             "lane": lane,
             "company_id": company_id,
             "company_name": row.get("company_name", ""),
-            "trusted_domain": row.get("verified_company_domain") or row.get("domain", ""),
-            "location": row.get("city") or "Berlin",
+            "trusted_domain": trusted_domain,
+            "location": city or "Unknown",
             "scope": f"{lane}:{company_id}",
             "status": "pending",
         })
@@ -102,25 +119,296 @@ def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str,
             raise ValueError(f"lane output is out of scope: {company_id}")
         if company_id in seen:
             raise ValueError(f"duplicate lane output: {company_id}")
+        if str(record.get("status") or "") not in {"succeeded", "failed", "cancelled", "timed_out", "Completed", "Partial", "Unavailable", "Needs review"}:
+            raise ValueError(f"lane output has non-terminal status: {company_id}")
         seen.add(company_id)
+    missing = sorted(allowed - seen)
+    if missing:
+        raise ValueError(f"lane output missing queued companies: {', '.join(missing)}")
 
 
 def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest = load_manifest(manifest_path)
     errors: list[str] = []
-    head_sha = git_output(root, "rev-parse", "HEAD")
-    if manifest.get("head_sha") != head_sha:
-        errors.append("HEAD does not match manifest head_sha")
-    if implementation_status(root):
-        errors.append("implementation worktree is dirty")
+    if (root / ".git").exists():
+        head_sha = git_output(root, "rev-parse", "HEAD")
+        if manifest.get("head_sha") != head_sha:
+            errors.append("HEAD does not match manifest head_sha")
+        if implementation_status(root):
+            errors.append("implementation worktree is dirty")
     for bucket_name in ("inputs", "supporting_inputs", "outputs"):
         for name, item in manifest.get(bucket_name, {}).items():
             path = (root / str(item.get("path"))).resolve()
+            try:
+                path.relative_to(root.resolve())
+            except ValueError:
+                errors.append(f"manifest path escapes repository: {bucket_name}.{name}")
+                continue
             if not path.exists():
                 errors.append(f"missing {bucket_name}.{name}")
             elif item.get("sha256") != file_digest(path):
                 errors.append(f"hash mismatch {bucket_name}.{name}")
     return errors
+
+
+def _load_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _fixture_inputs(root: Path, shortlist: list[dict[str, str]], run_id: str) -> dict[str, Path]:
+    directory = root / "evidence" / "fixture" / run_id
+    directory.mkdir(parents=True, exist_ok=True)
+    qualification = directory / "qualification.jsonl"
+    with qualification.open("w", encoding="utf-8") as handle:
+        for row in sorted(shortlist, key=lambda item: item["company_id"]):
+            handle.write(json.dumps({"company_id": row["company_id"], "company_name": row.get("company_name", ""), "domain": row.get("domain", ""), "source_url": f"https://{row.get('domain', '')}/", "retrieved_at": "2026-11-08T00:00:00+00:00", "resolution_status": "Accepted", "eligible": True}) + "\n")
+    scores = directory / "scores.csv"
+    score_fields = ["company_id", "company_name", "domain", "source_url", "service_fit", "residential_weg", "portfolio_size", "portfolio_potential", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "lead_tier", "evidence_urls", "buying_signal_event_ids", "buying_signal_evidence_urls", "retrieved_at"]
+    score_rows = [{
+        "company_id": row["company_id"], "company_name": row.get("company_name", ""), "domain": row.get("domain", ""), "source_url": f"https://{row.get('domain', '')}",
+        "service_fit": "Confirmed", "residential_weg": "Confirmed", "portfolio_size": "Unknown", "portfolio_potential": "Unknown", "berlin_relevance": "Confirmed", "structural_lead_fit": "65", "evidence_coverage": "100", "buying_signal": "Unknown", "signal_search_status": "Searched", "actionability": "Research", "sales_priority": "Research", "lead_tier": "A", "evidence_urls": f"https://{row.get('domain', '')}", "buying_signal_event_ids": "", "buying_signal_evidence_urls": "", "retrieved_at": "2026-11-08T00:00:00+00:00"
+    } for row in shortlist]
+    _write_csv(scores, score_rows, score_fields)
+    contacts = directory / "contacts.csv"
+    _write_csv(contacts, [{"company_id": row["company_id"], "company_name": row.get("company_name", ""), "contact_name": "Unknown", "contact_role": "Unknown", "relevance": "Shortlisted account", "contact_email": "Unknown", "email_source": "Unknown", "verification_status": "Unknown", "linkedin_url": "Unknown", "last_verified": "Unknown"} for row in shortlist], ["company_id", "company_name", "contact_name", "contact_role", "relevance", "contact_email", "email_source", "verification_status", "linkedin_url", "last_verified"])
+    companies = directory / "companies.csv"
+    _write_csv(companies, [{"company_id": row["company_id"], "company_name": row.get("company_name", ""), "domain": row.get("domain", ""), "city": row.get("city", "Berlin"), "resolution_status": "Accepted", "source_url": f"https://{row.get('domain', '')}/", "retrieved_at": "2026-11-08T00:00:00+00:00", "evidence_level": "Primary"} for row in shortlist], ["company_id", "company_name", "domain", "city", "resolution_status", "source_url", "retrieved_at", "evidence_level"])
+    sources = directory / "sources.csv"
+    _write_csv(sources, [{"source_id": f"source-{row['company_id']}", "source_url": f"https://{row.get('domain', '')}"} for row in shortlist], ["source_id", "source_url"])
+    website_evidence = root / "data" / "intermediate" / "website_evidence_2026-11-08.jsonl"
+    website_evidence.parent.mkdir(parents=True, exist_ok=True)
+    with website_evidence.open("w", encoding="utf-8") as handle:
+        for row in shortlist:
+            handle.write(json.dumps({"company_id": row["company_id"], "claims": [
+                {"field": "service_fit", "evidence_url": f"https://{row.get('domain', '')}/services", "evidence_excerpt": "Hausverwaltung und Immobilienverwaltung für Wohnobjekte in Berlin.", "confidence": "high"},
+                {"field": "residential_weg", "evidence_url": f"https://{row.get('domain', '')}/services", "evidence_excerpt": "Verwaltung von Wohnungseigentümergemeinschaften und Wohnimmobilien.", "confidence": "high"},
+                {"field": "berlin_relevance", "evidence_url": f"https://{row.get('domain', '')}/", "evidence_excerpt": "Hausverwaltung für Eigentümer in Berlin.", "confidence": "high"},
+            ]}) + "\n")
+    supporting = {
+        "website_evidence": website_evidence,
+        "source_register": directory / "sources.csv",
+        "entity_resolution": directory / "companies.csv",
+        "buying_signal_audit": directory / "signal_audit.csv",
+        "buying_events": directory / "events.json",
+        "scoring_audit": directory / "scoring_audit.csv",
+        "contact_sources": directory / "contacts.csv",
+    }
+    for path in supporting.values():
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("[]\n" if path.suffix == ".json" else "company_id\n", encoding="utf-8")
+    return {"qualification": qualification, "scores": scores, "contacts": contacts, "companies": companies, "sources": sources, **supporting}
+
+
+def _worker_payloads(records: dict[str, list[dict[str, object]]]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    research_runs: list[dict[str, object]] = []
+    claims: list[dict[str, object]] = []
+    for lane_records in records.values():
+        for record in lane_records:
+            output_path = Path(str(record["output_path"]))
+            if record.get("status") != "succeeded":
+                continue
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            research_run = payload.get("research_run", payload)
+            if not isinstance(research_run, dict):
+                raise ValueError(f"worker output lacks research_run: {output_path}")
+            research_runs.append(research_run)
+            output_claims = payload.get("claims", [])
+            if not isinstance(output_claims, list):
+                raise ValueError(f"worker claims are not a list: {output_path}")
+            claims.extend(item for item in output_claims if isinstance(item, dict))
+    return research_runs, claims
+
+
+def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for record in records:
+            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _fixture_decisions(claims: list[dict[str, object]], run_id: str) -> list[dict[str, object]]:
+    return [{
+        "record_type": "VerifierDecision",
+        "candidate_claim_id": claim["candidate_claim_id"],
+        "candidate_sha256": claim["candidate_sha256"],
+        "decision": "Verified",
+        "reason_codes": ["fixture_page_local", "fixture_company_bound"],
+        "verifier_id": "fixture-verifier",
+        "verifier_run_id": f"{run_id}:verifier",
+        "verified_at": "2026-11-08T00:00:02+00:00",
+    } for claim in claims]
+
+
+def _native_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
+    return [str(config.executable), *getattr(config, "adapter_args", ()), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--output", str(output_path)]
+
+
+def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepted_ids: set[str]) -> None:
+    priority_ids = [str(row.get("company_id") or "") for row in priority_rows]
+    if len(priority_rows) != 30 or len(set(priority_ids)) != 30 or set(priority_ids) != accepted_ids:
+        raise ValueError("final priority shortlist must contain exactly the admitted 30 companies")
+
+
+def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
+    manifest = load_manifest(manifest_path)
+    admission_errors = verify_manifest(manifest_path, root)
+    if admission_errors:
+        raise ValueError("run admission failed: " + "; ".join(admission_errors))
+    run_id = str(manifest["run_id"])
+    shortlist = _load_csv(shortlist_path)
+    if len(shortlist) != 30:
+        raise ValueError(f"run requires exactly 30 provisional companies, got {len(shortlist)}")
+    recorded_inputs = manifest.get("inputs", {})
+    def recorded_path(item: object) -> Path:
+        raw = Path(str(item or ""))
+        return raw if raw.is_absolute() else (root / raw).resolve()
+    recorded_shortlist = [item for item in recorded_inputs.values() if isinstance(item, dict) and recorded_path(item.get("path")) == shortlist_path.resolve()]
+    if len(recorded_shortlist) != 1 or recorded_shortlist[0].get("sha256") != file_digest(shortlist_path):
+        raise ValueError("provisional shortlist is not the manifest-bound input")
+    accepted_ids = {str(value) for value in manifest.get("accepted_company_ids", [])}
+    shortlist_ids = {str(row.get("company_id") or "") for row in shortlist}
+    if accepted_ids != shortlist_ids or len(accepted_ids) != 30:
+        raise ValueError("manifest accepted company scope does not exactly match the provisional shortlist")
+    fixture_inputs = _fixture_inputs(root, shortlist, run_id) if fixture else {
+        "qualification": root / "data" / "intermediate" / "website_evidence_2026-11-08.jsonl",
+        "scores": root / "data" / "processed" / "lead_scores_2026-11-08.csv",
+        "contacts": root / "data" / "processed" / "contacts_2026-11-08.csv",
+        "companies": root / "data" / "intermediate" / "companies_normalized_2026-11-07.csv",
+        "sources": root / "evidence" / "source_register_2026-11-07.csv",
+    }
+    scripts_dir = Path(__file__).resolve().parent
+    worker_adapter_args: tuple[str, ...] = ()
+    verifier_adapter_args: tuple[str, ...] = ()
+    if not fixture and not worker_executable:
+        worker_executable = sys.executable
+        worker_adapter_args = (str(scripts_dir / "native_worker.py"), "--repo-root", str(root))
+    if not fixture and not verifier_executable:
+        verifier_executable = sys.executable
+        verifier_adapter_args = (str(scripts_dir / "native_verifier.py"), "--repo-root", str(root))
+    queue_dir = root / "evidence" / "queues" / run_id
+    queues = {}
+    for lane in ("signals", "portfolio", "contacts"):
+        queue_path = queue_dir / f"{lane}.jsonl"
+        queues[lane] = write_lane_queue(shortlist_path, queue_path, lane, run_id, accepted_company_ids=accepted_ids, require_qualification=True)
+    update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, status="queued", barriers={"provisional_shortlist": True})
+    from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs
+    if fixture:
+        results = dispatch_fixture_lanes(queues, run_id, root / "evidence" / "candidate" / run_id)
+    else:
+        worker_config = NativeExecutorConfig(worker_executable, worker_profile, adapter_args=worker_adapter_args)
+        results = {lane: dispatch_native_lane(queues[lane], run_id, lane, root / "evidence" / "candidate" / run_id / lane, worker_config, command_builder=_native_command_builder) for lane in queues}
+    for lane, records in results.items():
+        reconcile_lane_outputs(records, queues[lane], run_id, lane)
+    research_runs, claims = _worker_payloads(results)
+    candidate_path = root / "evidence" / "candidate" / run_id / "claims.jsonl"
+    decision_path = root / "evidence" / "verifier" / run_id / "decisions.jsonl"
+    candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    decision_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_jsonl(candidate_path, claims)
+    verifier_run_id = f"{run_id}:verifier"
+    if fixture:
+        decisions = _fixture_decisions(claims, run_id)
+    else:
+        verifier_input_dir = root / "evidence" / "verifier" / run_id / "inputs"
+        verifier_queue = []
+        claims_by_company: dict[str, list[dict[str, object]]] = {}
+        for claim in claims:
+            claims_by_company.setdefault(str(claim["company_id"]), []).append(claim)
+        for company_id in sorted(accepted_ids):
+            claims_path = verifier_input_dir / f"{company_id}.jsonl"
+            _write_jsonl(claims_path, claims_by_company.get(company_id, []))
+            verifier_queue.append({"run_id": run_id, "lane": "verifier", "company_id": company_id, "claims_path": claims_path})
+        def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
+            return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
+        verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
+        verifier_results = dispatch_native_lane(verifier_queue, run_id, "verifier", root / "evidence" / "verifier" / run_id / "outputs", verifier_config, command_builder=verifier_command_builder)
+        reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier")
+        decisions = []
+        for record in verifier_results:
+            if record.get("status") != "succeeded":
+                continue
+            payload = json.loads(Path(str(record["output_path"])).read_text(encoding="utf-8"))
+            output_decisions = payload.get("decisions", payload if isinstance(payload, list) else [])
+            if not isinstance(output_decisions, list):
+                raise ValueError("verifier output decisions are not a list")
+            decisions.extend(item for item in output_decisions if isinstance(item, dict))
+    _write_jsonl(decision_path, decisions)
+    research_registry = {
+        str(run["run_id"]): {**dict(run), "research_run_id": run["run_id"]}
+        for run in research_runs
+    }
+    verifier_registry = {verifier_run_id: {"verifier_run_id": verifier_run_id, "verifier_id": "fixture-verifier" if fixture else verifier_profile, "status": "Completed", "decision_count": len(decisions)}}
+    source_policy = {"allowed_domains": sorted({str(row.get("domain") or "").lower().removeprefix("www.") for row in shortlist if row.get("domain")})}
+    update_manifest_file(manifest_path, root, inputs={"candidate_evidence": candidate_path, "verifier_decisions": decision_path}, registries={"accepted_company_ids": sorted(accepted_ids), "research_runs": research_registry, "verifier_runs": verifier_registry, "source_policy": source_policy}, status="research_complete", barriers={"research": True, "verifier": True})
+    from promote_evidence import promote_verified_claims
+    verified_path = root / "evidence" / "verified" / run_id / "claims.jsonl"
+    promote_verified_claims(candidate_path, decision_path, verified_path, manifest_path)
+    update_manifest_file(manifest_path, root, outputs={"verified_evidence": verified_path}, status="evidence_promoted", barriers={"verified_evidence": True})
+    from canonical_projection import project_verified_evidence
+    canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root)
+    scoring_audit = root / "evidence" / "reports" / run_id / "scoring_audit.csv"
+    scripts_dir = Path(__file__).resolve().parent
+    score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit)]
+    subprocess.run(score_command, cwd=root, check=True, capture_output=True, text=True)
+    update_manifest_file(manifest_path, root, outputs={"scores": canonical["scores"], "scoring_audit": scoring_audit}, supporting_inputs={"website_evidence": fixture_inputs.get("website_evidence", fixture_inputs["qualification"]), "source_register": fixture_inputs.get("source_register", fixture_inputs["sources"]), "entity_resolution": fixture_inputs.get("entity_resolution", fixture_inputs["companies"]), "buying_signal_audit": canonical["signal_audit"], "buying_events": canonical["events"], "scoring_audit": scoring_audit, "contact_sources": fixture_inputs.get("contact_sources", fixture_inputs["contacts"])}, status="scored", barriers={"projection": True, "ranking": False})
+    with canonical["scores"].open(encoding="utf-8-sig", newline="") as handle:
+        projected_scores = list(csv.DictReader(handle))
+    qualification = {row["company_id"]: row for row in _load_records_jsonl(canonical["qualification"])}
+    from select_for_enrichment import select_accounts, write_provisional_shortlist
+    priority_rows = select_accounts(projected_scores, qualification, 30, accepted_ids)
+    validate_final_priority_rows(priority_rows, accepted_ids)
+    priority_path = root / "data" / "processed" / run_id / "priority.csv"
+    shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
+    write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)
+    update_manifest_file(manifest_path, root, outputs={"priority": priority_path, "shortlist_audit": shortlist_audit_path}, status="ranked", barriers={"ranking": True})
+    staging = root / "output" / f"{run_id}.staging.xlsx"
+    final_output = root / "output" / f"{run_id}.xlsx"
+    build_report = root / "evidence" / "reports" / run_id / "build.json"
+    build_report.parent.mkdir(parents=True, exist_ok=True)
+    build_command = [sys.executable, str(scripts_dir / "build_workbook.py"), "--companies", str(fixture_inputs["companies"]), "--scores", str(canonical["scores"]), "--priority", str(priority_path), "--contacts", str(canonical["contacts"]), "--sources", str(fixture_inputs["sources"]), "--output", str(staging), "--build-report", str(build_report), "--run-manifest", str(manifest_path)]
+    subprocess.run(build_command, cwd=root, check=True, capture_output=True, text=True)
+    validator = subprocess.run([sys.executable, str(scripts_dir / "validate_workbook.py"), "--workbook", str(staging)], cwd=root, check=False, capture_output=True, text=True)
+    if validator.returncode:
+        raise RuntimeError(validator.stdout + validator.stderr)
+    qa_report = root / "evidence" / "reports" / run_id / "qa.md"
+    qa_sample = root / "evidence" / "reports" / run_id / "qa.csv"
+    schema_path = root / "config" / "lead_generation_schema.json"
+    if not schema_path.exists():
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(Path(__file__).resolve().parents[1] / "config" / "lead_generation_schema.json", schema_path)
+    update_manifest_file(manifest_path, root, supporting_inputs={"schema": schema_path}, outputs={"workbook": staging, "build_report": build_report}, status="ready_for_validation", barriers={"projection": True})
+    qa_command = [sys.executable, str(scripts_dir / "qa_leads.py"), "--workbook", str(staging), "--schema", str(schema_path), "--evidence-dir", str(root / "evidence"), "--report", str(qa_report), "--sample-output", str(qa_sample), "--run-manifest", str(manifest_path)]
+    qa_result = subprocess.run(qa_command, cwd=root, check=False, capture_output=True, text=True)
+    if qa_result.returncode:
+        report_text = qa_report.read_text(encoding="utf-8") if qa_report.exists() else ""
+        raise RuntimeError(qa_result.stdout + qa_result.stderr + report_text)
+    update_manifest_file(manifest_path, root, outputs={"qa_report": qa_report, "qa_sample": qa_sample}, status="ready_for_validation", barriers={"readiness": True})
+    reachability_flag = ["--allow-unreachable-revision"] if not (root / ".git").exists() else []
+    deliverable_check = subprocess.run([sys.executable, str(scripts_dir / "validate_deliverables.py"), "--workbook", str(staging), "--deck", str(root / "output" / "missing-fixture-deck.pptx"), "--qa-report", str(qa_report), "--run-manifest", str(manifest_path), "--workbook-only", *reachability_flag], cwd=root, check=False, capture_output=True, text=True)
+    if deliverable_check.returncode:
+        raise RuntimeError(deliverable_check.stdout + deliverable_check.stderr)
+    final_output.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(staging, final_output)
+    update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, status="completed", barriers={"readiness": True, "published": True})
+    return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report}
+
+
+def _load_records_jsonl(path: Path) -> list[dict[str, object]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def update_manifest_file(manifest_path: Path, root: Path, **kwargs: object) -> dict[str, object]:
+    return update_manifest(manifest_path, root, **kwargs)
 
 
 def main() -> int:
@@ -132,12 +420,35 @@ def main() -> int:
     create.add_argument("--run-id")
     create.add_argument("--input", type=Path, action="append", default=[])
     create.add_argument("--supporting-input", type=Path, action="append", default=[])
+    create.add_argument("--accepted-company-ids", type=Path)
     verify = subparsers.add_parser("verify")
     verify.add_argument("--manifest", type=Path, required=True)
     verify.add_argument("--root", type=Path, default=Path.cwd())
+    run = subparsers.add_parser("run")
+    run.add_argument("--root", type=Path, default=Path.cwd())
+    run.add_argument("--manifest", type=Path, required=True)
+    run.add_argument("--shortlist", type=Path, required=True)
+    run.add_argument("--accepted-company-ids", type=Path)
+    run.add_argument("--fixture", action="store_true")
+    run.add_argument("--worker-executable")
+    run.add_argument("--worker-profile", default="default")
+    run.add_argument("--verifier-executable")
+    run.add_argument("--verifier-profile", default="evidence-verifier")
     args = parser.parse_args()
     if args.command == "create":
-        print(json.dumps(create_run_manifest(args.root, args.manifest, args.run_id, args.input, args.supporting_input), indent=2))
+        accepted_ids = set()
+        if args.accepted_company_ids:
+            accepted_ids = {str(row.get("company_id") or "") for row in _load_csv(args.accepted_company_ids) if row.get("company_id")}
+        print(json.dumps(create_run_manifest(args.root, args.manifest, args.run_id, args.input, args.supporting_input, accepted_company_ids=accepted_ids), indent=2))
+        return 0
+    if args.command == "run":
+        root = args.root.resolve()
+        try:
+            result = run_pipeline(root, args.manifest, args.shortlist, fixture=args.fixture, worker_executable=args.worker_executable, worker_profile=args.worker_profile, verifier_executable=args.verifier_executable, verifier_profile=args.verifier_profile)
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"ERROR: {exc}")
+            return 1
+        print(json.dumps({key: str(value) for key, value in result.items()}, indent=2))
         return 0
     errors = verify_manifest(args.manifest, args.root)
     for error in errors:

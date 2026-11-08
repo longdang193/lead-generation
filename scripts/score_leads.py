@@ -6,7 +6,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from lead_contract import actionability_for, sales_priority_for, signal_rank
+from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
 
@@ -166,7 +166,7 @@ def main() -> int:
             "actionability": actionability,
             "sales_priority": sales_priority,
             "lead_tier": tier,
-            "evidence_urls": " | ".join(record.get("evidence_urls", [])),
+            "evidence_urls": " | ".join(parse_evidence_urls(record.get("evidence_urls"))),
             "buying_signal_event_ids": " | ".join(signal_event_ids),
             "buying_signal_evidence_urls": " | ".join(signal_urls),
             "retrieved_at": record.get("retrieved_at", stamp()),

@@ -37,9 +37,15 @@ def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object
     return resolution == "Accepted" and bool(eligible) and row.get("lead_tier") in {"A", "B"} and number(row.get("evidence_coverage")) >= 50
 
 
-def select_accounts(scores: list[dict[str, str]], qualification: dict[str, dict[str, object]], max_accounts: int) -> list[dict[str, str]]:
+def select_accounts(
+    scores: list[dict[str, str]],
+    qualification: dict[str, dict[str, object]],
+    max_accounts: int,
+    accepted_company_ids: set[str] | None = None,
+) -> list[dict[str, str]]:
     selected = [
         row for row in scores
+        if accepted_company_ids is None or str(row.get("company_id") or "") in accepted_company_ids
         if eligible_for_enrichment(row, qualification.get(str(row.get("company_id") or ""), {}))
     ]
 
@@ -87,12 +93,13 @@ def main() -> int:
     parser.add_argument("--audit-output", type=Path, required=True)
     parser.add_argument("--max-accounts", type=int, default=30)
     parser.add_argument("--run-manifest", type=Path)
+    parser.add_argument("--company-id", action="append", dest="company_ids", default=[])
     args = parser.parse_args()
 
     with args.scores.open(encoding="utf-8-sig", newline="") as handle:
         scores = list(csv.DictReader(handle))
     qualification = read_qualification(args.qualification)
-    selected = select_accounts(scores, qualification, args.max_accounts)
+    selected = select_accounts(scores, qualification, args.max_accounts, set(args.company_ids) or None)
     write_provisional_shortlist(selected, args.output, args.audit_output)
     if args.run_manifest and args.run_manifest.exists():
         update_run_manifest(args.run_manifest, inputs={"scores": args.scores, "qualification": args.qualification}, outputs={"provisional_shortlist": args.output, "shortlist_audit": args.audit_output})

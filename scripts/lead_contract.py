@@ -220,23 +220,28 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def update_run_manifest(path: Path, *, inputs: dict[str, Path] | None = None, outputs: dict[str, Path] | None = None) -> None:
+def update_run_manifest(
+    path: Path,
+    *,
+    inputs: dict[str, Path] | None = None,
+    supporting_inputs: dict[str, Path] | None = None,
+    outputs: dict[str, Path] | None = None,
+) -> None:
+    from run_manifest import repository_root, update
+
+    root = repository_root(path.parent)
     manifest = __import__("json").loads(path.read_text(encoding="utf-8"))
-    root = Path.cwd().resolve()
+    if not manifest.get("run_id") or not manifest.get("head_sha"):
+        return
+    existing_inputs = {name: item for name, item in (inputs or {}).items() if item.exists()}
+    existing_supporting = {name: item for name, item in (supporting_inputs or {}).items() if item.exists()}
+    existing_outputs = {name: item for name, item in (outputs or {}).items() if item.exists()}
+    update(path, root, inputs=existing_inputs, supporting_inputs=existing_supporting, outputs=existing_outputs)
 
-    def portable_path(item: Path) -> str:
-        resolved = item.resolve()
-        try:
-            return resolved.relative_to(root).as_posix()
-        except ValueError:
-            return resolved.as_posix()
 
-    for section, values in (("supporting_inputs", inputs or {}), ("outputs", outputs or {})):
-        bucket = manifest.setdefault(section, {})
-        for name, item in values.items():
-            if item.exists():
-                bucket[name] = {"path": portable_path(item), "sha256": file_sha256(item)}
-    path.write_text(__import__("json").dumps(manifest, indent=2), encoding="utf-8")
+def run_scope_matches(value: object, run_id: str) -> bool:
+    text = str(value or "")
+    return text == run_id or text.startswith(f"{run_id}:")
 
 
 def is_public_http_url(value: object) -> bool:
