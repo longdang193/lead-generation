@@ -9,14 +9,14 @@ from pathlib import Path
 from lead_contract import candidate_claim_id, candidate_sha256
 
 
-def load_jsonl(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
+def load_jsonl(path: Path | None) -> list[dict[str, object]]:
+    if path is None or not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def load_csv(path: Path) -> list[dict[str, str]]:
-    if not path.exists():
+def load_csv(path: Path | None) -> list[dict[str, str]]:
+    if path is None or not path.exists():
         return []
     with path.open(encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
@@ -59,12 +59,12 @@ def make_claim(company_id: str, company_name: str, domain: str, run_id: str, cla
 
 def run(args: argparse.Namespace) -> int:
     root = args.repo_root.resolve()
-    website = {str(row.get("company_id")): row for row in load_jsonl(root / "data" / "intermediate" / "website_evidence_2026-11-08.jsonl")}
-    contacts = {str(row.get("company_id")): row for row in load_csv(root / "data" / "processed" / "contacts_2026-11-08.csv")}
-    companies = {str(row.get("company_id")): row for row in load_csv(root / "data" / "intermediate" / "companies_normalized_2026-11-07.csv")}
+    website = {str(row.get("company_id")): row for row in load_jsonl(args.website_evidence) if args.website_evidence}
+    contacts = {str(row.get("company_id")): row for row in load_csv(args.contacts_input) if args.contacts_input}
+    companies = {str(row.get("company_id")): row for row in load_csv(args.companies_input) if args.companies_input}
     company = companies.get(args.company_id, {})
-    domain = str(company.get("domain") or "")
-    company_name = str(company.get("company_name") or args.company_id)
+    domain = str(args.trusted_domain or company.get("domain") or "")
+    company_name = str(args.company_name or company.get("company_name") or args.company_id)
     claims: list[dict[str, object]] = []
     source_url = str(company.get("source_url") or f"https://{domain}/")
     if args.lane == "portfolio":
@@ -80,8 +80,8 @@ def run(args: argparse.Namespace) -> int:
         if contact.get("contact_name") not in (None, "", "Unknown"):
             claims.append(make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "contact", "claim_value": contact["contact_name"], "person_name": contact["contact_name"], "role": contact.get("contact_role") or "Unknown", "company_affiliation": company_name, "email": contact.get("contact_email"), "source_url": contact.get("email_source") or source_url, "evidence_excerpt": f"{contact['contact_name']} — {contact.get('contact_role') or 'company contact'}"}))
     elif args.lane == "signals":
-        events = json.loads((root / "data" / "raw" / "buying_events_2026-11-08.json").read_text(encoding="utf-8")) if (root / "data" / "raw" / "buying_events_2026-11-08.json").exists() else []
-        links = load_csv(root / "data" / "processed" / "company_event_links_2026-11-08.csv")
+        events = json.loads(args.events_input.read_text(encoding="utf-8")) if args.events_input and args.events_input.exists() else []
+        links = load_csv(args.event_links_input) if args.event_links_input else []
         event_by_id = {str(item.get("event_id")): item for item in events if isinstance(item, dict)}
         for link in links:
             if link.get("company_id") != args.company_id or link.get("match_confidence") != "Verified":
@@ -93,8 +93,8 @@ def run(args: argparse.Namespace) -> int:
                 make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "buying_signal", "claim_value": "Strong", "source_url": event.get("source_url") or source_url, "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
                 make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "event", "claim_value": {"event_id": event_id, "publication_date": published, "deadline": event.get("deadline")}, "source_url": event.get("source_url") or source_url, "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
             ])
-    research_run = {"record_type": "ResearchRun", "run_id": f"{args.run_id}:{args.lane}:{args.company_id}", "company_id": args.company_id, "research_type": args.lane, "source": args.profile, "scope": f"{args.lane}:{args.company_id}", "status": "Completed", "started_at": stamp(), "completed_at": stamp(), "result_count": len(claims), "truncated": False, "provider_status": "Available", "scope_version": "native-v1", "scope_hash": "0" * 64, "attempts": [{"attempt_id": f"{args.run_id}:{args.lane}:{args.company_id}:1", "query_or_source": source_url, "status": "Completed", "truncated": False}]}
-    args.output.write_text(json.dumps({"research_run": research_run, "claims": claims}, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    research_run = {"record_type": "ResearchRun", "run_id": f"{args.run_id}:{args.lane}:{args.company_id}", "campaign_id": args.campaign_id, "company_id": args.company_id, "company_name": company_name, "trusted_domain": domain, "location": args.location, "research_type": args.lane, "source": args.profile, "scope": f"{args.lane}:{args.company_id}", "status": "Completed", "started_at": stamp(), "completed_at": stamp(), "result_count": len(claims), "truncated": False, "provider_status": "Available", "adapter_capability": "replay", "scope_version": args.scope_version or "native-v1", "scope_hash": args.scope_hash or "0" * 64, "attempts": [{"attempt_id": f"{args.run_id}:{args.lane}:{args.company_id}:1", "query_or_source": source_url, "status": "Completed", "truncated": False}]}
+    args.output.write_text(json.dumps({"adapter_capability": "replay", "research_run": research_run, "claims": claims}, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
 
@@ -103,8 +103,19 @@ def main() -> int:
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--profile", required=True)
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--campaign-id", default="legacy")
     parser.add_argument("--lane", required=True)
     parser.add_argument("--company-id", required=True)
+    parser.add_argument("--company-name", default="")
+    parser.add_argument("--trusted-domain", default="")
+    parser.add_argument("--location", default="Unknown")
+    parser.add_argument("--scope-version", default="")
+    parser.add_argument("--scope-hash", default="")
+    parser.add_argument("--website-evidence", type=Path)
+    parser.add_argument("--contacts-input", type=Path)
+    parser.add_argument("--companies-input", type=Path)
+    parser.add_argument("--events-input", type=Path)
+    parser.add_argument("--event-links-input", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     return run(parser.parse_args())
 

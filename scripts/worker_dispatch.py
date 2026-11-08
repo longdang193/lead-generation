@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import signal
 import subprocess
@@ -51,24 +52,33 @@ def dispatch_native_lane(
     for item in queue:
         company_id = str(item["company_id"])
         item_output = output_dir / f"{lane}-{company_id}.json"
-        command = command_builder(item, item_output, config) if command_builder else [
-            config.executable,
-            "--profile", config.profile,
-            "--run-id", run_id,
-            "--lane", lane,
-            "--company-id", company_id,
-            "--output", str(item_output),
-        ]
+        if item_output.exists():
+            item_output.unlink()
         attempts = 0
         status = "failed"
         exit_code: int | None = None
         started = time.time()
         for attempts in range(1, config.max_retries + 2):
+            attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
+            if attempt_output.exists():
+                attempt_output.unlink()
+            attempt_command = command_builder(item, attempt_output, config) if command_builder else [
+                config.executable,
+                "--profile", config.profile,
+                "--run-id", run_id,
+                "--lane", lane,
+                "--company-id", company_id,
+                "--output", str(attempt_output),
+            ]
             try:
-                completed = subprocess.run(command, check=False, timeout=config.timeout_seconds, cwd=output_dir.parent.parent.parent)
+                completed = subprocess.run(attempt_command, check=False, timeout=config.timeout_seconds, cwd=output_dir.parent.parent.parent)
                 exit_code = completed.returncode
-                status = "succeeded" if exit_code == 0 and item_output.exists() else "failed"
-                break
+                if exit_code == 0 and attempt_output.exists():
+                    os.replace(attempt_output, item_output)
+                    status = "succeeded"
+                    break
+                status = "failed"
+                continue
             except subprocess.TimeoutExpired:
                 status = "timed_out"
                 break
@@ -77,7 +87,10 @@ def dispatch_native_lane(
                 raise
             except OSError:
                 status = "failed"
-                break
+                continue
+            finally:
+                if attempt_output.exists():
+                    attempt_output.unlink()
         record: dict[str, object] = {
             "run_id": run_id,
             "lane": lane,
@@ -89,7 +102,7 @@ def dispatch_native_lane(
             "output_path": item_output.as_posix(),
         }
         if item_output.exists():
-            record["output_sha256"] = __import__("hashlib").sha256(item_output.read_bytes()).hexdigest()
+            record["output_sha256"] = hashlib.sha256(item_output.read_bytes()).hexdigest()
         records.append(record)
     return records
 
@@ -109,15 +122,20 @@ def dispatch_fixture_lanes(queues: dict[str, list[dict[str, object]]], run_id: s
                 "company_id": company_id,
                 "research_type": lane,
                 "source": "fixture",
-                "scope": f"{lane}:{company_id}",
+                "campaign_id": item.get("campaign_id", "legacy"),
+                "company_name": item.get("company_name", ""),
+                "trusted_domain": item.get("trusted_domain", ""),
+                "location": item.get("location", "Unknown"),
+                "scope": item.get("scope", f"{lane}:{company_id}"),
                 "status": "Completed",
                 "started_at": "2026-11-08T00:00:00+00:00",
                 "completed_at": "2026-11-08T00:00:01+00:00",
                 "result_count": 0,
                 "truncated": False,
                 "provider_status": "Available",
-                "scope_version": "fixture-v1",
-                "scope_hash": "0" * 64,
+                "adapter_capability": "replay",
+                "scope_version": item.get("scope_version", "fixture-v1"),
+                "scope_hash": item.get("scope_hash", "0" * 64),
                 "attempts": [{"attempt_id": f"{run_id}:{lane}:{company_id}:1", "query_or_source": "fixture", "status": "Completed", "truncated": False}],
             }
             domain = str(item.get("trusted_domain") or "example.invalid")
@@ -187,3 +205,40 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
     validate_lane_output(records, queue, run_id, lane)
     if any(str(record.get("status")) != "succeeded" for record in records):
         raise ValueError(f"lane {lane} has unsuccessful terminal output")
+    expected = {str(item["company_id"]): item for item in queue}
+    for record in records:
+        output_path = Path(str(record.get("output_path") or ""))
+        if not output_path.exists():
+            raise ValueError(f"lane output is missing: {output_path}")
+        actual_hash = hashlib.sha256(output_path.read_bytes()).hexdigest()
+        if record.get("output_sha256") != actual_hash:
+            raise ValueError(f"lane output hash mismatch: {output_path}")
+        try:
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"lane output is not valid JSON: {output_path}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(f"lane output must be a JSON object: {output_path}")
+        item = expected[str(record["company_id"])]
+        if lane == "verifier":
+            decisions = payload.get("decisions", [])
+            if not isinstance(decisions, list) or any(not isinstance(decision, dict) for decision in decisions):
+                raise ValueError(f"verifier output decisions are not objects: {output_path}")
+            continue
+        research_run = payload.get("research_run", payload)
+        if not isinstance(research_run, dict):
+            raise ValueError(f"worker output lacks research_run: {output_path}")
+        expected_values = {
+            "run_id": f"{run_id}:{lane}:{item['company_id']}",
+            "campaign_id": item.get("campaign_id", "legacy"),
+            "company_id": item["company_id"],
+            "scope": item.get("scope"),
+            "scope_version": item.get("scope_version"),
+            "scope_hash": item.get("scope_hash"),
+        }
+        for field, expected_value in expected_values.items():
+            if research_run.get(field) != expected_value:
+                raise ValueError(f"worker output scope mismatch for {output_path}: {field}")
+        claims = payload.get("claims", [])
+        if not isinstance(claims, list) or any(not isinstance(claim, dict) for claim in claims):
+            raise ValueError(f"worker output claims are not objects: {output_path}")

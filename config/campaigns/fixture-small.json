@@ -1,0 +1,33 @@
+{
+  "campaign_id": "fixture-small",
+  "version": "2026-11-08",
+  "target_count": 5,
+  "qualification": {
+    "resolution_status": "Accepted",
+    "city": "Berlin",
+    "service_fit": "Hausverwaltung",
+    "residential_weg": true,
+    "trusted_domain_field": "verified_company_domain"
+  },
+  "input_bindings": {
+    "qualification": "data/fixture/qualification.jsonl",
+    "scores": "data/fixture/scores.csv",
+    "contacts": "data/fixture/contacts.csv",
+    "companies": "data/fixture/companies.csv",
+    "sources": "data/fixture/sources.csv",
+    "buying_events": "data/fixture/events.json"
+  },
+  "lanes": [
+    "portfolio",
+    "contacts"
+  ],
+  "adapter_policy": {
+    "worker_profile": "fixture-replay",
+    "verifier_profile": "fixture-structural",
+    "verification_mode": "structural_validation",
+    "allow_fixture_replay": true
+  },
+  "scoring_profile": "lead-score-v1",
+  "export_profile": "lead-workbook-v1",
+  "qa_profile": "lead-qa-v1"
+}

@@ -26,7 +26,7 @@ def main() -> int:
             valid = False
             missing = ["candidate_sha256"]
         decisions.append({"record_type": "VerifierDecision", "candidate_claim_id": claim.get("candidate_claim_id"), "candidate_sha256": claim.get("candidate_sha256"), "decision": "Verified" if valid else "Rejected", "reason_codes": ["native_contract"] if valid else missing, "verifier_id": args.profile, "verifier_run_id": f"{args.run_id}:verifier", "verified_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat()})
-    args.output.write_text(json.dumps({"decisions": decisions}, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(json.dumps({"adapter_capability": "structural_validation", "decisions": decisions}, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
 
