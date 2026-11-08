@@ -29,6 +29,7 @@ RUNTIME_ARTIFACT_PREFIXES = (
     "data/processed/",
     "evidence/audits/",
     "evidence/candidate/",
+    "evidence/fixture/",
     "evidence/manifests/",
     "evidence/queues/",
     "evidence/reports/",
@@ -36,8 +37,7 @@ RUNTIME_ARTIFACT_PREFIXES = (
     "evidence/verified/",
     "evidence/verifier/",
     "claims/",
-    "output/lead-",
-    "output/github-review/",
+    "output/",
 )
 
 

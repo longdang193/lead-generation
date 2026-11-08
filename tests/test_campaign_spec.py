@@ -85,6 +85,10 @@ class CampaignSpecTests(unittest.TestCase):
 
             create_run_manifest(root, manifest_path, "run-1", [], [], campaign_config=campaign_path, require_clean=True)
 
+            for path in (root / "evidence" / "fixture" / "run-1" / "qualification.jsonl", root / "output" / "run-1.xlsx"):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("runtime\n", encoding="utf-8")
+
             self.assertEqual(verify_manifest(manifest_path, root), [])
             dirty_source = root / "scripts" / "dirty.py"
             dirty_source.parent.mkdir()
