@@ -45,7 +45,7 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
                 "legal_name": str(item.get("legal_name") or ""),
                 "source_url": str(url),
                 "discovery_source_url": str(item.get("discovery_source_url") or url),
-                "verified_company_domain": str(item.get("verified_company_domain") or item.get("domain") or item.get("website") or ""),
+                "verified_company_domain": str(item.get("verified_company_domain") or ""),
                 "address": str(item.get("address") or item.get("street") or tags.get("addr:street") or ""),
                 "postal_code": str(item.get("postal_code") or item.get("postcode") or tags.get("addr:postcode") or ""),
                 "city": str(item.get("city") or tags.get("addr:city") or ""),

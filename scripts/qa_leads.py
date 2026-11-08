@@ -157,7 +157,7 @@ def append_schema_errors(errors: list[str], row: dict[str, object], schema: dict
             value = normalized.get(field)
             if "type" in rule and not type_valid(value, rule["type"]):
                 matches = False
-            if "const" in rule and value == rule["const"]:
+            if "const" in rule and value != rule["const"]:
                 matches = False
             if "not" in rule and isinstance(rule["not"], dict) and "const" in rule["not"] and value == rule["not"]["const"]:
                 matches = False

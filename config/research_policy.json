@@ -1,0 +1,27 @@
+{
+  "policy_version": "1",
+  "allowed_source_kinds": ["official_site", "permitted_directory", "ted", "public_professional_profile"],
+  "blocked_canonical_domain_hosts": ["google.com", "bing.com", "linkedin.com", "northdata.de", "unternehmensregister.de"],
+  "research_caps": {
+    "max_companies_per_lane": 100,
+    "max_queries_per_company": 20,
+    "max_pages_per_query": 10,
+    "max_events_per_company": 50
+  },
+  "freshness_days": {
+    "buying_signal": 365,
+    "contact": 180,
+    "qualification": 365
+  },
+  "provisional_shortlist": {
+    "accepted_resolution_status": "Accepted",
+    "eligible": true,
+    "allowed_tiers": ["A", "B"],
+    "minimum_evidence_coverage": 50
+  },
+  "contact_minimization": {
+    "public_professional_sources_only": true,
+    "retain_personal_email_only_when_public_or_provider_verified": true,
+    "never_send_email": true
+  }
+}

@@ -49,6 +49,15 @@ def domain(value: str) -> str:
     return host.lower()
 
 
+def trusted_company_domain(row: dict[str, str]) -> str:
+    value = (row.get("verified_company_domain") or "").strip()
+    if not value:
+        return ""
+    host = domain(value)
+    blocked = {"google.com", "bing.com", "linkedin.com", "northdata.de", "unternehmensregister.de"}
+    return "" if host in blocked else host
+
+
 def clean_name(value: str) -> str:
     value = re.sub(r"[^\w\s-]", " ", (value or "").lower(), flags=re.UNICODE)
     value = re.sub(r"\s+", " ", value).strip()
@@ -96,7 +105,7 @@ def main() -> int:
     by_key: dict[tuple[str, str, str], dict[str, str]] = {}
     domain_groups: dict[str, list[tuple[str, str, str]]] = {}
     for row in rows:
-        host = domain(row.get("verified_company_domain") or row.get("source_url", ""))
+        host = trusted_company_domain(row)
         norm = clean_name(row.get("company_name", "").strip())
         postcode = (row.get("postal_code", "") or "").strip()
         address = re.sub(r"\W+", " ", row.get("address", "").lower()).strip()
@@ -106,7 +115,7 @@ def main() -> int:
     for row in rows:
         name = row.get("company_name", "").strip()
         norm = clean_name(name)
-        host = domain(row.get("verified_company_domain") or row.get("source_url", ""))
+        host = trusted_company_domain(row)
         postcode_text = (row.get("postal_code", "") or "").strip()
         if not postcode_text:
             postcode = re.search(r"\b\d{5}\b", row.get("address", "") or "")
@@ -129,7 +138,10 @@ def main() -> int:
             continue
         candidates = [item for item in canonical if postcode_text and item["postal_code"] == postcode_text and ratio(norm, item["normalized_name"]) >= 88]
         if candidates:
+            requires_review = True
             review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": candidates[0]["company_id"], "company_name": name, "reason": "fuzzy name and same postcode", "status": "Manual review"})
+        if requires_review:
+            continue
         identity_locator = postcode_text or address_key or row.get("city", "")
         if not identity_locator:
             identity_locator = row.get("source_record_id", "")
