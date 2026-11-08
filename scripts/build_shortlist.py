@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from collections import Counter
 import re
 from datetime import date
 from pathlib import Path
@@ -99,7 +100,8 @@ def main() -> int:
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
-    print(f"priority={len(priority_rows)} contacts={len(contacts)} published_emails={sum(row['contact_email'] != 'Unknown' for row in contacts)}")
+    status_counts = Counter(row["verification_status"] for row in contacts if row["contact_email"] != "Unknown")
+    print(f"priority={len(priority_rows)} contacts={len(contacts)} email_rows={sum(status_counts.values())} published={status_counts.get('Published', 0)} verified={status_counts.get('Verified', 0)} unverified={status_counts.get('Unverified', 0)}")
     return 0
 
 

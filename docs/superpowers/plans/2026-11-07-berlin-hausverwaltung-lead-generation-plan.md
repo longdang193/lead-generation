@@ -564,7 +564,7 @@ capabilities only as Phase 2 architecture.
 - Discovery: 302 VDIV records, 20 Apify records, and 5 bounded Overpass elements imported; 311 canonical rows retained after deterministic normalization, with 1 usable Overpass company record.
 - Website evidence: 288 domains fetched successfully; 23 fetch failures remain explicit in `evidence/website_capture_index_2026-11-08.csv`.
 - Buying signals: 98 TED notices collected in the separate event dataset; no company-event link was asserted without a verified match.
-- Shortlist: 30 accounts selected; 28 published or Hunter-verified business emails retained with source and status evidence.
+- Shortlist: 30 accounts selected; 28 contacts have email evidence: 21 Published, 5 Verified, and 2 Unverified. The 26 Published/Verified records retain source and status evidence.
 - Deliverables: five-tab workbook and five-slide methodology deck generated and reconciled against the current counts.
 - Provider status: Apify, TED, and Hunter access was configured and exercised; Overpass used its public endpoint and succeeded on the bounded query. Credentials remain local in ignored `.env` and are not committed.
 - Confirmed fixes: source-register truthiness, normalized Apify field import, Overpass timeout floor, and stale provider limitation reporting were patched with focused regression tests.
@@ -590,6 +590,12 @@ Expected final evidence:
 - Approximately 10–20 relevant named contacts where public evidence supports them.
 - Evidence URLs for all important non-`Unknown` claims.
 - Explicit records for inaccessible sources, unresolved entities, missing signals, and deferred work.
+
+## Review Readiness
+
+- Execution commit `4d74159` is already present on `main`; this review branch preserves that implementation history without rewriting the protected branch.
+- The review branch records the completed provider run, regression fixes, and final verification so the pull request has a durable acceptance trail.
+- Required review evidence: `py -3 -m unittest discover -s tests -v`, `py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json`, and `py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09.pptx --qa-report evidence/qa_report_2026-11-09.md`.
 - No external publication, email sending, paid overage, predictive probability, or Phase 2 implementation in the deadline package.
 - `.env` is ignored, `.env.example` is tracked, and no credential value appears in data, evidence, workbook, deck, or logs.
 - Company discovery records and buying-event records remain separate; only verified company-event links can create account-specific Buying Signals.
