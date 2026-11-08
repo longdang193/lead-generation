@@ -230,7 +230,7 @@ def main() -> int:
             scoped_search = bool(args.shortlist)
             company_successful_terms = successful_terms_by_company.get(company_id, 0) if scoped_search else successful_terms
             company_truncated = company_id in truncated_by_company if scoped_search else truncated_search
-            account_scoped = bool(links_by_company.get(company_id)) or (scoped_search and company_successful_terms == len(terms) and not company_truncated and company_id not in unresolved_by_company)
+            account_scoped = company_id not in unresolved_by_company and (bool(links_by_company.get(company_id)) or (scoped_search and company_successful_terms == len(terms) and not company_truncated))
             research_status, signal_state = account_research_state(
                 configured=bool(config.ted_api_base_url),
                 successful_terms=company_successful_terms,

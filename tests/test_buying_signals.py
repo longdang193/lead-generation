@@ -82,6 +82,44 @@ class BuyingSignalTests(unittest.TestCase):
             self.assertEqual(company_audit["research_status"], "Partial")
             self.assertEqual(company_audit["signal_state"], "Unknown")
 
+    def test_mixed_verified_and_unattributable_notices_remain_partial(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            companies = root / "companies.csv"
+            companies.write_text("company_id,company_name\nC1,Alpha Hausverwaltung\n", encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id\nC1\n", encoding="utf-8")
+            events = root / "events.json"
+            links = root / "links.csv"
+            audit = root / "audit.csv"
+            config = SimpleNamespace(ted_api_base_url="https://ted.example", request_timeout_seconds=1, max_priority_accounts=30)
+
+            def fake_ted_search(_base_url, search_term, timeout, limit):
+                return [
+                    {
+                        "publication-number": "123",
+                        "buyer-name": "Alpha Hausverwaltung GmbH",
+                        "links": {"html": {"ENG": "https://ted.example/notices/123"}},
+                    },
+                    {"publication-number": "124", "links": {"html": {"ENG": "https://ted.example/notices/124"}}},
+                ]
+
+            argv = [
+                "collect_buying_signals.py",
+                "--companies", str(companies),
+                "--shortlist", str(shortlist),
+                "--ted-output", str(events),
+                "--links-output", str(links),
+                "--audit-output", str(audit),
+            ]
+            with patch.object(collect_buying_signals.RuntimeConfig, "from_env", return_value=config), patch.object(collect_buying_signals, "ted_search", side_effect=fake_ted_search), patch.object(sys, "argv", argv):
+                self.assertEqual(collect_buying_signals.main(), 0)
+
+            with audit.open(encoding="utf-8-sig", newline="") as handle:
+                company_audit = next(row for row in csv.DictReader(handle) if row.get("company_id") == "C1" and row.get("research_status"))
+            self.assertEqual(company_audit["research_status"], "Partial")
+            self.assertEqual(company_audit["signal_state"], "Unknown")
+
     def test_colliding_normalized_buyers_are_not_verified_in_scoped_mode(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
