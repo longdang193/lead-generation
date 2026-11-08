@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,9 +14,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from build_workbook import main as build_workbook
 from qa_leads import main as qa_leads
+from run_manifest import validate_manifest_revision
 
 
 class ArtifactManifestSideEffectTests(unittest.TestCase):
+    def test_stale_reachable_revision_is_rejected_against_current_checkout(self):
+        root = Path(__file__).resolve().parents[1]
+        revisions = subprocess.run(["git", "rev-list", "--max-count=2", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()
+        self.assertEqual(len(revisions), 2)
+        errors = validate_manifest_revision(root, {"git_revision": revisions[1], "head_sha": revisions[1]})
+        self.assertTrue(any("expected current HEAD" in error and revisions[1] in error for error in errors))
+
     def test_workbook_build_without_manifest_does_not_mutate_repository_manifest(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

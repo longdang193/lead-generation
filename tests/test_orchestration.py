@@ -9,11 +9,28 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import _native_command_builder, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import _native_command_builder, build_verifier_queue, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
+    def test_verifier_queue_is_limited_to_dispatched_scope(self):
+        admitted_items = [
+            {"company_id": f"R{index:02d}", "lane": "signals", "scope_hash": f"hash-{index:02d}"}
+            for index in range(30)
+        ]
+        claims_by_company = {item["company_id"]: [] for item in admitted_items}
+        queue, dispatched_ids = build_verifier_queue(
+            accepted_ids={f"R{index:02d}" for index in range(35)},
+            admitted_items=admitted_items,
+            claims_by_company=claims_by_company,
+            claims_dir=Path("claims"),
+            run_id="run-1",
+            delivery_policy="personal",
+        )
+        self.assertEqual([item["company_id"] for item in queue], [f"R{index:02d}" for index in range(30)])
+        self.assertEqual(dispatched_ids, {f"R{index:02d}" for index in range(30)})
+
     def test_queue_is_deterministic_and_scoped_to_shortlist(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

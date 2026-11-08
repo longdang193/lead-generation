@@ -54,6 +54,7 @@ class EvidencePromotionTests(unittest.TestCase):
             promoted = promote_verified_claims(candidates, decisions, output)
             self.assertEqual(len(promoted), 1)
             self.assertEqual(promoted[0]["candidate_status"], "Verified")
+            self.assertEqual(promoted[0]["assurance_level"], "source")
             for key, value in claim.items():
                 if key != "candidate_status":
                     self.assertEqual(promoted[0][key], value)
@@ -82,6 +83,33 @@ class EvidencePromotionTests(unittest.TestCase):
             }), encoding="utf-8")
             promoted = promote_verified_claims(candidates_path, decisions_path, output_path, manifest_path)
             self.assertEqual({claim["candidate_claim_id"] for claim in promoted}, {"alias-claim", "ted-claim"})
+            self.assertTrue(all(claim["assurance_level"] == "structural" for claim in promoted))
+            self.assertTrue(all(claim["candidate_status"] == "Supported" for claim in promoted))
+
+    def test_approved_external_professional_contact_requires_company_affiliation(self):
+        claim = self.claim()
+        claim.update({
+            "candidate_claim_id": "contact-claim",
+            "claim_type": "contact",
+            "claim_value": "Anna Schmidt",
+            "person_name": "Anna Schmidt",
+            "role": "Geschäftsführerin",
+            "company_affiliation": "Example Hausverwaltung GmbH",
+            "source_url": "https://profiles.example.org/anna-schmidt",
+            "source_kind": "public_professional_profile",
+            "evidence_excerpt": "Anna Schmidt, Geschäftsführerin der Example Hausverwaltung GmbH",
+            "research_run_id": "run-1:contacts:company-1",
+        })
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["source_bound"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = (root / name for name in ("candidates.jsonl", "decisions.jsonl", "promoted.jsonl", "active_run.json"))
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "delivery_policy": "personal", "execution_mode": "fixture", "accepted_company_ids": ["company-1"], "research_runs": {"run-1:contacts:company-1": {"research_run_id": "run-1:contacts:company-1", "company_id": "company-1"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier", "capability": "structural_validation"}}, "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}, "approved_external_domains": ["profiles.example.org"], "external_source_kinds": ["public_professional_profile"]}}), encoding="utf-8")
+            promoted = promote_verified_claims(candidates, decisions, output, manifest)
+            self.assertEqual([item["candidate_claim_id"] for item in promoted], ["contact-claim"])
 
     def test_personal_replay_claims_are_quarantined_instead_of_verified(self):
         claim = self.claim()

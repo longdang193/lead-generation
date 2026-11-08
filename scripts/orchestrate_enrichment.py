@@ -14,7 +14,7 @@ from pathlib import Path
 
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
 from lead_contract import candidate_sha256, run_scope_matches
-from run_manifest import atomic_write, entry, load as load_manifest, portable_path, repository_root, update as update_manifest
+from run_manifest import atomic_write, entry, load as load_manifest, portable_path, repository_root, update as update_manifest, validate_manifest_revision
 
 
 def stamp() -> str:
@@ -25,10 +25,39 @@ def git_output(root: Path, *args: str) -> str:
     return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
 
 
+RUNTIME_ARTIFACT_PREFIXES = (
+    "data/processed/",
+    "evidence/audits/",
+    "evidence/candidate/",
+    "evidence/manifests/",
+    "evidence/queues/",
+    "evidence/reports/",
+    "evidence/research_runs/",
+    "evidence/verified/",
+    "evidence/verifier/",
+    "claims/",
+    "output/lead-",
+    "output/github-review/",
+)
+
+
+def is_runtime_artifact(path: str) -> bool:
+    normalized = path.replace("\\", "/")
+    return any(normalized.startswith(prefix) for prefix in RUNTIME_ARTIFACT_PREFIXES)
+
+
 def implementation_status(root: Path) -> str:
-    lines = git_output(root, "status", "--porcelain").splitlines()
+    lines = git_output(root, "status", "--porcelain", "--untracked-files=all").splitlines()
     preserved = {"lead-generation-architecture.json", "output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx"}
-    return "\n".join(line for line in lines if line[3:] not in preserved)
+    relevant = []
+    for line in lines:
+        path = line[3:]
+        if path in preserved:
+            continue
+        if line.startswith("??") and is_runtime_artifact(path):
+            continue
+        relevant.append(line)
+    return "\n".join(relevant)
 
 
 def file_digest(path: Path) -> str:
@@ -112,6 +141,31 @@ def write_lane_queue(
 ) -> list[dict[str, object]]:
     with shortlist_path.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
+    return _write_lane_queue_rows(
+        rows,
+        output_path,
+        lane,
+        run_id,
+        campaign_id=campaign_id,
+        accepted_company_ids=accepted_company_ids,
+        require_qualification=require_qualification,
+        company_rows=company_rows,
+        required_location_evidence=required_location_evidence,
+    )
+
+
+def _write_lane_queue_rows(
+    rows: list[dict[str, str]],
+    output_path: Path,
+    lane: str,
+    run_id: str,
+    *,
+    campaign_id: str,
+    accepted_company_ids: set[str] | None,
+    require_qualification: bool,
+    company_rows: dict[str, dict[str, str]] | None,
+    required_location_evidence: str | None,
+) -> list[dict[str, object]]:
     queue = []
     for row in sorted(rows, key=lambda item: str(item.get("company_id") or "")):
         company_id = str(row.get("company_id") or "")
@@ -149,6 +203,45 @@ def write_lane_queue(
     return queue
 
 
+def build_verifier_queue(
+    *,
+    accepted_ids: set[str],
+    admitted_items: list[dict[str, object]],
+    claims_by_company: dict[str, list[dict[str, object]]],
+    claims_dir: Path,
+    run_id: str,
+    delivery_policy: str,
+) -> tuple[list[dict[str, object]], set[str]]:
+    dispatched_ids = {str(item["company_id"]) for item in admitted_items}
+    if delivery_policy == "strict" and dispatched_ids != accepted_ids:
+        raise ValueError("strict verifier scope must exactly match accepted company scope")
+    verifier_ids = accepted_ids if delivery_policy == "strict" else dispatched_ids
+    admitted_by_company = {str(item["company_id"]): item for item in admitted_items}
+    verifier_queue: list[dict[str, object]] = []
+    for company_id in sorted(verifier_ids):
+        admitted = admitted_by_company.get(company_id)
+        if admitted is None:
+            raise ValueError(f"dispatched company lacks admitted work item: {company_id}")
+        claims_path = claims_dir / f"{company_id}.jsonl"
+        _write_jsonl(claims_path, claims_by_company.get(company_id, []))
+        verifier_queue.append({**admitted, "lane": "verifier", "claims_path": claims_path})
+    return verifier_queue, verifier_ids
+
+
+def complete_company_ids(results: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]]) -> set[str]:
+    lane_ids: list[set[str]] = []
+    for lane, queue in queues.items():
+        successful = {
+            str(record["company_id"])
+            for record in results.get(lane, [])
+            if str(record.get("status") or "") == "succeeded"
+        }
+        lane_ids.append({str(item["company_id"]) for item in queue} & successful)
+    if not lane_ids:
+        return set()
+    return set.intersection(*lane_ids)
+
+
 def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str) -> None:
     allowed = {str(item["company_id"]) for item in queue}
     seen: set[str] = set()
@@ -171,6 +264,7 @@ def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str,
 def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
     manifest = load_manifest(manifest_path)
     errors: list[str] = []
+    errors.extend(validate_manifest_revision(root, manifest))
     try:
         _manifest_campaign(root, manifest)
     except (OSError, ValueError) as exc:
@@ -178,7 +272,7 @@ def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
     if (root / ".git").exists():
         head_sha = git_output(root, "rev-parse", "HEAD")
         if manifest.get("head_sha") != head_sha:
-            errors.append("HEAD does not match manifest head_sha")
+            errors.append(f"HEAD does not match manifest head_sha: expected {head_sha}, observed {manifest.get('head_sha')}")
         if implementation_status(root):
             errors.append("implementation worktree is dirty")
     for bucket_name in ("inputs", "supporting_inputs", "outputs"):
@@ -349,6 +443,8 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         raise ValueError(f"manifest accepted company scope does not exactly match the provisional {campaign.target_count}-company shortlist")
     if not shortlist_ids.issubset(accepted_ids):
         raise ValueError("manifest accepted company scope must cover the provisional shortlist")
+    active_shortlist = shortlist if campaign.delivery_policy == "strict" else shortlist[:campaign.target_count]
+    active_ids = {str(row.get("company_id") or "") for row in active_shortlist}
     fixture_inputs = _fixture_inputs(root, shortlist, run_id) if fixture else {
         name: root / relative_path for name, relative_path in campaign.input_bindings.items()
     }
@@ -373,8 +469,8 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     queues = {}
     for lane in campaign.lanes:
         queue_path = queue_dir / f"{lane}.jsonl"
-        queues[lane] = write_lane_queue(
-            shortlist_path,
+        queues[lane] = _write_lane_queue_rows(
+            active_shortlist,
             queue_path,
             lane,
             run_id,
@@ -391,14 +487,84 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     if isinstance(configured_source_policy, dict):
         source_policy.update(configured_source_policy)
     update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, registries={"execution_mode": "fixture" if fixture else "production", "delivery_policy": campaign.delivery_policy, "admitted_work_items": admitted_items, "source_policy": source_policy}, status="queued", barriers={"provisional_shortlist": True})
-    from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs
+    from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
+
+    def dispatch_lane_items(queue: list[dict[str, object]], lane: str, output_dir: Path) -> list[dict[str, object]]:
+        pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir)
+        if fixture:
+            fresh = dispatch_fixture_lanes({lane: pending}, run_id, output_dir.parent).get(lane, [])
+        else:
+            fresh = dispatch_native_lane(queue=pending, run_id=run_id, lane=lane, output_dir=output_dir, config=worker_config, command_builder=_native_command_builder)
+        return reused + fresh
+
     if fixture:
-        results = dispatch_fixture_lanes(queues, run_id, root / "evidence" / "candidate" / run_id)
+        results = {lane: dispatch_lane_items(queues[lane], lane, root / "evidence" / "candidate" / run_id / lane) for lane in queues}
     else:
         worker_config = NativeExecutorConfig(worker_executable, worker_profile, adapter_args=worker_adapter_args)
-        results = {lane: dispatch_native_lane(queues[lane], run_id, lane, root / "evidence" / "candidate" / run_id / lane, worker_config, command_builder=_native_command_builder) for lane in queues}
+        results = {lane: dispatch_lane_items(queues[lane], lane, root / "evidence" / "candidate" / run_id / lane) for lane in queues}
     for lane, records in results.items():
         reconcile_lane_outputs(records, queues[lane], run_id, lane, allow_partial=campaign.delivery_policy == "personal")
+    replacement_log: list[dict[str, object]] = []
+    delivered_ids = complete_company_ids(results, queues)
+    if campaign.delivery_policy == "personal" and len(delivered_ids) < campaign.target_count:
+        reserve_ids = sorted(accepted_ids - active_ids)
+        for reserve_id in reserve_ids:
+            if len(delivered_ids) >= campaign.target_count:
+                break
+            reserve_row = company_rows.get(reserve_id)
+            if reserve_row is None:
+                replacement_log.append({"company_id": reserve_id, "status": "skipped", "reason": "missing_canonical_company_binding"})
+                continue
+            reserve_queues: dict[str, list[dict[str, object]]] = {}
+            for lane in campaign.lanes:
+                reserve_queues[lane] = _write_lane_queue_rows(
+                    [reserve_row],
+                    queue_dir / f"reserve-{reserve_id}-{lane}.jsonl",
+                    lane,
+                    run_id,
+                    campaign_id=campaign.campaign_id,
+                    accepted_company_ids=accepted_ids,
+                    require_qualification=True,
+                    company_rows=company_rows,
+                    required_location_evidence=required_location_evidence,
+                )
+            if fixture:
+                reserve_results = {lane: dispatch_lane_items(reserve_queues[lane], lane, root / "evidence" / "candidate" / run_id / "reserve" / lane) for lane in reserve_queues}
+            else:
+                reserve_results = {lane: dispatch_lane_items(reserve_queues[lane], lane, root / "evidence" / "candidate" / run_id / "reserve" / lane) for lane in reserve_queues}
+            for lane, records in reserve_results.items():
+                reconcile_lane_outputs(records, reserve_queues[lane], run_id, lane, allow_partial=True)
+            reserve_delivered = complete_company_ids(reserve_results, reserve_queues)
+            replacement_log.append({"company_id": reserve_id, "status": "delivered" if reserve_delivered else "failed", "reason": "reserve_backfill"})
+            if reserve_delivered:
+                delivered_ids.update(reserve_delivered)
+                for lane in campaign.lanes:
+                    queues[lane].extend(reserve_queues[lane])
+                    results[lane].extend(reserve_results[lane])
+    if campaign.delivery_policy == "personal":
+        for lane in campaign.lanes:
+            queues[lane] = [item for item in queues[lane] if str(item["company_id"]) in delivered_ids]
+            results[lane] = [record for record in results[lane] if str(record["company_id"]) in delivered_ids]
+            _write_jsonl(queue_dir / f"{lane}.jsonl", queues[lane])
+    active_dispatch_ids = {str(item["company_id"]) for lane in campaign.lanes for item in queues[lane]}
+    admitted_items = [item for lane in campaign.lanes for item in queues[lane]]
+    domain_by_company = {str(item["company_id"]): str(item["trusted_domain"]) for item in admitted_items}
+    source_policy["allowed_domains"] = sorted(set(domain_by_company.values()))
+    source_policy["company_domains"] = domain_by_company
+    update_manifest_file(
+        manifest_path,
+        root,
+        outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues},
+        registries={
+            "accepted_company_ids": sorted(accepted_ids),
+            "active_dispatch_ids": sorted(active_dispatch_ids),
+            "delivered_ids": sorted(delivered_ids),
+            "replacement_log": replacement_log,
+            "admitted_work_items": admitted_items,
+            "source_policy": source_policy,
+            "dispatch_records": results,
+        },
+    )
     research_runs, claims = _worker_payloads(results, queues)
     candidate_path = root / "evidence" / "candidate" / run_id / "claims.jsonl"
     decision_path = root / "evidence" / "verifier" / run_id / "decisions.jsonl"
@@ -411,21 +577,23 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         decisions = _fixture_decisions(claims, run_id)
     else:
         verifier_input_dir = root / "evidence" / "verifier" / run_id / "inputs"
-        verifier_queue = []
         claims_by_company: dict[str, list[dict[str, object]]] = {}
         for claim in claims:
             claims_by_company.setdefault(str(claim["company_id"]), []).append(claim)
-        for company_id in sorted(accepted_ids):
-            claims_path = verifier_input_dir / f"{company_id}.jsonl"
-            _write_jsonl(claims_path, claims_by_company.get(company_id, []))
-            admitted = next((item for item in admitted_items if str(item["company_id"]) == company_id), None)
-            if admitted is None:
-                raise ValueError(f"accepted company lacks admitted work item: {company_id}")
-            verifier_queue.append({**admitted, "lane": "verifier", "claims_path": claims_path})
+        verifier_queue, _ = build_verifier_queue(
+            accepted_ids=accepted_ids,
+            admitted_items=admitted_items,
+            claims_by_company=claims_by_company,
+            claims_dir=verifier_input_dir,
+            run_id=run_id,
+            delivery_policy=campaign.delivery_policy,
+        )
         def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
-        verifier_results = dispatch_native_lane(verifier_queue, run_id, "verifier", root / "evidence" / "verifier" / run_id / "outputs", verifier_config, command_builder=verifier_command_builder)
+        verifier_output_dir = root / "evidence" / "verifier" / run_id / "outputs"
+        verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir)
+        verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
         decisions = []
         for record in verifier_results:
@@ -453,15 +621,16 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root, delivery_policy=campaign.delivery_policy)
     scoring_audit = root / "evidence" / "reports" / run_id / "scoring_audit.csv"
     scripts_dir = Path(__file__).resolve().parent
-    score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit)]
+    score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit), "--delivery-policy", campaign.delivery_policy]
     subprocess.run(score_command, cwd=root, check=True, capture_output=True, text=True)
     update_manifest_file(manifest_path, root, outputs={"scores": canonical["scores"], "scoring_audit": scoring_audit}, supporting_inputs={"website_evidence": fixture_inputs.get("website_evidence", fixture_inputs["qualification"]), "source_register": fixture_inputs.get("source_register", fixture_inputs["sources"]), "entity_resolution": fixture_inputs.get("entity_resolution", fixture_inputs["companies"]), "buying_signal_audit": canonical["signal_audit"], "buying_events": canonical["events"], "scoring_audit": scoring_audit, "contact_sources": fixture_inputs.get("contact_sources", fixture_inputs["contacts"])}, status="scored", barriers={"projection": True, "ranking": False})
     with canonical["scores"].open(encoding="utf-8-sig", newline="") as handle:
         projected_scores = list(csv.DictReader(handle))
     qualification = {row["company_id"]: row for row in _load_records_jsonl(canonical["qualification"])}
     from select_for_enrichment import select_accounts, write_provisional_shortlist
-    priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, accepted_ids)
-    validate_final_priority_rows(priority_rows, accepted_ids, campaign.target_count, campaign.delivery_policy)
+    selection_scope = delivered_ids if campaign.delivery_policy == "personal" else accepted_ids
+    priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, selection_scope, campaign.delivery_policy)
+    validate_final_priority_rows(priority_rows, selection_scope, campaign.target_count, campaign.delivery_policy)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"
     shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
     write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)

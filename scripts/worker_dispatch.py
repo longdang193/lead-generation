@@ -26,12 +26,74 @@ class NativeExecutorConfig:
     max_retries: int = 1
     max_workers: int = 3
     adapter_args: tuple[str, ...] = ()
+    timeout_retries: int = 1
 
 
 def _terminal(status: str) -> str:
     if status not in TERMINAL:
         raise ValueError(f"invalid terminal worker status: {status}")
     return status
+
+
+def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lane: str) -> bool:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+    if lane == "verifier":
+        expected = {
+            "run_id": run_id,
+            "lane": lane,
+            "campaign_id": item.get("campaign_id", "legacy"),
+            "company_id": item["company_id"],
+            "scope": item.get("scope"),
+            "scope_version": item.get("scope_version"),
+            "scope_hash": item.get("scope_hash"),
+        }
+        return all(payload.get(field) == value for field, value in expected.items()) and isinstance(payload.get("decisions"), list)
+    research_run = payload.get("research_run", payload)
+    if not isinstance(research_run, dict):
+        return False
+    expected = {
+        "run_id": f"{run_id}:{lane}:{item['company_id']}",
+        "campaign_id": item.get("campaign_id", "legacy"),
+        "company_id": item["company_id"],
+        "scope": item.get("scope"),
+        "scope_version": item.get("scope_version"),
+        "scope_hash": item.get("scope_hash"),
+    }
+    return all(research_run.get(field) == value for field, value in expected.items()) and isinstance(payload.get("claims", []), list)
+
+
+def split_material_gap_queue(
+    queue: Iterable[dict[str, object]],
+    run_id: str,
+    lane: str,
+    output_dir: Path,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    pending: list[dict[str, object]] = []
+    reused: list[dict[str, object]] = []
+    for item in queue:
+        company_id = str(item["company_id"])
+        output_path = output_dir / f"{lane}-{company_id}.json"
+        if not output_path.exists() or not _valid_terminal_output(output_path, item, run_id, lane):
+            pending.append(item)
+            continue
+        reused.append({
+            "run_id": run_id,
+            "lane": lane,
+            "company_id": company_id,
+            "status": "succeeded",
+            "attempts": 0,
+            "reused_terminal": True,
+            "exit_code": 0,
+            "duration_seconds": 0,
+            "output_path": output_path.as_posix(),
+            "output_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
+        })
+    return pending, reused
 
 
 def dispatch_native_lane(
@@ -53,12 +115,26 @@ def dispatch_native_lane(
     def run_one(item: dict[str, object]) -> dict[str, object]:
         company_id = str(item["company_id"])
         item_output = output_dir / f"{lane}-{company_id}.json"
+        if item_output.exists() and _valid_terminal_output(item_output, item, run_id, lane):
+            return {
+                "run_id": run_id,
+                "lane": lane,
+                "company_id": company_id,
+                "status": "succeeded",
+                "attempts": 0,
+                "reused_terminal": True,
+                "exit_code": 0,
+                "duration_seconds": 0,
+                "output_path": item_output.as_posix(),
+                "output_sha256": hashlib.sha256(item_output.read_bytes()).hexdigest(),
+            }
         if item_output.exists():
             item_output.unlink()
         attempts = 0
         status = "failed"
         exit_code: int | None = None
         started = time.time()
+        attempt_history: list[dict[str, object]] = []
         for attempts in range(1, config.max_retries + 2):
             attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
             if attempt_output.exists():
@@ -77,17 +153,25 @@ def dispatch_native_lane(
                 if exit_code == 0 and attempt_output.exists():
                     os.replace(attempt_output, item_output)
                     status = "succeeded"
+                    attempt_history.append({"attempt": attempts, "status": status})
                     break
                 status = "failed"
+                attempt_history.append({"attempt": attempts, "status": status, "exit_code": exit_code})
+                if item.get("failure_class") == "deterministic":
+                    break
                 continue
             except subprocess.TimeoutExpired:
                 status = "timed_out"
+                attempt_history.append({"attempt": attempts, "status": status})
+                if attempts <= min(config.timeout_retries, config.max_retries):
+                    continue
                 break
             except KeyboardInterrupt:
                 status = "cancelled"
                 raise
             except OSError:
                 status = "failed"
+                attempt_history.append({"attempt": attempts, "status": status, "failure_class": "transient"})
                 continue
             finally:
                 if attempt_output.exists():
@@ -101,6 +185,8 @@ def dispatch_native_lane(
             "exit_code": exit_code,
             "duration_seconds": round(time.time() - started, 3),
             "output_path": item_output.as_posix(),
+            "failure_class": str(item.get("failure_class") or ("timeout" if status == "timed_out" else "transient" if status == "failed" and attempts > 1 else "deterministic" if status == "failed" else "none")),
+            "attempt_history": attempt_history,
         }
         if item_output.exists():
             record["output_sha256"] = hashlib.sha256(item_output.read_bytes()).hexdigest()
@@ -230,12 +316,27 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
             raise ValueError(f"lane output must be a JSON object: {output_path}")
         item = expected[str(record["company_id"])]
         if lane == "verifier":
+            expected_metadata = {
+                "run_id": run_id,
+                "lane": lane,
+                "campaign_id": item.get("campaign_id", "legacy"),
+                "company_id": item["company_id"],
+                "scope": item.get("scope"),
+                "scope_version": item.get("scope_version"),
+                "scope_hash": item.get("scope_hash"),
+            }
+            for field, expected_value in expected_metadata.items():
+                if payload.get(field) != expected_value:
+                    raise ValueError(f"verifier output scope mismatch for {output_path}: {field}")
             decisions = payload.get("decisions", [])
             if not isinstance(decisions, list) or any(not isinstance(decision, dict) for decision in decisions):
                 raise ValueError(f"verifier output decisions are not objects: {output_path}")
             claims_path = Path(str(item.get("claims_path") or ""))
             if not claims_path.exists():
                 raise ValueError(f"verifier claims input is missing: {claims_path}")
+            claims_hash = hashlib.sha256(claims_path.read_bytes()).hexdigest()
+            if payload.get("claims_input_sha256") != claims_hash:
+                raise ValueError(f"verifier claims input hash mismatch: {claims_path}")
             expected_claims: dict[str, str] = {}
             for line in claims_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():

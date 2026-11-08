@@ -3,9 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Mapping
+
+
+FULL_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 def repository_root(start: Path) -> Path:
@@ -24,6 +29,47 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def git_revision(root: Path) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def validate_manifest_revision(
+    root: Path,
+    manifest: Mapping[str, object],
+    *,
+    require_current: bool = True,
+) -> list[str]:
+    errors: list[str] = []
+    recorded = str(manifest.get("git_revision") or manifest.get("head_sha") or "")
+    head_sha = str(manifest.get("head_sha") or "")
+    if not FULL_COMMIT_SHA.fullmatch(recorded):
+        errors.append("run manifest missing full Git revision")
+    if head_sha and recorded and head_sha != recorded:
+        errors.append(f"run manifest revision fields disagree: git_revision={recorded}, head_sha={head_sha}")
+    current = git_revision(root)
+    if current:
+        try:
+            subprocess.run(
+                ["git", "-C", str(root), "cat-file", "-e", f"{recorded}^{{commit}}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            errors.append(f"run manifest Git revision is not reachable: {recorded}")
+        if require_current and recorded != current:
+            errors.append(f"run manifest Git revision mismatch: expected current HEAD {current}, observed {recorded}")
+    return errors
 
 
 def manifest_path(root: Path, manifest: Path) -> Path:
@@ -84,6 +130,10 @@ def update(
     manifest = load(path)
     if not manifest.get("run_id") or not manifest.get("head_sha"):
         raise ValueError("manifest identity is incomplete")
+    manifest.setdefault("git_revision", manifest["head_sha"])
+    revision_errors = validate_manifest_revision(root, manifest)
+    if revision_errors:
+        raise ValueError("manifest revision validation failed: " + "; ".join(revision_errors))
     for section, values in (
         ("inputs", inputs),
         ("supporting_inputs", supporting_inputs),

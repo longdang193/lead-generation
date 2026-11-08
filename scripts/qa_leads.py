@@ -11,9 +11,11 @@ from urllib.parse import urlparse
 
 from openpyxl import load_workbook
 
+from campaign_spec import qualification_eligibility
 from runtime_config import RuntimeConfig, provider_limitation
 from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
 from score_leads import calculate_fit
+from run_manifest import repository_root, validate_manifest_revision
 from validate_deliverables import resolve_manifest_path, verify_manifest_bucket
 
 
@@ -63,7 +65,7 @@ NULLABLE_UNKNOWN_FIELDS = {"legal_name", "domain", "address", "postal_code", "ci
 SURFACE_REQUIRED = {
     "companies": ["company_id", "company_name", "source_url", "retrieved_at", "evidence_level"],
     "qualification": ["company_id", "company_name", "source_url", "retrieved_at", "service_fit", "residential_weg", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "lead_tier", "evidence_urls"],
-    "priority": ["company_id", "company_name", "source_url", "retrieved_at", "service_fit", "residential_weg", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "lead_tier", "evidence_urls"],
+    "priority": ["company_id", "company_name", "source_url", "retrieved_at", "service_fit", "residential_weg", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "assurance_level", "provider_status", "research_gap", "next_action", "lead_tier", "evidence_urls"],
     "contacts": ["company_id", "contact_name", "contact_role", "contact_email", "email_source", "verification_status", "last_verified"],
 }
 
@@ -192,6 +194,7 @@ def main() -> int:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
             manifest_data = manifest
+            errors.extend(validate_manifest_revision(repository_root(args.run_manifest.parent), manifest))
             expected = manifest.get("outputs", {}).get("workbook", {}).get("sha256")
             if expected != file_sha256(args.workbook):
                 errors.append("workbook hash does not match run manifest")
@@ -254,8 +257,9 @@ def main() -> int:
     manifest_scope = set()
     delivery_policy = "strict"
     if isinstance(manifest_data, dict):
-        manifest_scope = {str(value) for value in manifest_data.get("accepted_company_ids", []) if str(value)}
         delivery_policy = str(manifest_data.get("delivery_policy") or "strict")
+        scope_key = "delivered_ids" if delivery_policy == "personal" and manifest_data.get("delivered_ids") else "accepted_company_ids"
+        manifest_scope = {str(value) for value in manifest_data.get(scope_key, []) if str(value)}
     duplicates = [item for item, count in Counter(company_ids).items() if item and count > 1]
     if duplicates:
         errors.append(f"duplicate company IDs: {duplicates[:5]}")
@@ -269,6 +273,11 @@ def main() -> int:
         append_schema_errors(errors, row, schema, SURFACE_REQUIRED["contacts"], "contacts")
     company_by_id = {row.get("company_id"): row for row in companies}
     for row in qualification:
+        policy_row = dict(row)
+        policy_row.setdefault("resolution_status", "Accepted")
+        expected_eligible = qualification_eligibility(policy_row, delivery_policy, recompute=True)
+        if "eligible" in row and bool(row.get("eligible")) != expected_eligible:
+            errors.append(f"eligibility mismatch: {row.get('company_id')}")
         company = company_by_id.get(row.get("company_id"), {})
         if company.get("resolution_status") != "Accepted":
             errors.append(f"qualification includes unresolved company: {row.get('company_id')}")
@@ -303,7 +312,7 @@ def main() -> int:
             errors.append(f"evidence coverage mismatch: {row.get('company_id')}")
         if expected_fit is None and fit_value is not None or expected_fit is not None and (fit_value is None or abs(fit_value - expected_fit) > 0.01):
             errors.append(f"structural score mismatch: {row.get('company_id')}")
-        expected_tier = "Research" if expected_fit is None or expected_coverage < 50 or row.get("berlin_relevance") != "Confirmed" else "A" if expected_fit >= 70 and expected_coverage >= 75 else "B" if expected_fit >= 55 else "C"
+        expected_tier = "Research" if expected_fit is None or expected_coverage < 50 or not qualification_eligibility(policy_row, delivery_policy) else "A" if expected_fit >= 70 and expected_coverage >= 75 else "B" if expected_fit >= 55 else "C"
         if row.get("lead_tier") != expected_tier:
             errors.append(f"lead tier mismatch: {row.get('company_id')}")
         for field in ("service_fit", "residential_weg", "berlin_relevance"):
@@ -360,7 +369,10 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(sample)
     tier_counts = Counter(row.get("lead_tier") for row in qualification)
-    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Contact email status: {contact_email_status_summary(contacts)}", f"- Errors: {len(errors)}", "", "## Limitations", f"- {provider_limitation(RuntimeConfig.from_env())}", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
+    research_runs = manifest_data.get("research_runs", {}) if isinstance(manifest_data, dict) else {}
+    if not isinstance(research_runs, dict):
+        research_runs = {}
+    report = ["# Lead QA Report", "", f"- Qualification rows: {len(qualification)}", f"- Priority rows: {len(priority)}", f"- Contact rows: {len(contacts)}", f"- Tier distribution: {dict(tier_counts)}", f"- Contact email status: {contact_email_status_summary(contacts)}", f"- Errors: {len(errors)}", "", "## Limitations", f"- {provider_limitation(RuntimeConfig.from_env(), research_runs)}", "- Website fetch failures and unresolved claims remain explicit as Unknown in the capture and scoring outputs."]
     if errors:
         report.extend(["", "## Errors", *[f"- {error}" for error in errors]])
     else:

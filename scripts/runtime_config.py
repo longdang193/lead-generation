@@ -78,7 +78,7 @@ class RuntimeConfig:
         }
 
 
-def provider_limitation(config: RuntimeConfig) -> str:
+def provider_limitation(config: RuntimeConfig, research_runs: dict[str, object] | None = None) -> str:
     missing = [
         name
         for name, configured in (
@@ -88,9 +88,19 @@ def provider_limitation(config: RuntimeConfig) -> str:
         )
         if not configured
     ]
-    if missing:
-        return f"Provider credentials not configured: {', '.join(missing)}; public/manual sources remain authoritative for those lanes."
-    return "Apify, TED, and Hunter provider access was configured and exercised; Overpass used its public endpoint."
+    runs = research_runs if isinstance(research_runs, dict) else {}
+    live_runs = [
+        record
+        for record in runs.values()
+        if isinstance(record, dict)
+        and record.get("adapter_capability") == "live_research"
+        and record.get("status") in {"Completed", "Partial"}
+        and record.get("provider_status") == "Available"
+    ]
+    configured = "Provider credentials configured" if not missing else f"Provider credentials not configured: {', '.join(missing)}"
+    if not live_runs:
+        return f"{configured}, but no current-run provider evidence is recorded; public/manual sources remain authoritative for those lanes."
+    return f"{configured}; current run records {len(live_runs)} provider-backed research lane(s)."
 
 
 def main() -> int:

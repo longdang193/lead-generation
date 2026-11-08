@@ -6,6 +6,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from campaign_spec import qualification_eligibility
 from lead_contract import none_found_allowed, run_scope_matches
 from run_manifest import load as load_manifest, portable_path, update as update_manifest
 
@@ -64,8 +65,8 @@ def project_verified_evidence(
     by_company: dict[str, list[dict[str, object]]] = defaultdict(list)
     seen: set[tuple[str, str, str]] = set()
     for claim in claims:
-        if claim.get("candidate_status") != "Verified":
-            raise ValueError("canonical projection accepts only Verified claims")
+        if claim.get("candidate_status") not in {"Verified", "Supported"}:
+            raise ValueError("canonical projection accepts only Verified or Supported claims")
         if not run_scope_matches(claim.get("verifier_run_id"), run_id):
             raise ValueError(f"claim is outside active run: {claim.get('candidate_claim_id')}")
         company_id = str(claim.get("company_id") or "")
@@ -102,13 +103,7 @@ def project_verified_evidence(
                 urls.append(str(claim["source_url"]))
         if urls:
             row["evidence_urls"] = " | ".join(sorted(set(url for url in urls if url)))
-        if "eligible" not in row:
-            trusted_domain = str(row.get("verified_company_domain") or row.get("domain") or "").strip()
-            resolution = str(row.get("resolution_status") or "").strip()
-            relevance = str(row.get("berlin_relevance") or "").strip()
-            row["eligible"] = resolution == "Accepted" and bool(trusted_domain) and (
-                relevance == "Confirmed" or (delivery_policy == "personal" and relevance == "Probable")
-            )
+        row["eligible"] = qualification_eligibility(row, delivery_policy, recompute=True)
         row["projection_run_id"] = run_id
 
     scores = sorted(load_records(base_scores_path), key=lambda row: str(row.get("company_id") or ""))
@@ -121,6 +116,23 @@ def project_verified_evidence(
         raw_registry = manifest.get("research_runs", {})
         if isinstance(raw_registry, dict):
             research_registry = raw_registry
+
+    assurance_order = {"unknown": 0, "replay": 1, "structural": 2, "source": 3}
+    for row in qualification:
+        company_id = str(row.get("company_id") or "")
+        row_claims = by_company.get(company_id, [])
+        company_runs = [value for value in research_registry.values() if isinstance(value, dict) and str(value.get("company_id") or "") == company_id]
+        levels = [str(claim.get("assurance_level") or "unknown") for claim in row_claims]
+        row["assurance_level"] = max(levels or ["unknown"], key=lambda value: assurance_order.get(value, 0))
+        provider_states = {str(value.get("provider_status") or "Unknown") for value in company_runs}
+        row["provider_status"] = "Unavailable" if "Unavailable" in provider_states else "Available" if company_runs and provider_states == {"Available"} else "Unknown"
+        gaps: list[str] = []
+        if not any(claim.get("claim_type") == "contact" for claim in row_claims):
+            gaps.append("contact")
+        signal_run = next((value for value in company_runs if str(value.get("research_type") or "") == "signals"), {})
+        if not any(claim.get("claim_type") == "buying_signal" for claim in row_claims) and str(signal_run.get("status") or "") != "Completed":
+            gaps.append("buying_signal")
+        row["research_gap"] = "; ".join(gaps) if gaps else "None"
 
     def signal_research_run(company_id: str) -> dict[str, object]:
         for value in research_registry.values():

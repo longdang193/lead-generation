@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from canonical_projection import project_verified_evidence
 from campaign_spec import load_campaign_spec
 import orchestrate_enrichment
+import worker_dispatch
 from orchestrate_enrichment import validate_final_priority_rows
 from run_manifest import entry
 from select_for_enrichment import select_accounts
@@ -44,7 +45,7 @@ class PersonalModeTests(unittest.TestCase):
             contacts = root / "contacts.csv"
             output = root / "canonical"
             promoted.write_text("", encoding="utf-8")
-            qualification.write_text(json.dumps({"company_id": "C1", "company_name": "Example", "domain": "example.de", "verified_company_domain": "example.de", "resolution_status": "Accepted", "berlin_relevance": "Probable"}) + "\n", encoding="utf-8")
+            qualification.write_text(json.dumps({"company_id": "C1", "company_name": "Example", "domain": "example.de", "verified_company_domain": "example.de", "resolution_status": "Accepted", "eligible": False, "berlin_relevance": "Confirmed"}) + "\n", encoding="utf-8")
             with scores.open("w", encoding="utf-8", newline="") as handle:
                 csv.DictWriter(handle, fieldnames=["company_id", "buying_signal"]).writeheader()
             with contacts.open("w", encoding="utf-8", newline="") as handle:
@@ -77,11 +78,30 @@ class PersonalModeTests(unittest.TestCase):
             campaign = load_campaign_spec(root, campaign_path).manifest_record()
             manifest.write_text(json.dumps({"run_id": "personal-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": campaign, "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"R{index:02d}" for index in range(35)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}},), encoding="utf-8")
             argv = ["orchestrate_enrichment.py", "run", "--root", str(root), "--manifest", str(manifest), "--shortlist", str(shortlist), "--campaign-config", str(campaign_path), "--fixture"]
+            original_dispatch = worker_dispatch.dispatch_fixture_lanes
+
+            def fail_first_active(queues, run_id, output_dir):
+                results = original_dispatch(queues, run_id, output_dir)
+                if output_dir.name != "reserve":
+                    for records in results.values():
+                        for record in records:
+                            if record["company_id"] == "R00":
+                                record["status"] = "failed"
+                return results
+
             with patch.object(sys, "argv", argv):
-                self.assertEqual(orchestrate_enrichment.main(), 0)
+                with patch.object(worker_dispatch, "dispatch_fixture_lanes", side_effect=fail_first_active):
+                    self.assertEqual(orchestrate_enrichment.main(), 0)
             priority = list(csv.DictReader((root / "data" / "processed" / "personal-1" / "priority.csv").open(encoding="utf-8", newline="")))
             self.assertEqual(len(priority), 30)
-            self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["delivery_policy"], "personal")
+            result = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(result["delivery_policy"], "personal")
+            self.assertEqual(len(result["accepted_company_ids"]), 35)
+            self.assertEqual(len(result["active_dispatch_ids"]), 30)
+            self.assertEqual(result["active_dispatch_ids"], result["delivered_ids"])
+            self.assertNotIn("R00", result["active_dispatch_ids"])
+            self.assertIn("R30", result["active_dispatch_ids"])
+            self.assertEqual(result["replacement_log"][0], {"company_id": "R30", "status": "delivered", "reason": "reserve_backfill"})
 
 
 if __name__ == "__main__":
