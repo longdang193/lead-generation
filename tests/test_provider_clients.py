@@ -33,6 +33,7 @@ class ProviderClientTests(unittest.TestCase):
         self.assertEqual(body["query"], 'FT~"meter replacement"')
         self.assertIn("buyer-name", body["fields"])
         self.assertIn("publication-number", body["fields"])
+        self.assertIn("publication-date", body["fields"])
 
     def test_normalize_apify_items_keeps_source_provenance(self):
         rows = normalize_apify_items([{"title": "Example", "url": "https://example.com"}], actor="apify/google-search-scraper", run_id="run-1")

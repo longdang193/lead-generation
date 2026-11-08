@@ -32,6 +32,14 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(row["postal_code"], "10178")
         self.assertEqual(row["identity_status"], "Refreshed")
 
+    @patch("import_discovery.requests.get")
+    def test_vdiv_refresh_rejects_navigation_title_as_identity(self, get):
+        response = Mock(ok=True, text="<html><title>Über uns | Example Hausverwaltung</title><body>10178 Berlin</body></html>")
+        get.return_value = response
+        row = refresh_identity({"source_type": "VDIV", "company_name": "www.example.de", "source_url": "https://example.de", "address": ""}, 5)
+        self.assertEqual(row["company_name"], "www.example.de")
+        self.assertEqual(row["identity_status"], "Review")
+
 
 if __name__ == "__main__":
     unittest.main()

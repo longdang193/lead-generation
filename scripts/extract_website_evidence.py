@@ -119,11 +119,6 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
         r"berlin(?:er)?\s+(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)",
         r"(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)\s+(?:in|aus)\s+berlin",
     ]
-    if result["berlin_relevance"] == "Unknown" and row.get("city", "").strip().lower() == "berlin":
-        result["berlin_relevance"] = "Confirmed"
-        if url and url not in checked_urls:
-            checked_urls.append(url)
-        result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": url, "evidence_excerpt": row.get("address") or "Company discovery record lists Berlin as city."})
     if result["berlin_relevance"] == "Unknown":
         berlin_match = next((re.search(pattern, text, re.I) for pattern in berlin_patterns if re.search(pattern, text, re.I)), None)
         if berlin_match:

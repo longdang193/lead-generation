@@ -31,7 +31,7 @@
     "signal_search_status": {"enum": ["Searched", "Not searched", "Unavailable", "Unknown"]},
     "buying_signal": {"enum": ["Strong", "Medium", "Weak", "None found", "Unknown"]},
     "actionability": {"enum": ["Ready", "Research", "Monitor", "Unknown"]},
-    "structural_lead_fit": {"type": "number", "minimum": 0, "maximum": 100},
+    "structural_lead_fit": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
     "evidence_coverage": {"type": "number", "minimum": 0, "maximum": 100},
     "sales_priority": {"enum": ["Pursue", "Research", "Defer"]},
     "lead_tier": {"enum": ["A", "B", "C", "Research"]},

@@ -3,10 +3,35 @@ from __future__ import annotations
 import argparse
 import json
 import hashlib
+import re
+import subprocess
 from pathlib import Path
 
 from openpyxl import load_workbook
 from pptx import Presentation
+
+
+def resolve_manifest_path(manifest_path: Path, value: object) -> Path:
+    raw = str(value or "").replace("\\", "/")
+    path = Path(raw)
+    if path.is_absolute():
+        return path
+    return (manifest_path.parent.parent / path).resolve()
+
+
+def verify_manifest_bucket(errors: list[str], manifest_path: Path, bucket_name: str, bucket: dict[str, object]) -> None:
+    for key, item in bucket.items():
+        if not isinstance(item, dict):
+            errors.append(f"manifest entry is invalid: {bucket_name}.{key}")
+            continue
+        path = resolve_manifest_path(manifest_path, item.get("path"))
+        if not path.exists():
+            errors.append(f"manifest path missing: {bucket_name}.{key}: {path}")
+            continue
+        expected = item.get("sha256")
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if expected != actual:
+            errors.append(f"manifest hash mismatch: {bucket_name}.{key}")
 
 
 def main() -> int:
@@ -60,21 +85,31 @@ def main() -> int:
     else:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
+            revision = str(manifest.get("git_revision") or "")
+            if not re.fullmatch(r"[0-9a-f]{40}", revision):
+                errors.append("run manifest missing full Git revision")
+            else:
+                try:
+                    subprocess.run(["git", "cat-file", "-e", f"{revision}^{{commit}}"], check=True, capture_output=True)
+                except (OSError, subprocess.CalledProcessError):
+                    errors.append("run manifest Git revision is not reachable")
             output_manifest = manifest.get("outputs", {})
             expected = output_manifest.get("workbook", {}).get("sha256")
             digest = hashlib.sha256(args.workbook.read_bytes()).hexdigest() if args.workbook.exists() else ""
             if expected != digest:
                 errors.append("workbook does not match run manifest")
-            for key, item in output_manifest.items():
-                path = Path(item.get("path", ""))
-                if path.exists() and item.get("sha256") != hashlib.sha256(path.read_bytes()).hexdigest():
-                    errors.append(f"manifest hash mismatch: {key}")
-            for key in ("qa_report", "deck"):
+            verify_manifest_bucket(errors, args.run_manifest, "outputs", output_manifest)
+            for key in ("build_report", "qa_report", "qa_sample", "deck"):
                 if key not in output_manifest:
                     errors.append(f"run manifest missing {key} output")
-            for key in ("schema", "website_evidence"):
+            for key in ("companies", "scores", "priority", "contacts", "sources"):
+                if key not in manifest.get("inputs", {}):
+                    errors.append(f"run manifest missing {key} input")
+            for key in ("schema", "website_evidence", "source_register", "entity_resolution", "buying_signal_audit", "buying_events", "scoring_audit", "contact_sources"):
                 if key not in manifest.get("supporting_inputs", {}):
                     errors.append(f"run manifest missing {key} supporting input")
+            verify_manifest_bucket(errors, args.run_manifest, "inputs", manifest.get("inputs", {}))
+            verify_manifest_bucket(errors, args.run_manifest, "supporting_inputs", manifest.get("supporting_inputs", {}))
         except (OSError, ValueError):
             errors.append("run manifest unreadable")
     if errors:

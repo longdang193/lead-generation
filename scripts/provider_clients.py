@@ -24,6 +24,7 @@ def build_ted_search_body(search_term: str, limit: int = 100) -> dict[str, Any]:
             "notice-title",
             "buyer-name",
             "buyer-country",
+            "publication-date",
             "deadline",
             "links",
         ],

@@ -59,6 +59,23 @@ def is_plausible_full_name(value: object) -> bool:
     return len(words) in {2, 3} and all(len(word) >= 2 and (word[0].isupper() or word.isupper()) for word in words) and not any(word.lower() in rejected for word in words)
 
 
+def is_plausible_company_name(value: object) -> bool:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    normalized = text.casefold()
+    if not text or len(text.split()) < 2:
+        return False
+    generic_titles = {
+        "über uns", "about us", "kontakt", "contact", "impressum", "startseite",
+        "home", "leistungen", "services", "team", "referenzen", "portfolio",
+        "immobilien", "hausverwaltung", "immobilienverwaltung",
+    }
+    if normalized in generic_titles:
+        return False
+    identity_markers = r"\b(?:gmbh|ag|kg|ohg|gbr|e\.k\.?|ug|hausverwaltung|immobilien|verwaltung|property|real estate)\b"
+    generic_tokens = {"klare", "prozesse", "gute", "lösungen", "ihre", "partner", "für", "uns", "sie"}
+    return bool(re.search(identity_markers, text, re.I)) or not all(token.casefold() in generic_tokens for token in text.split())
+
+
 def signal_rank(value: object) -> int:
     return {"Strong": 4, "Medium": 3, "Weak": 2, "None found": 1, "Unknown": 0}.get(str(value), 0)
 
@@ -105,11 +122,20 @@ def file_sha256(path: Path) -> str:
 
 def update_run_manifest(path: Path, *, inputs: dict[str, Path] | None = None, outputs: dict[str, Path] | None = None) -> None:
     manifest = __import__("json").loads(path.read_text(encoding="utf-8"))
+    root = Path.cwd().resolve()
+
+    def portable_path(item: Path) -> str:
+        resolved = item.resolve()
+        try:
+            return resolved.relative_to(root).as_posix()
+        except ValueError:
+            return resolved.as_posix()
+
     for section, values in (("supporting_inputs", inputs or {}), ("outputs", outputs or {})):
         bucket = manifest.setdefault(section, {})
         for name, item in values.items():
             if item.exists():
-                bucket[name] = {"path": str(item), "sha256": file_sha256(item)}
+                bucket[name] = {"path": portable_path(item), "sha256": file_sha256(item)}
     path.write_text(__import__("json").dumps(manifest, indent=2), encoding="utf-8")
 
 

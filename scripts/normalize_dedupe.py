@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+from lead_contract import is_plausible_company_name
+
 try:
     import tldextract
 except ImportError:
@@ -70,9 +72,10 @@ def is_url_like_name(value: str) -> bool:
 
 def explicit_berlin_evidence(row: dict[str, str]) -> str:
     postal = re.sub(r"\D", "", row.get("postal_code", ""))
-    if row.get("city", "").strip().lower() == "berlin" and (not postal or 10115 <= int(postal) <= 14199):
+    address = " ".join([row.get("address", ""), row.get("region", "")]).strip()
+    if row.get("city", "").strip().lower() == "berlin" and postal and 10115 <= int(postal) <= 14199:
         return "Confirmed"
-    if re.search(r"\bberlin\b", row.get("berlin_evidence", ""), re.I):
+    if re.search(r"\bberlin\b", address, re.I) or re.search(r"\bberlin\b", row.get("berlin_evidence", ""), re.I):
         return "Probable"
     return "Unknown"
 
@@ -91,6 +94,15 @@ def main() -> int:
     review: list[dict[str, str]] = []
     evidence: list[dict[str, str]] = []
     by_key: dict[tuple[str, str, str], dict[str, str]] = {}
+    domain_groups: dict[str, list[tuple[str, str, str]]] = {}
+    for row in rows:
+        host = domain(row.get("verified_company_domain") or row.get("source_url", ""))
+        norm = clean_name(row.get("company_name", "").strip())
+        postcode = (row.get("postal_code", "") or "").strip()
+        address = re.sub(r"\W+", " ", row.get("address", "").lower()).strip()
+        if host:
+            domain_groups.setdefault(host, []).append((norm, postcode, address))
+    ambiguous_domains = {host for host, identities in domain_groups.items() if len(set(identities)) > 1}
     for row in rows:
         name = row.get("company_name", "").strip()
         norm = clean_name(name)
@@ -104,15 +116,15 @@ def main() -> int:
         city = row.get("city", "")
         if city.strip().lower() == "berlin" and postcode_text and not 10115 <= int(re.sub(r"\D", "", postcode_text) or 0) <= 14199:
             city = ""
-        requires_review = is_url_like_name(name) or row.get("identity_status") == "Review"
+        requires_review = is_url_like_name(name) or not is_plausible_company_name(name) or row.get("identity_status") == "Review" or host in ambiguous_domains
         same_domain = [item for item in canonical if host and item.get("domain") == host]
-        if same_domain:
+        if host in ambiguous_domains:
             requires_review = True
-            review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": same_domain[0].get("company_id", ""), "company_name": name, "reason": "same verified domain has a distinct identity; manual branch/duplicate resolution required", "status": "Manual review"})
+            review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": same_domain[0].get("company_id", "") if same_domain else "", "company_name": name, "reason": "same verified domain has a distinct identity; manual branch/duplicate resolution required", "status": "Manual review"})
         if requires_review:
             review.append({"raw_source_record_id": row.get("source_record_id", ""), "candidate_company_id": "", "company_name": name, "reason": "identity or location requires fresh official-source resolution", "status": "Manual review"})
         existing = by_key.get(key)
-        if existing and norm and (postcode_text or address_key):
+        if existing and norm and (postcode_text or address_key or (host and existing.get("domain") == host and existing.get("normalized_name") == norm)):
             evidence.append({"raw_source_record_id": row.get("source_record_id", ""), "company_id": existing["company_id"], "resolution": "exact identity candidate retained", "reason": "same normalized name and corroborating location", "retrieved_at": stamp()})
             continue
         candidates = [item for item in canonical if postcode_text and item["postal_code"] == postcode_text and ratio(norm, item["normalized_name"]) >= 88]

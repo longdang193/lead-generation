@@ -53,14 +53,14 @@ def classify_signal(event_rows: list[dict[str, object]]) -> str:
             ranks.append(2)
             continue
         if published is None:
-            ranks.append(3)
+            ranks.append(0)
         elif published >= today - timedelta(days=180):
             ranks.append(4)
         elif published >= today - timedelta(days=365):
             ranks.append(3)
         else:
             ranks.append(2)
-    return {4: "Strong", 3: "Medium", 2: "Weak"}[max(ranks)]
+    return {4: "Strong", 3: "Medium", 2: "Weak", 0: "Unknown"}[max(ranks)]
 
 
 def main() -> int:
@@ -129,7 +129,7 @@ def main() -> int:
             "portfolio_size": record.get("portfolio_size", ""),
             "portfolio_potential": round(inputs["portfolio_potential"], 2) if inputs["portfolio_potential"] is not None else "Unknown",
             "berlin_relevance": record.get("berlin_relevance", "Unknown"),
-            "structural_lead_fit": round(fit, 2) if fit is not None else "Unknown",
+            "structural_lead_fit": round(fit, 2) if fit is not None else None,
             "evidence_coverage": coverage,
             "buying_signal": signal,
             "signal_search_status": search_status,

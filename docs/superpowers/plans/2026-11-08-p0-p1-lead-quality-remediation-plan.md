@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: active
+status: complete
 template_id: implementation-plan
 contract_version: "1"
 name: berlin-lead-quality-remediation
@@ -388,6 +388,23 @@ Acceptance checks:
   in this workspace; deck structure and five-slide count were validated by the
   repository validator instead of claiming visual-render inspection.
 - Review cycle 1 at PR head `985780fa012c64441d7d87fde3e6593dfd6addee`
+- Final independent review at PR head `eda64e58f70584719e1b8fa264a2065cb245b1bf`
+  identified five additional blockers: synthetic Berlin fallback and navigation
+  title identity acceptance, same-domain ambiguity leakage, incomplete QA type/
+  range/conditional enforcement, incomplete manifest revision/hash coverage,
+  and positive TED signals without publication dates. The remediation commit
+  removed those fallbacks, quarantined ambiguous identities, strengthened the
+  schema/QA gate, added Git revision and full manifest hash verification, and
+  downgraded date-less TED events to `Unknown`.
+- Final regeneration on 2026-11-08: 323 raw records, 320 canonical records,
+  149 review records, 297 fetched websites, 23 retrieval failures, 191 score
+  rows, 85 A-tier rows, 106 Research rows, 30 priority rows, and 18 published
+  mailbox contacts. Semantic QA reports `qa_errors=0`.
+- Final verification: 21 unit tests passed; workbook validation passed; the
+  five-slide deck was rebuilt at
+  `output/berlin-hausverwaltung-methodology_2026-11-09-final.pptx`; deliverable
+  validation passed; `git diff --check` passed; and the credential scan found
+  no credential values. The original PowerPoint-locked deck was not touched.
   identified seven blockers. They are addressed in the follow-up commit by
   stricter contact/domain binding, explicit WEG and Berlin evidence, same-domain
   review quarantine, provider-outage state propagation, schema/score/evidence

@@ -4,7 +4,7 @@ import argparse
 import csv
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,6 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
+from lead_contract import is_plausible_company_name
 from provider_clients import ProviderError, normalize_apify_items, overpass_query, run_apify_actor
 
 OVERPASS_MIN_TIMEOUT_SECONDS = 30
@@ -79,7 +80,7 @@ def refresh_identity(row: dict[str, str], timeout: int) -> dict[str, str]:
         title = soup.title.get_text(" ", strip=True) if soup.title else ""
         candidate = re.split(r"\s+[|–—-]\s+", title, maxsplit=1)[0].strip()
         candidate = re.sub(r"^(home|startseite)\s*[:|-]\s*", "", candidate, flags=re.I).strip()
-        if candidate and not re.match(r"^(https?://|www\.)", candidate, re.I) and len(candidate.split()) >= 2:
+        if candidate and not re.match(r"^(https?://|www\.)", candidate, re.I) and is_plausible_company_name(candidate):
             row["company_name"] = candidate
             row["legal_name"] = row.get("legal_name") or candidate
             row["identity_status"] = "Refreshed"
@@ -161,7 +162,7 @@ def main() -> int:
                 row["source_type"] = "VDIV"
             with ThreadPoolExecutor(max_workers=8) as pool:
                 futures = [pool.submit(refresh_identity, row, config.request_timeout_seconds) for row in rows]
-                rows = [future.result() for future in as_completed(futures)]
+                rows = [future.result() for future in futures]
         for index, row in enumerate(rows, start=1):
             url = normalize_url(row.get("source_url") or row.get("website") or row.get("url") or "")
             name = re.sub(r"\s+", " ", (row.get("company_name") or row.get("name") or "").strip())

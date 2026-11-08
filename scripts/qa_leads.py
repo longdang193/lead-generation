@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import hashlib
+import re
 from collections import Counter
 from pathlib import Path
 from urllib.parse import urlparse
@@ -11,7 +12,7 @@ from urllib.parse import urlparse
 from openpyxl import load_workbook
 
 from runtime_config import RuntimeConfig, provider_limitation
-from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
+from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
 from score_leads import WEIGHTS, value
 
 
@@ -57,16 +58,113 @@ def numeric(value: object) -> float | None:
         return None
 
 
-def append_schema_errors(errors: list[str], row: dict[str, object], properties: dict[str, object], required: list[str]) -> None:
+NULLABLE_UNKNOWN_FIELDS = {"legal_name", "domain", "address", "postal_code", "city", "region", "actor_id", "actor_run_id", "source_record_id", "contact_email", "email_source", "linkedin_url", "last_verified"}
+SURFACE_REQUIRED = {
+    "companies": ["company_id", "company_name", "source_url", "retrieved_at", "evidence_level"],
+    "qualification": ["company_id", "company_name", "source_url", "retrieved_at", "service_fit", "residential_weg", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "lead_tier", "evidence_urls"],
+    "priority": ["company_id", "company_name", "source_url", "retrieved_at", "service_fit", "residential_weg", "berlin_relevance", "structural_lead_fit", "evidence_coverage", "buying_signal", "signal_search_status", "actionability", "sales_priority", "lead_tier", "evidence_urls"],
+    "contacts": ["company_id", "contact_name", "contact_role", "contact_email", "email_source", "verification_status", "last_verified"],
+}
+
+
+def schema_value(field: str, value: object) -> object:
+    if field == "evidence_urls":
+        return parse_evidence_urls(value)
+    if field in NULLABLE_UNKNOWN_FIELDS and value == "Unknown":
+        return None
+    return value
+
+
+def format_valid(value: object, format_name: str) -> bool:
+    text = str(value)
+    if format_name == "uri":
+        return valid_http_url(value)
+    if format_name == "email":
+        return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", text))
+    if format_name == "date":
+        try:
+            from datetime import date
+            date.fromisoformat(text)
+            return True
+        except ValueError:
+            return False
+    if format_name == "date-time":
+        try:
+            from datetime import datetime
+            datetime.fromisoformat(text.replace("Z", "+00:00"))
+            return True
+        except ValueError:
+            return False
+    return True
+
+
+def type_valid(value: object, expected: str | list[str]) -> bool:
+    expected_types = [expected] if isinstance(expected, str) else expected
+    for item in expected_types:
+        if item == "null" and value is None:
+            return True
+        if item == "string" and isinstance(value, str):
+            return True
+        if item == "number" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            return True
+        if item == "array" and isinstance(value, list):
+            return True
+        if item == "object" and isinstance(value, dict):
+            return True
+    return False
+
+
+def append_schema_errors(errors: list[str], row: dict[str, object], schema: dict[str, object], required: list[str], surface: str) -> None:
+    properties = schema.get("properties", {})
+    normalized = {field: schema_value(field, value) for field, value in row.items()}
     for field in required:
-        if row.get(field) in (None, ""):
-            errors.append(f"missing required field {field}: {row.get('company_id')}")
+        if field not in normalized or normalized.get(field) == "":
+            errors.append(f"{surface} missing required field {field}: {row.get('company_id')}")
     for field, definition in properties.items():
-        value = row.get(field)
-        if value in (None, ""):
+        if field not in normalized or not isinstance(definition, dict):
             continue
-        if isinstance(definition, dict) and definition.get("enum") and value not in definition["enum"]:
-            errors.append(f"schema enum violation {field}: {row.get('company_id')}")
+        value = normalized[field]
+        if value is None and "null" in (definition.get("type") if isinstance(definition.get("type"), list) else [definition.get("type")]):
+            continue
+        if "enum" in definition and value not in definition["enum"]:
+            errors.append(f"{surface} schema enum violation {field}: {row.get('company_id')}")
+            continue
+        if "type" in definition and not type_valid(value, definition["type"]):
+            errors.append(f"{surface} schema type violation {field}: {row.get('company_id')}")
+            continue
+        if isinstance(value, str) and "minLength" in definition and len(value) < definition["minLength"]:
+            errors.append(f"{surface} schema minLength violation {field}: {row.get('company_id')}")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if "minimum" in definition and value < definition["minimum"]:
+                errors.append(f"{surface} schema minimum violation {field}: {row.get('company_id')}")
+            if "maximum" in definition and value > definition["maximum"]:
+                errors.append(f"{surface} schema maximum violation {field}: {row.get('company_id')}")
+        if "format" in definition and value is not None and not format_valid(value, definition["format"]):
+            errors.append(f"{surface} schema format violation {field}: {row.get('company_id')}")
+        if definition.get("type") == "array" and isinstance(value, list):
+            item_definition = definition.get("items", {})
+            for item in value:
+                if not type_valid(item, item_definition.get("type", "string")) or (item_definition.get("format") and not format_valid(item, item_definition["format"])):
+                    errors.append(f"{surface} schema array item violation {field}: {row.get('company_id')}")
+                    break
+    for clause in schema.get("allOf", []):
+        condition = clause.get("if", {}) if isinstance(clause, dict) else {}
+        condition_properties = condition.get("properties", {}) if isinstance(condition, dict) else {}
+        if not condition_properties or not all(field in normalized for field in condition_properties):
+            continue
+        matches = True
+        for field, rule in condition_properties.items():
+            value = normalized.get(field)
+            if "type" in rule and not type_valid(value, rule["type"]):
+                matches = False
+            if "const" in rule and value == rule["const"]:
+                matches = False
+            if "not" in rule and isinstance(rule["not"], dict) and "const" in rule["not"] and value == rule["not"]["const"]:
+                matches = False
+        if matches:
+            for field in clause.get("then", {}).get("required", []):
+                if normalized.get(field) in (None, ""):
+                    errors.append(f"{surface} conditional required field {field}: {row.get('company_id')}")
 
 
 def main() -> int:
@@ -126,8 +224,20 @@ def main() -> int:
     if duplicates:
         errors.append(f"duplicate company IDs: {duplicates[:5]}")
     for row in companies:
-        append_schema_errors(errors, row, properties, required)
+        append_schema_errors(errors, row, schema, SURFACE_REQUIRED["companies"], "companies")
     for row in qualification:
+        append_schema_errors(errors, row, schema, SURFACE_REQUIRED["qualification"], "qualification")
+    for row in priority:
+        append_schema_errors(errors, row, schema, SURFACE_REQUIRED["priority"], "priority")
+    for row in contacts:
+        append_schema_errors(errors, row, schema, SURFACE_REQUIRED["contacts"], "contacts")
+    company_by_id = {row.get("company_id"): row for row in companies}
+    for row in qualification:
+        company = company_by_id.get(row.get("company_id"), {})
+        if company.get("resolution_status") != "Accepted":
+            errors.append(f"qualification includes unresolved company: {row.get('company_id')}")
+        if not is_plausible_company_name(company.get("company_name")):
+            errors.append(f"accepted company identity is not plausible: {row.get('company_id')}")
         fit = row.get("structural_lead_fit")
         fit_value = numeric(fit)
         if fit not in (None, "", "Unknown") and fit_value is None:
@@ -176,6 +286,8 @@ def main() -> int:
                 claim = website_claims.get(row.get("company_id", ""), {}).get(field)
                 if not claim or not valid_http_url(claim.get("evidence_url")) or not claim.get("evidence_excerpt") or claim.get("confidence") in (None, "", "None"):
                     errors.append(f"{field} claim lacks page-local evidence: {row.get('company_id')}")
+                if field == "berlin_relevance" and claim and not re.search(r"\bberlin\b", str(claim.get("evidence_excerpt") or ""), re.I):
+                    errors.append(f"Berlin claim excerpt does not prove Berlin: {row.get('company_id')}")
         if row.get("lead_tier") == "A" and row.get("sales_priority") == "Pursue" and row.get("actionability") != "Ready":
             errors.append(f"Pursue row is not Ready: {row.get('company_id')}")
     for row in contacts:
