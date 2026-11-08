@@ -12,23 +12,31 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import orchestrate_enrichment
+from campaign_spec import load_campaign_spec
 from run_manifest import entry
 
 
 class EndToEndEnrichmentTests(unittest.TestCase):
+    def write_campaign(self, root: Path, name: str = "berlin-hausverwaltung.json") -> dict[str, object]:
+        campaign_path = root / "config" / "campaigns" / name
+        campaign_path.parent.mkdir(parents=True, exist_ok=True)
+        source = Path(__file__).resolve().parents[1] / "config" / "campaigns" / name
+        campaign_path.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        return load_campaign_spec(root, campaign_path).manifest_record()
+
     def test_fixture_run_reconciles_all_lanes_and_records_barriers(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shortlist = root / "shortlist.csv"
             with shortlist.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=["company_id", "company_name", "domain", "city", "resolution_status"])
+                writer = csv.DictWriter(handle, fieldnames=["company_id", "company_name", "domain", "verified_company_domain", "city", "resolution_status"])
                 writer.writeheader()
                 for index in range(30):
-                    writer.writerow({"company_id": f"C{index:02d}", "company_name": f"Company {index:02d}", "domain": f"company{index:02d}.de", "city": "Berlin", "resolution_status": "Accepted"})
+                    writer.writerow({"company_id": f"C{index:02d}", "company_name": f"Company {index:02d}", "domain": f"company{index:02d}.de", "verified_company_domain": f"company{index:02d}.de", "city": "Berlin", "resolution_status": "Accepted"})
             manifest = root / "evidence" / "manifests" / "active_run.json"
             manifest.parent.mkdir(parents=True)
             revision = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
-            manifest.write_text(json.dumps({"run_id": "run-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"C{index:02d}" for index in range(30)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": self.write_campaign(root), "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"C{index:02d}" for index in range(30)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
             argv = ["orchestrate_enrichment.py", "run", "--root", str(root), "--manifest", str(manifest), "--shortlist", str(shortlist), "--fixture"]
             with patch.object(sys, "argv", argv):
                 self.assertEqual(orchestrate_enrichment.main(), 0)
@@ -48,19 +56,41 @@ class EndToEndEnrichmentTests(unittest.TestCase):
             self.assertTrue(all(row["sales_priority"] == "Pursue" for row in priority_rows))
             self.assertEqual((root / "evidence" / "reports" / "run-1" / "qa.md").read_text(encoding="utf-8").count("Errors: 0"), 1)
 
+    def test_fixture_small_campaign_reuses_controller_with_two_lanes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            with shortlist.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["company_id", "company_name", "domain", "verified_company_domain", "city", "resolution_status"])
+                writer.writeheader()
+                for index in range(5):
+                    writer.writerow({"company_id": f"S{index:02d}", "company_name": f"Small Company {index:02d}", "domain": f"small{index:02d}.de", "verified_company_domain": f"small{index:02d}.de", "city": "Berlin", "resolution_status": "Accepted"})
+            campaign = self.write_campaign(root, "fixture-small.json")
+            manifest = root / "evidence" / "manifests" / "small_run.json"
+            manifest.parent.mkdir(parents=True)
+            revision = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            manifest.write_text(json.dumps({"run_id": "small-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": campaign, "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"S{index:02d}" for index in range(5)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
+            argv = ["orchestrate_enrichment.py", "run", "--root", str(root), "--manifest", str(manifest), "--shortlist", str(shortlist), "--campaign-config", str(root / "config" / "campaigns" / "fixture-small.json"), "--fixture"]
+            with patch.object(sys, "argv", argv):
+                self.assertEqual(orchestrate_enrichment.main(), 0)
+            result = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual({key for key in result["outputs"] if key.startswith("queue_")}, {"queue_contacts", "queue_portfolio"})
+            self.assertEqual(len(result["research_runs"]), 10)
+            self.assertEqual(result["campaign"]["campaign_id"], "fixture-small")
+
     def test_failed_semantic_qa_does_not_replace_existing_workbook(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shortlist = root / "shortlist.csv"
             with shortlist.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=["company_id", "company_name", "domain", "city", "resolution_status"])
+                writer = csv.DictWriter(handle, fieldnames=["company_id", "company_name", "domain", "verified_company_domain", "city", "resolution_status"])
                 writer.writeheader()
                 for index in range(30):
-                    writer.writerow({"company_id": f"C{index:02d}", "company_name": f"Company {index:02d}", "domain": f"company{index:02d}.de", "city": "Berlin", "resolution_status": "Accepted"})
+                    writer.writerow({"company_id": f"C{index:02d}", "company_name": f"Company {index:02d}", "domain": f"company{index:02d}.de", "verified_company_domain": f"company{index:02d}.de", "city": "Berlin", "resolution_status": "Accepted"})
             manifest = root / "evidence" / "manifests" / "active_run.json"
             manifest.parent.mkdir(parents=True)
             revision = subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
-            manifest.write_text(json.dumps({"run_id": "run-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"C{index:02d}" for index in range(30)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": self.write_campaign(root), "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": [f"C{index:02d}" for index in range(30)], "inputs": {"provisional_shortlist": entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
             final_output = root / "output" / "run-1.xlsx"
             final_output.parent.mkdir(parents=True)
             final_output.write_bytes(b"existing workbook")

@@ -64,8 +64,15 @@ def _manifest_context(manifest: dict[str, object]) -> tuple[str, set[str], dict[
     return run_id, accepted, research, verifier
 
 
-def _source_allowed(source_url: object, policy: dict[str, object]) -> bool:
-    allowed = {str(item).lower().removeprefix("www.") for item in policy.get("allowed_domains", []) if str(item).strip()}
+def _source_allowed(source_url: object, policy: dict[str, object], company_id: str | None = None) -> bool:
+    company_domains = policy.get("company_domains")
+    if company_id is not None and isinstance(company_domains, dict):
+        raw_domain = company_domains.get(company_id)
+        if not isinstance(raw_domain, str) or not raw_domain.strip():
+            return False
+        allowed = {raw_domain.lower().removeprefix("www.")}
+    else:
+        allowed = {str(item).lower().removeprefix("www.") for item in policy.get("allowed_domains", []) if str(item).strip()}
     if not allowed:
         return False
     hostname = (urlparse(str(source_url or "")).hostname or "").lower().removeprefix("www.")
@@ -101,7 +108,7 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             raise ValueError(f"candidate research run is not registered: {claim_id}")
         if active_run_id and research_registry[str(claim["research_run_id"])].get("company_id") != claim.get("company_id"):
             raise ValueError(f"candidate research run is bound to another company: {claim_id}")
-        if active_run_id and not _source_allowed(claim.get("source_url"), source_policy):
+        if active_run_id and not _source_allowed(claim.get("source_url"), source_policy, str(claim.get("company_id") or "")):
             raise ValueError(f"candidate source is outside the active source policy: {claim_id}")
         complete, missing = claim_requirements_met(claim)
         if not complete:
@@ -129,6 +136,13 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
     missing_decisions = sorted(set(claims) - set(decisions))
     if missing_decisions:
         raise ValueError(f"missing verifier decisions: {', '.join(missing_decisions)}")
+
+    if active_run_id:
+        execution_mode = str(manifest.get("execution_mode") or "production")
+        if execution_mode != "fixture":
+            capabilities = {str(item.get("capability")) for item in verifier_registry.values() if isinstance(item, dict)}
+            if capabilities != {"source_verification"}:
+                raise ValueError("production promotion requires source_verification verifier capability")
 
     promoted: list[dict[str, object]] = []
     for claim_id in sorted(claims):

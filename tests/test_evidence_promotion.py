@@ -117,6 +117,51 @@ class EvidencePromotionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not registered"):
                 promote_verified_claims(candidates, decisions, output, manifest)
 
+    def test_active_run_rejects_source_from_another_admitted_company(self):
+        claim = self.claim()
+        claim["research_run_id"] = "run-1:signals:company-1"
+        claim["source_url"] = "https://other.example.de/services"
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["page_local"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = root / "candidates.jsonl", root / "decisions.jsonl", root / "promoted.jsonl", root / "active_run.json"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "accepted_company_ids": ["company-1"], "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier"}}, "source_policy": {"allowed_domains": ["trusted.de", "other.example.de"], "company_domains": {"company-1": "trusted.de"}}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source is outside the active source policy"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
+    def test_production_promotion_rejects_structural_verifier_capability(self):
+        claim = self.claim()
+        claim["research_run_id"] = "run-1:signals:company-1"
+        claim["source_url"] = "https://example.de/services"
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["page_local"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = root / "candidates.jsonl", root / "decisions.jsonl", root / "promoted.jsonl", root / "active_run.json"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "execution_mode": "production", "accepted_company_ids": ["company-1"], "campaign": {"normalized": {"adapter_policy": {"verification_mode": "source_verification"}}}, "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier", "capability": "structural_validation"}}, "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source_verification verifier capability"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
+    def test_production_promotion_rejects_structural_campaign_policy(self):
+        claim = self.claim()
+        claim["research_run_id"] = "run-1:signals:company-1"
+        claim["source_url"] = "https://example.de/services"
+        claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+        decision = {"record_type": "VerifierDecision", "candidate_claim_id": claim["candidate_claim_id"], "candidate_sha256": claim["candidate_sha256"], "decision": "Verified", "reason_codes": ["page_local"], "verifier_id": "verifier", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates, decisions, output, manifest = root / "candidates.jsonl", root / "decisions.jsonl", root / "promoted.jsonl", root / "active_run.json"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            manifest.write_text(json.dumps({"run_id": "run-1", "execution_mode": "production", "accepted_company_ids": ["company-1"], "campaign": {"normalized": {"adapter_policy": {"verification_mode": "structural_validation"}}}, "research_runs": {"run-1:signals:company-1": {"research_run_id": "run-1:signals:company-1", "company_id": "company-1"}}, "verifier_runs": {"run-1:verifier": {"verifier_run_id": "run-1:verifier", "verifier_id": "verifier", "capability": "structural_validation"}}, "source_policy": {"allowed_domains": ["example.de"], "company_domains": {"company-1": "example.de"}}}), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source_verification verifier capability"):
+                promote_verified_claims(candidates, decisions, output, manifest)
+
     def test_hash_mutation_is_rejected(self):
         claim = self.claim()
         decision = {

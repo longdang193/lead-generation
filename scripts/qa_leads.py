@@ -14,7 +14,7 @@ from openpyxl import load_workbook
 from runtime_config import RuntimeConfig, provider_limitation
 from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
 from score_leads import calculate_fit
-from validate_deliverables import verify_manifest_bucket
+from validate_deliverables import resolve_manifest_path, verify_manifest_bucket
 
 
 def rows(ws):
@@ -173,6 +173,7 @@ def main() -> int:
     parser.add_argument("--workbook", type=Path, required=True)
     parser.add_argument("--schema", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
+    parser.add_argument("--website-evidence", type=Path)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--sample-output", type=Path, required=True)
     parser.add_argument("--run-manifest", type=Path)
@@ -184,11 +185,13 @@ def main() -> int:
     contacts = rows(wb["04_Contacts"])
     wb.close()
     errors: list[str] = []
+    manifest_data: dict[str, object] | None = None
     if args.run_manifest and not args.run_manifest.exists():
         errors.append("run manifest missing")
     elif args.run_manifest:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
+            manifest_data = manifest
             expected = manifest.get("outputs", {}).get("workbook", {}).get("sha256")
             if expected != file_sha256(args.workbook):
                 errors.append("workbook hash does not match run manifest")
@@ -219,7 +222,21 @@ def main() -> int:
     if not args.evidence_dir.is_dir():
         errors.append("evidence directory is missing")
     evidence_root = args.evidence_dir.parent
-    website_evidence_path = evidence_root / "data" / "intermediate" / "website_evidence_2026-11-08.jsonl"
+    website_evidence_path = None
+    manifest_website_evidence_path = None
+    if isinstance(manifest_data, dict) and args.run_manifest:
+        supporting = manifest_data.get("supporting_inputs", {})
+        record = supporting.get("website_evidence") if isinstance(supporting, dict) else None
+        raw_path = record.get("path") if isinstance(record, dict) else None
+        if isinstance(raw_path, str) and raw_path:
+            manifest_website_evidence_path = resolve_manifest_path(args.run_manifest, raw_path)
+            if args.website_evidence is not None and args.website_evidence.resolve() != manifest_website_evidence_path:
+                errors.append("website evidence override does not match run manifest binding")
+            website_evidence_path = manifest_website_evidence_path
+    if website_evidence_path is None:
+        website_evidence_path = args.website_evidence
+    if website_evidence_path is None:
+        website_evidence_path = evidence_root / ".missing-website-evidence"
     website_claims: dict[str, dict[str, dict[str, object]]] = {}
     if website_evidence_path.exists():
         for line in website_evidence_path.read_text(encoding="utf-8").splitlines():

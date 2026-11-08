@@ -1,0 +1,35 @@
+{
+  "campaign_id": "berlin-hausverwaltung",
+  "version": "2026-11-08",
+  "target_count": 30,
+  "qualification": {
+    "resolution_status": "Accepted",
+    "city": "Berlin",
+    "berlin_relevance": "Confirmed",
+    "service_fit": "Hausverwaltung",
+    "residential_weg": true,
+    "trusted_domain_field": "verified_company_domain"
+  },
+  "input_bindings": {
+    "qualification": "data/intermediate/website_evidence_2026-11-08.jsonl",
+    "scores": "data/processed/lead_scores_2026-11-08.csv",
+    "contacts": "data/processed/contacts_2026-11-08.csv",
+    "companies": "data/intermediate/companies_normalized_2026-11-07.csv",
+    "sources": "evidence/source_register_2026-11-07.csv",
+    "buying_events": "data/raw/buying_events_2026-11-08.json",
+    "event_links": "data/processed/company_event_links_2026-11-08.csv"
+  },
+  "lanes": [
+    "signals",
+    "portfolio",
+    "contacts"
+  ],
+  "adapter_policy": {
+    "worker_profile": "default",
+    "verifier_profile": "evidence-verifier",
+    "verification_mode": "source_verification"
+  },
+  "scoring_profile": "lead-score-v1",
+  "export_profile": "lead-workbook-v1",
+  "qa_profile": "lead-qa-v1"
+}

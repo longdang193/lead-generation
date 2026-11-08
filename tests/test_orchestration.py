@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import _native_command_builder, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
@@ -23,6 +23,124 @@ class OrchestrationTests(unittest.TestCase):
             rows = write_lane_queue(shortlist, queue, "signals", "run-1")
             self.assertEqual([row["company_id"] for row in rows], ["A", "B"])
             self.assertEqual(json.loads(queue.read_text(encoding="utf-8").splitlines()[0])["run_id"], "run-1")
+
+    def test_production_queue_rejects_raw_domain_fallback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,city,resolution_status\nA,Alpha,alpha.de,Berlin,Accepted\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "trusted domain"):
+                write_lane_queue(shortlist, root / "queue.jsonl", "signals", "run-1", campaign_id="campaign-1", accepted_company_ids={"A"}, require_qualification=True)
+
+    def test_production_queue_uses_canonical_company_binding_for_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain\nA,Alpha,alpha.de\n", encoding="utf-8")
+            company_rows = {
+                "A": {
+                    "company_id": "A",
+                    "company_name": "Alpha GmbH",
+                    "verified_company_domain": "official.example",
+                    "city": "Berlin",
+                    "berlin_relevance": "Confirmed",
+                    "resolution_status": "Accepted",
+                }
+            }
+            queue = write_lane_queue(
+                shortlist,
+                root / "queue.jsonl",
+                "signals",
+                "run-1",
+                campaign_id="campaign-1",
+                accepted_company_ids={"A"},
+                require_qualification=True,
+                company_rows=company_rows,
+                required_location_evidence="Confirmed",
+            )
+            self.assertEqual(queue[0]["company_name"], "Alpha GmbH")
+            self.assertEqual(queue[0]["trusted_domain"], "official.example")
+            self.assertEqual(queue[0]["location"], "Berlin")
+
+    def test_production_queue_rejects_probable_location_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,resolution_status\nA,Alpha,alpha.de,Accepted\n", encoding="utf-8")
+            company_rows = {
+                "A": {
+                    "company_id": "A",
+                    "company_name": "Alpha",
+                    "verified_company_domain": "official.example",
+                    "city": "Berlin",
+                    "berlin_relevance": "Probable",
+                    "resolution_status": "Accepted",
+                }
+            }
+            with self.assertRaisesRegex(ValueError, "confirmed location evidence"):
+                write_lane_queue(
+                    shortlist,
+                    root / "queue.jsonl",
+                    "signals",
+                    "run-1",
+                    campaign_id="campaign-1",
+                    accepted_company_ids={"A"},
+                    require_qualification=True,
+                    company_rows=company_rows,
+                    required_location_evidence="Confirmed",
+                )
+
+    def test_production_queue_rejects_missing_canonical_company_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,berlin_relevance,resolution_status\nA,Alpha,fabricated.example,fabricated.example,Berlin,Confirmed,Accepted\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "canonical company binding"):
+                write_lane_queue(
+                    shortlist,
+                    root / "queue.jsonl",
+                    "signals",
+                    "run-1",
+                    campaign_id="campaign-1",
+                    accepted_company_ids={"A"},
+                    require_qualification=True,
+                    company_rows={},
+                    required_location_evidence="Confirmed",
+                )
+
+    def test_production_queue_rejects_incomplete_canonical_company_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,berlin_relevance,resolution_status\nA,Alpha,fabricated.example,fabricated.example,Berlin,Confirmed,Accepted\n", encoding="utf-8")
+            company_rows = {"A": {"company_id": "A", "company_name": "Alpha", "resolution_status": "Accepted"}}
+            with self.assertRaisesRegex(ValueError, "trusted domain"):
+                write_lane_queue(
+                    shortlist,
+                    root / "queue.jsonl",
+                    "signals",
+                    "run-1",
+                    campaign_id="campaign-1",
+                    accepted_company_ids={"A"},
+                    require_qualification=True,
+                    company_rows=company_rows,
+                    required_location_evidence="Confirmed",
+                )
+
+    def test_queue_contains_stable_admitted_scope_and_worker_command(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,resolution_status\nA,Alpha,alpha.de,official.example,Berlin,Accepted\n", encoding="utf-8")
+            queue = write_lane_queue(shortlist, root / "queue.jsonl", "signals", "run-1", campaign_id="campaign-1", accepted_company_ids={"A"}, require_qualification=True)
+            item = queue[0]
+            self.assertEqual(item["campaign_id"], "campaign-1")
+            self.assertEqual(item["trusted_domain"], "official.example")
+            self.assertTrue(item["scope_hash"])
+            command = _native_command_builder(item, root / "output.json", type("Config", (), {"executable": "python", "adapter_args": (), "profile": "worker"})())
+            self.assertIn("--trusted-domain", command)
+            self.assertIn("official.example", command)
+            self.assertIn("--scope-hash", command)
 
     def test_manifest_requires_clean_committed_revision(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,67 @@
+{
+  "record_type": "ProductionGateResult",
+  "campaign_id": "berlin-hausverwaltung",
+  "campaign_config": "config/campaigns/berlin-hausverwaltung.json",
+  "evaluated_at": "2026-11-08T00:00:00+00:00",
+  "status": "blocked",
+  "shortlist": {
+    "path": "data/processed/priority_leads_2026-11-08.csv",
+    "rows": 30,
+    "unique_company_ids": 30,
+    "accepted_company_ids": 30,
+    "trusted_domains": 30,
+    "confirmed_cities": 20,
+    "confirmed_city_definition": "normalized company berlin_relevance equals Confirmed"
+  },
+  "missing_confirmed_location_company_ids": [
+    "DE-BER-0b05e4b70091",
+    "DE-BER-235cce5bda1c",
+    "DE-BER-3c1e22d54396",
+    "DE-BER-38756d1e2905",
+    "DE-BER-3d431cdf7ec1",
+    "DE-BER-365c86b3256d",
+    "DE-BER-4f9e08056a39",
+    "DE-BER-0a1c4859130b",
+    "DE-BER-0f40046b37c2",
+    "DE-BER-209a8c0f2157"
+  ],
+  "location_evidence_breakdown": {
+    "probable_city_or_conflicting_postcode": 7,
+    "unknown_city": 3,
+    "probable_company_ids": [
+      "DE-BER-0b05e4b70091",
+      "DE-BER-235cce5bda1c",
+      "DE-BER-3c1e22d54396",
+      "DE-BER-365c86b3256d",
+      "DE-BER-38756d1e2905",
+      "DE-BER-3d431cdf7ec1",
+      "DE-BER-4f9e08056a39"
+    ],
+    "unknown_city_company_ids": [
+      "DE-BER-0a1c4859130b",
+      "DE-BER-0f40046b37c2",
+      "DE-BER-209a8c0f2157"
+    ]
+  },
+  "adapter_capabilities": {
+    "worker": "replay",
+    "verifier": "structural_validation",
+    "required_for_production": "source_verification"
+  },
+  "blocking_reasons": [
+    "six admitted shortlist companies lack confirmed city evidence",
+    "configured native worker replays repository artifacts rather than independently verifying sources",
+    "configured native verifier performs structural validation rather than independent source verification"
+  ],
+  "production_command_not_run": true,
+  "source_artifacts": [
+    "data/processed/priority_leads_2026-11-08.csv",
+    "data/intermediate/companies_normalized_2026-11-07.csv",
+    "config/campaigns/berlin-hausverwaltung.json",
+    "scripts/campaign_spec.py",
+    "scripts/orchestrate_enrichment.py",
+    "tests/test_orchestration.py",
+    "scripts/native_worker.py",
+    "scripts/native_verifier.py"
+  ]
+}
