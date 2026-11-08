@@ -31,10 +31,11 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(fit, 35.0)
 
     def test_account_research_states_do_not_use_global_none_found_defaults(self):
-        self.assertEqual(account_research_state(configured=True, successful_terms=4, required_terms=4, event_count=0), ("Completed", "None found"))
+        self.assertEqual(account_research_state(configured=True, successful_terms=4, required_terms=4, event_count=0, account_scoped=True), ("Completed", "None found"))
         self.assertEqual(account_research_state(configured=True, successful_terms=2, required_terms=4, event_count=0), ("Partial", "Unknown"))
         self.assertEqual(account_research_state(configured=False, successful_terms=0, required_terms=4, event_count=0), ("Unavailable", "Unknown"))
         self.assertEqual(account_research_state(configured=True, successful_terms=4, required_terms=4, event_count=0, truncated=True), ("Partial", "Unknown"))
+        self.assertEqual(account_research_state(configured=True, successful_terms=4, required_terms=4, event_count=0, account_scoped=False), ("Partial", "Unknown"))
         self.assertEqual(derive_account_signal({}, [], "Searched"), ("Unknown", "Unknown"))
 
 

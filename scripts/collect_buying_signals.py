@@ -35,8 +35,8 @@ def normalize_name(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def account_research_state(*, configured: bool, successful_terms: int, required_terms: int, event_count: int, truncated: bool = False) -> tuple[str, str]:
-    if successful_terms == required_terms and configured and not truncated:
+def account_research_state(*, configured: bool, successful_terms: int, required_terms: int, event_count: int, truncated: bool = False, account_scoped: bool = False) -> tuple[str, str]:
+    if successful_terms == required_terms and configured and not truncated and account_scoped:
         return "Completed", "Candidate" if event_count else "None found"
     if successful_terms == 0 or not configured:
         return "Unavailable", "Unknown"
@@ -121,6 +121,7 @@ def main() -> int:
             required_terms=len(terms),
             event_count=len(links_by_company.get(company_id, [])),
             truncated=truncated_search,
+            account_scoped=False,
         )
         audit.append({
             "company_id": company_id,

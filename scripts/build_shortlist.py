@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
-from lead_contract import contact_claim_valid, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
+from lead_contract import contact_claim_valid, email_owner_matches_person, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
 from provider_clients import ProviderError, hunter_domain_search
 
 
@@ -119,6 +119,9 @@ def main() -> int:
         }
         person_verified = contact_claim_valid(contact_evidence, row.get("domain", ""))[0]
         email_owner_match = bool(person_verified and email and not is_generic_mailbox(email) and (not hunter_email or same_person(person, hunter_person)))
+        email_owner_match = bool(email_owner_match and email_owner_matches_person(email, person))
+        if email and not is_generic_mailbox(email) and person and not email_owner_matches_person(email, person):
+            email_status = "Unverified"
         if not person_verified:
             person = ""
         contact_role = role_evidence if person_verified else ("Published business mailbox" if email and is_generic_mailbox(email) else "Potential contact" if email else "Unknown")

@@ -58,6 +58,14 @@ def is_valid_business_email(value: object, company_domain: object = "") -> bool:
     return host == company_host or host.endswith("." + company_host)
 
 
+def email_owner_matches_person(email: object, person_name: object) -> bool:
+    if not email or not person_name or "@" not in str(email) or not is_plausible_full_name(person_name):
+        return False
+    local = re.sub(r"[^a-z0-9]", "", str(email).split("@", 1)[0].casefold())
+    words = [re.sub(r"[^a-z0-9]", "", word.casefold()) for word in re.findall(r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'’-]+", str(person_name))]
+    return bool(words and len(words[-1]) >= 3 and words[-1] in local)
+
+
 def is_plausible_full_name(value: object) -> bool:
     words = re.findall(r"[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß'’-]+", str(value or ""))
     rejected = {"haben", "unseren", "immobilienfonds", "cookie", "kontakt", "zusammenarbeit", "mit", "verwalten", "immobilienverwaltung", "hausverwaltung", "immobilien", "immobilie", "atriensis", "erarbeiten", "klare", "prozesse", "jahre", "erfahrung", "erfahrungen", "service", "management", "unternehmen", "team", "familie", "ansprechpartner", "verwaltung", "geschäftsführung", "leitung", "schadensmeldungen", "mitgliedschaften"}

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from lead_contract import contact_claim_valid
+from lead_contract import contact_claim_valid, email_owner_matches_person
 from build_shortlist import same_person
 
 
@@ -46,6 +46,8 @@ class ContactVerificationTests(unittest.TestCase):
     def test_provider_email_must_match_the_named_owner(self):
         self.assertTrue(same_person("Anna Schmidt", "Anna Schmidt"))
         self.assertFalse(same_person("Anna Schmidt", "Peter Müller"))
+        self.assertTrue(email_owner_matches_person("anna.schmidt@example.de", "Anna Schmidt"))
+        self.assertFalse(email_owner_matches_person("peter.mueller@example.de", "Anna Schmidt"))
 
 
 if __name__ == "__main__":

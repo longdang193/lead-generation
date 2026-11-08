@@ -959,3 +959,7 @@ The plan is ready for completion verification when:
   artifacts remain intentionally unrun because this execution does not publish
   leads, send email, or incur provider spend; the deterministic code path is
   ready for a committed, manifest-bound run.
+- 2026-11-08: final review fixes require explicit account-scoped evidence for
+  negative signals, schema validation before evidence promotion, explicit
+  qualification acceptance before shortlist selection, and person/email owner
+  agreement before personal-email verification.

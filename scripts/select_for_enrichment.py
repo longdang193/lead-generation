@@ -28,8 +28,10 @@ def number(value: object, default: float = -1.0) -> float:
 
 
 def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object]) -> bool:
-    resolution = str(qualification.get("resolution_status") or row.get("resolution_status") or "Accepted")
-    eligible = qualification.get("eligible", row.get("eligible", "true"))
+    if not qualification:
+        return False
+    resolution = str(qualification.get("resolution_status") or "")
+    eligible = qualification.get("eligible")
     if isinstance(eligible, str):
         eligible = eligible.strip().lower() in {"1", "true", "yes", "accepted"}
     return resolution == "Accepted" and bool(eligible) and row.get("lead_tier") in {"A", "B"} and number(row.get("evidence_coverage")) >= 50

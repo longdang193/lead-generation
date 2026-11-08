@@ -80,6 +80,29 @@ class EvidencePromotionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 promote_verified_claims(candidates, decisions, output)
 
+    def test_schema_invalid_candidate_is_rejected_before_promotion(self):
+        claim = self.claim()
+        del claim["record_type"]
+        decision = {
+            "record_type": "VerifierDecision",
+            "candidate_claim_id": "claim-1",
+            "candidate_sha256": candidate_sha256(claim),
+            "decision": "Verified",
+            "reason_codes": ["page_local"],
+            "verifier_id": "verifier",
+            "verifier_run_id": "run-1",
+            "verified_at": "2026-11-08T10:01:00+00:00",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidates = root / "candidates.jsonl"
+            decisions = root / "decisions.jsonl"
+            output = root / "verified.jsonl"
+            candidates.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            decisions.write_text(json.dumps(decision) + "\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                promote_verified_claims(candidates, decisions, output)
+
 
 if __name__ == "__main__":
     unittest.main()

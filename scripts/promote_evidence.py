@@ -4,7 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
+import jsonschema
+
 from lead_contract import candidate_sha256, claim_requirements_met, verifier_decision_valid, update_run_manifest
+
+
+SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "config" / "research_evidence_schema.json").read_text(encoding="utf-8"))
+VALIDATOR = jsonschema.Draft202012Validator(SCHEMA)
 
 
 def load_records(path: Path) -> list[dict[str, object]]:
@@ -43,6 +49,9 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         claim_id = str(claim.get("candidate_claim_id") or "")
         if not claim_id or claim_id in claims:
             raise ValueError("candidate claims must have unique candidate_claim_id values")
+        errors = sorted(error.message for error in VALIDATOR.iter_errors(claim))
+        if errors:
+            raise ValueError(f"candidate claim schema invalid: {claim_id}: {'; '.join(errors)}")
         if claim.get("candidate_sha256") != candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"}):
             raise ValueError(f"candidate hash mismatch: {claim_id}")
         complete, missing = claim_requirements_met(claim)
@@ -72,6 +81,9 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         claim["candidate_status"] = "Verified"
         claim["verified_at"] = decisions[claim_id]["verified_at"]
         claim["verifier_run_id"] = decisions[claim_id]["verifier_run_id"]
+        errors = sorted(error.message for error in VALIDATOR.iter_errors(claim))
+        if errors:
+            raise ValueError(f"promoted claim schema invalid: {claim_id}: {'; '.join(errors)}")
         promoted.append(claim)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
