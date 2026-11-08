@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: active
 template_id: implementation-plan
 contract_version: "1"
 name: deterministic-lead-enrichment-architecture
@@ -22,6 +22,8 @@ targets:
   - scripts/score_leads.py
   - scripts/build_shortlist.py
   - scripts/qa_leads.py
+  - scripts/build_workbook.py
+  - scripts/build_deck.py
   - scripts/validate_deliverables.py
   - scripts/validate_workbook.py
   - agents/
@@ -31,6 +33,8 @@ targets:
   - evidence/verified/
   - evidence/research_runs/
   - evidence/manifests/
+  - data/processed/
+  - output/
 ---
 
 # Deterministic Lead Enrichment Architecture Plan
@@ -150,8 +154,8 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   `skill-verification-before-completion`
 - Isolation: `current workspace`; use isolated worktrees only for genuinely
   concurrent implementation lanes with disjoint write ownership
-- Commit policy: `no commits during execution` unless a later approved
-  execution plan explicitly authorizes per-task checkpoints
+- Commit policy: `implementation commits are required before artifact
+  generation; no generated run may execute from a dirty implementation state`
 - Preauthorized local actions: edit the listed plan targets, add focused tests
   and fixtures, regenerate task-owned local evidence under the declared run
   directory, and run declared local verification commands
@@ -161,9 +165,10 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - Parallel ownership: research contracts and worker-output adapters may be
   developed in disjoint files; canonical promotion, ranking, QA, and generated
   outputs are serialized by the lead controller
-- Sequential fallback: complete Tasks 1–4, then run signal and portfolio lanes
-  in parallel; run contact research only after Task 5 produces a shortlist;
-  finish with serialized promotion, QA, and deliverable validation
+- Sequential fallback: complete Tasks 1–4, run the explicit provisional
+  shortlist step, then run signal and portfolio lanes in parallel; run contact
+  research only after the named shortlist artifact exists; finish with
+  serialized promotion, QA, and deliverable validation
 
 ## Coordination State
 
@@ -182,7 +187,7 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 | Task 3 | `pending` | current | `unresolved` | Task 1, Task 2 | page-local claim and promotion tests | pending |
 | Task 4 | `pending` | current | `unresolved` | Task 1, Task 2 | queue/run-manifest tests | pending |
 | Task 5 | `pending` | isolated lane or current | `unresolved` | Task 3, Task 4 | account-scoped signal/portfolio fixtures | pending |
-| Task 6 | `pending` | isolated lane or current | `unresolved` | Task 3, Task 4, Task 5 | contact verification fixtures | pending |
+| Task 6 | `pending` | isolated lane or current | `unresolved` | Task 3, Task 4, provisional shortlist artifact | contact verification fixtures | pending |
 | Task 7 | `pending` | current | `unresolved` | Task 3, Task 5, Task 6 | promotion, score, and ranking tests | pending |
 | Task 8 | `pending` | current | `unresolved` | Task 7 | full QA, manifest, workbook, and deliverable validation | pending |
 
@@ -236,13 +241,17 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   unrelated canonical outputs.
 
 **Steps:**
-- [ ] Define `EvidenceClaim` fields: `company_id`, `claim_type`, `claim_value`,
-  `unit`, `scope`, `source_url`, `source_domain`, `source_kind`,
-  `evidence_excerpt`, `retrieved_at`, `published_at`, `account_relationship`,
-  `confidence`, `research_run_id`, and `candidate_status`.
+- [ ] Define `EvidenceClaim` fields: `candidate_claim_id`, `company_id`,
+  `claim_type`, `claim_value`, `source_url`, `source_domain`, `source_kind`,
+  `evidence_excerpt`, `retrieved_at`, `account_relationship`, `confidence`,
+  `research_run_id`, and `candidate_status`; make `published_at` mandatory only
+  for time-sensitive buying-signal claims, `unit` and `scope` mandatory only for
+  quantitative portfolio claims, and contact fields mandatory only for contact
+  claims.
 - [ ] Define `ResearchRun` fields: `run_id`, `company_id`, `research_type`,
   `source`, `scope`, `status`, `started_at`, `completed_at`, `result_count`,
-  `truncated`, `provider_status`, and `error_code`.
+  `truncated`, `provider_status`, `error_code`, `scope_version`, `scope_hash`,
+  and per-query/source attempt records.
 - [ ] Define explicit statuses: research `Not searched`, `Completed`,
   `Partial`, `Unavailable`, `Needs review`; claim `Candidate`, `Verified`,
   `Rejected`, `Needs review`; and signal output `Strong`, `Medium`, `Weak`,
@@ -262,8 +271,9 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] `py -3 -m unittest tests.test_lead_contract tests.test_research_contract -v`
 - [ ] `py -3 -m json.tool config/lead_generation_schema.json`
 - [ ] `py -3 -m json.tool config/research_evidence_schema.json`
-- Expected: all contract tests pass; direct `const` matches; missing source,
-  excerpt, date, unit, or company binding is rejected.
+- Expected: all contract tests pass; direct `const` matches; missing universal
+  fields or claim-type-specific fields are rejected without rejecting valid
+  undated qualitative evidence.
 
 **Exit Criteria:**
 - One importable contract/helper surface defines all cross-lane statuses and
@@ -323,8 +333,10 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   website, contact fields, source IDs, source type, actor/run IDs, extraction
   method, and retrieval time from CSV and JSON providers.
 - [ ] Store `discovery_source_url` separately from `verified_company_domain`;
-  derive the latter only from an explicitly trusted official or permitted
-  directory record that passes identity corroboration.
+  derive the latter only from an explicitly trusted official company domain.
+  A permitted directory may provide an outbound candidate official URL, but the
+  directory/search/navigation host itself can never become
+  `verified_company_domain`.
 - [ ] Resolve candidates in deterministic order: verified domain plus identity,
   exact legal name and postcode, exact address, then fuzzy name/location.
 - [ ] Set `requires_review = True` for every fuzzy, same-host,
@@ -378,8 +390,10 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 
 **Files And Symbols:**
 - Inspect: `scripts/extract_website_evidence.py:fetch`, `process`, and `main`.
-- Add: `scripts/promote_evidence.py` with `load_candidates`, `verify_claim`,
-  `promote_verified_claims`, and `main`.
+- Add: `scripts/promote_evidence.py` with `load_candidates`,
+  `validate_verifier_decision`, `promote_verified_claims`, and `main`; the
+  verifier agent, not this script, makes the evidence judgment.
+- Add `agents/evidence-verifier.toml` and bind it to the `lead-evidence` skill.
 - Modify: `scripts/extract_website_evidence.py`, `scripts/lead_contract.py`,
   `scripts/qa_leads.py`, `tests/test_lead_contract.py`, and add
   `tests/test_evidence_promotion.py`.
@@ -405,15 +419,23 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   `mietverwaltung` text as WEG proof.
 - [ ] Require Berlin evidence tied to the company, not only a postcode or
   navigation title.
+- [ ] Require each verifier decision to contain only `candidate_claim_id`,
+  `candidate_sha256`, `decision`, `reason_codes`, `verifier_id`,
+  `verifier_run_id`, and `verified_at`; it must not rewrite claim value, URL,
+  excerpt, or company binding.
 - [ ] Validate claim/value/excerpt equality, same-company binding, URL ownership,
-  and portfolio units before promotion.
+  candidate content hash, and portfolio units before promotion.
+- [ ] Copy the unchanged candidate claim into `evidence/verified/` only when
+  the decision is `Verified`; retain `Needs review` and `Rejected` decisions in
+  the audit layer without promoting them.
 - [ ] Route failures to `Needs review` or `Rejected`; never convert missing or
   contradictory evidence into a positive or zero value.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_evidence_promotion tests.test_lead_contract -v`
 - [ ] Assert a claim supported only by an unrelated page or combined text is
-  rejected.
+  rejected, and a verifier decision with a mismatched candidate hash cannot
+  promote a changed claim.
 - [ ] Assert portfolio values without unit, scope, or source do not contribute
   to confirmed fit.
 - Expected: only verified claim files can feed canonical qualification fields.
@@ -448,20 +470,26 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - `skill-code-standards`, `skill-test-driven-development`
 
 **Files And Symbols:**
-- Add `scripts/select_for_enrichment.py` with `select_accounts` and `main`.
+- Add `scripts/select_for_enrichment.py` with `select_accounts`,
+  `write_provisional_shortlist`, and `main`; it is the sole owner of the
+  provisional-shortlist artifact.
 - Add `scripts/orchestrate_enrichment.py` with `create_run_manifest`,
   `write_lane_queue`, `validate_lane_output`, `reconcile_run`, and `main`.
 - Modify `scripts/lead_contract.py:update_run_manifest` to hash all declared
   inputs, supporting inputs, candidate/verified evidence, and outputs.
 - Add repository profile sources `agents/signal-researcher.toml`,
   `agents/portfolio-researcher.toml`, `agents/contact-researcher.toml`, and
-  `agents/evidence-verifier.toml`; generate any runtime adapter view only via
-  the repository sync tool.
+  `agents/evidence-verifier.toml`; Task 3 owns the verifier profile and this
+  task owns the three researcher profiles; generate any runtime adapter view
+  only via the repository sync tool.
 - Add canonical shared skills `.agents/skills/lead-evidence/SKILL.md`,
   `.agents/skills/account-research/SKILL.md`, and
   `.agents/skills/contact-verification/SKILL.md`.
 - Add `tests/test_orchestration.py`.
 - Add run roots under `evidence/research_runs/` and `evidence/manifests/`.
+- Add the immutable shortlist output
+  `evidence/research_runs/active/provisional_shortlist.csv` and register its
+  hash in `evidence/manifests/active_run.json`.
 
 **Dependencies:**
 - Task 1 and Task 2 complete; Task 3 contract shape is required before final
@@ -476,8 +504,16 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 **Steps:**
 - [ ] Create a run ID and manifest containing Git revision, configuration hashes,
   accepted-company hash, lane scopes, caps, timestamps, and output locations.
+- [ ] Require a clean worktree and an exact committed implementation revision
+  before opening any research queue; record `head_sha` and require
+  `HEAD == head_sha` during final verification.
 - [ ] Write one immutable queue item per accepted company and lane, including
   `company_id`, legal name, aliases, trusted domain, location, and research scope.
+- [ ] Run `select_accounts` after P0 qualification using the deterministic
+  criteria `resolution_status == Accepted`, `eligible == true`,
+  `lead_tier in {A, B}`, and `evidence_coverage >= 50`; write the named
+  shortlist artifact and its schema/hash before creating signal, portfolio, or
+  contact queues.
 - [ ] Enforce phase barriers: no lane queue before accepted identity; no contact
   queue before provisional shortlist; no canonical write before verified evidence.
 - [ ] Require worker outputs to be immutable files under
@@ -502,7 +538,7 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] Assert manifest verification detects changed config, revision, input,
   candidate, verified, and output hashes.
 - Expected: the same inputs, revision, and worker outputs produce the same
-  queue membership and reconciliation result.
+  shortlist, queue membership, and reconciliation result.
 
 **Exit Criteria:**
 - A complete local run is replayable from its manifest and no worker has a path
@@ -560,8 +596,14 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] Search account-scoped combinations for procurement, modernization,
   digitization, metering/heating-cost projects, supplier change, relevant
   hiring, and portfolio expansion; retain only dated, source-bound candidates.
-- [ ] Persist one `ResearchRun` per company and lane. Mark `None found` only
-  when the complete required account scope finishes with zero accepted events.
+- [ ] Persist one `ResearchRun` per company and lane with a versioned
+  `scope_version`, `scope_hash`, and one attempt record per required query/source
+  containing query ID, provider, page/cursor, cap, truncation, completion/error
+  status, and linked candidate IDs.
+- [ ] Derive `None found` only in deterministic promotion after every required
+  attempt is complete, no attempt is truncated or unavailable, and verification
+  yields zero usable signal claims; unresolved candidates remain `Needs review`
+  or `Unknown`.
 - [ ] Mark provider failure as `Unavailable` or `Partial`; never emit `None
   found` for an outage or truncated search.
 - [ ] Preserve event-to-company links and exact match method; ambiguous buyer
@@ -576,8 +618,8 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   company’s event cannot change another company’s signal.
 - [ ] Assert dated TED events can produce a candidate signal while date-less
   positive events remain `Unknown`.
-- [ ] Assert provider outage, partial search, and completed no-match produce
-  different states.
+- [ ] Assert provider outage, partial search, completed no-match, and
+  needs-review candidates produce different states.
 - Expected: no canonical row receives a global buying-signal default.
 
 **Exit Criteria:**
@@ -622,7 +664,10 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   `evidence/candidate/contacts/`.
 
 **Dependencies:**
-- Tasks 1–5 complete; Task 5 must produce the provisional shortlist and run ID.
+- Tasks 1–5 complete and
+  `evidence/research_runs/active/provisional_shortlist.csv` exists with a
+  manifest-verified hash; contact research must not infer shortlist membership
+  from scores directly.
 
 **Authority:**
 - Preauthorized local actions: add contact candidate/promotion handling and
@@ -712,12 +757,20 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] Promote only `Verified` claims whose source, excerpt, company binding,
   freshness, and policy checks pass.
 - [ ] Calculate observed fit, confirmed weighted fit, and evidence coverage
-  separately; unknown components remain unknown rather than zero.
+  separately; unknown components remain unknown rather than zero. Preserve the
+  exact formula `confirmed_fit = sum(weight * observed_component) /
+  sum(observed_weights)` and `evidence_coverage = sum(observed_weights)` with
+  the fixed 100-point denominator represented by the configured weights; a
+  null fit sorts after numeric fit and coverage is never silently renormalized
+  into a false completeness claim.
 - [ ] Derive `buying_signal` from verified account-scoped events and the
   completed research run, not from a global events file.
-- [ ] Derive actionability and sales priority from explicit deterministic rules;
-  only eligible, sufficiently evidenced, strong-fit accounts with meaningful
-  signal may become `Pursue`.
+- [ ] Derive actionability and sales priority from explicit deterministic rules:
+  `Ready` requires eligible tier A, confirmed fit >= 70, coverage >= 75, and a
+  verified `Strong` or `Medium` signal; `Weak` and `None found` map to
+  `Monitor`/`Research`; `Unknown`, `Partial`, and `Unavailable` map to
+  `Research`/`Defer`. A named contact is not required for structural shortlist
+  membership or `Pursue`.
 - [ ] Keep contact evidence out of structural fit and shortlist membership;
   apply it only to outreach-owner/actionability fields after selection.
 - [ ] Sort by explicit stable keys: sales priority, lead tier, confirmed fit,
@@ -731,6 +784,10 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   and ranking outputs.
 - [ ] Assert missing portfolio evidence remains unknown and cannot earn the
   portfolio weight.
+- [ ] Assert the fixed-denominator/coverage formula, null ordering, and
+  monotonicity under an improved component.
+- [ ] Assert each buying-signal state maps to the documented actionability and
+  sales-priority outcome.
 - [ ] Assert contact enrichment cannot change structural fit, tier, or shortlist
   membership.
 - Expected: no unsupported row reaches `Pursue` and every score is auditable.
@@ -794,7 +851,8 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
   gaps, and score/ranking mismatch.
 - [ ] Verify every manifest hash for raw inputs, supporting inputs, candidate
   evidence, verified evidence, canonical CSVs, workbook, deck, QA report, and
-  source registers; verify the full Git revision is reachable.
+  source registers; require `HEAD == head_sha`, a clean implementation
+  worktree, and a full Git revision reachable from the remote.
 - [ ] Build the workbook once from promoted canonical outputs, run semantic QA
   against that exact workbook, validate the workbook, then build and validate
   the deck without hand-edited generated values.
@@ -806,6 +864,9 @@ unverified signals, weak contact proof, stale/missing evidence, or hash drift.
 - [ ] `py -3 -m json.tool config/lead_generation_schema.json`
 - [ ] `py -3 -m json.tool config/research_evidence_schema.json`
 - [ ] `py -3 scripts/orchestrate_enrichment.py verify --manifest evidence/manifests/active_run.json`
+- [ ] Integration-test that `verify` invokes `qa_leads.py`,
+  `validate_workbook.py`, and `validate_deliverables.py` using the exact
+  manifest-bound paths and propagates any nonzero exit.
 - [ ] `git diff --check`
 - [ ] `rg -n "APIFY_API_TOKEN|HUNTER_API_KEY|Bearer [A-Za-z0-9._-]+" data evidence output presentation --glob '!*.md'`
 - Expected: tests, schema checks, QA, workbook validation, deliverable
@@ -829,11 +890,18 @@ manifest being accepted:
 - `git diff --check`
 - `git status --short --branch`
 
-The orchestrator verification command must validate every manifest-listed input,
-candidate evidence file, verified evidence file, canonical output, workbook,
-deck, QA report, and source register. It must exit nonzero on any hash drift,
-revision mismatch, schema error, unsupported claim, unresolved identity,
-invalid signal state, missing contact provenance, or ranking inconsistency.
+The orchestrator verification command must invoke `qa_leads.py`,
+`validate_workbook.py`, and `validate_deliverables.py` against the exact paths
+recorded in `active_run.json`, propagate every nonzero exit, and validate every
+manifest-listed input, candidate evidence file, verified evidence file,
+canonical output, workbook, deck, QA report, and source register. It must exit
+nonzero on any hash drift, revision mismatch, dirty implementation worktree,
+schema error, unsupported claim, unresolved identity, invalid signal state,
+missing contact provenance, or ranking inconsistency.
+
+Artifact generation is not accepted from uncommitted implementation changes.
+The lead must commit the implementation, verify `HEAD == head_sha`, and only
+then create or promote the manifest-bound run artifacts.
 
 ## Completion Criteria
 
