@@ -207,6 +207,7 @@ Steps:
 - [ ] Send ambiguous matches to review; only unique evidence-backed links use Verified.
 - [ ] Preserve event ID, buyer, type, publication date, deadline, scope, source URL, retrieval time, and match evidence.
 - [ ] Distinguish completed no-match (None found), not run (Not searched), provider failure (Unavailable), and pre-search Unknown.
+- [ ] When `--shortlist` is supplied, run bounded account-scoped TED searches for at most `MAX_PRIORITY_ACCOUNTS` accepted companies; without it, global searches may produce only verified positive links and must not imply account-level no-match.
 - [ ] Read --events and join events/links/audit by company ID.
 - [ ] Add bounded official company news, modernization, portfolio-growth, and hiring signals only with explicit attribution/source URLs.
 - [ ] Keep weights 35/30/25/10 and calculate over observed weights; store coverage consistently as 0–100 percentage points.
@@ -226,6 +227,7 @@ Steps:
 Verification:
 - [ ] py -3 -m unittest tests.test_buying_signals tests.test_scoring -v
 - [ ] py -3 scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv
+- [ ] py -3 scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --shortlist data/processed/priority_leads_2026-11-08.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv
 - [ ] py -3 scripts/score_leads.py --qualification data/intermediate/website_evidence_2026-11-08.jsonl --events data/raw/buying_events_2026-11-08.json --event-links data/processed/company_event_links_2026-11-08.csv --schema config/lead_generation_schema.json --output data/processed/lead_scores_2026-11-08.csv --audit-output evidence/scoring_audit_2026-11-08.csv
 - [ ] Independently recalculate at least 20 rows and compare score, coverage, tier, signal, and search status to the audit.
 Exit Criteria: Signals are attributable/complete and structural fit is reproducible and independent of contact availability.
