@@ -13,7 +13,8 @@ from openpyxl import load_workbook
 
 from runtime_config import RuntimeConfig, provider_limitation
 from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
-from score_leads import calculate_fit, value
+from score_leads import calculate_fit
+from validate_deliverables import verify_manifest_bucket
 
 
 def rows(ws):
@@ -193,6 +194,18 @@ def main() -> int:
                 errors.append("workbook hash does not match run manifest")
             if not manifest.get("run_id") or not manifest.get("generated_at") or not manifest.get("config_version"):
                 errors.append("run manifest lacks run identity or configuration version")
+            for key in ("workbook", "build_report"):
+                if key not in manifest.get("outputs", {}):
+                    errors.append(f"run manifest missing {key} output")
+            for key in ("companies", "scores", "priority", "contacts", "sources"):
+                if key not in manifest.get("inputs", {}):
+                    errors.append(f"run manifest missing {key} input")
+            for key in ("schema", "website_evidence", "source_register", "entity_resolution", "buying_signal_audit", "buying_events", "scoring_audit", "contact_sources"):
+                if key not in manifest.get("supporting_inputs", {}):
+                    errors.append(f"run manifest missing {key} supporting input")
+            verify_manifest_bucket(errors, args.run_manifest, "outputs", manifest.get("outputs", {}))
+            verify_manifest_bucket(errors, args.run_manifest, "inputs", manifest.get("inputs", {}))
+            verify_manifest_bucket(errors, args.run_manifest, "supporting_inputs", manifest.get("supporting_inputs", {}))
         except (OSError, ValueError, KeyError):
             errors.append("run manifest is unreadable")
     try:

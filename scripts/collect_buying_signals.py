@@ -31,6 +31,16 @@ def text_value(value: object) -> str:
     return ""
 
 
+def localized_value(value: object, *keys: str) -> object:
+    if not isinstance(value, dict):
+        return value
+    wanted = {key.casefold() for key in keys}
+    for key, item in value.items():
+        if str(key).casefold() in wanted:
+            return item
+    return ""
+
+
 def normalize_name(value: str) -> str:
     value = unicodedata.normalize("NFKD", value.casefold()).encode("ascii", "ignore").decode("ascii")
     value = re.sub(r"[^a-z0-9]+", " ", value)
@@ -52,6 +62,8 @@ def normalize_company_name(value: str) -> str:
         ("ek",),
         ("gbr",),
         ("se",),
+        ("e", "k"),
+        ("e", "g"),
     )
     changed = True
     while tokens and changed:
@@ -105,11 +117,12 @@ def main() -> int:
         with args.shortlist.open(encoding="utf-8-sig", newline="") as handle:
             shortlist_ids = [str(row.get("company_id") or "") for row in csv.DictReader(handle) if row.get("company_id")]
     companies_by_id = {str(row.get("company_id") or ""): row for row in companies}
-    scoped_company_ids = [
-        company_id
-        for company_id in shortlist_ids[:config.max_priority_accounts]
-        if company_id in companies_by_id and companies_by_id[company_id].get("resolution_status", "Accepted") != "Review"
-    ]
+    scoped_company_ids = []
+    for company_id in shortlist_ids:
+        if company_id in companies_by_id and companies_by_id[company_id].get("resolution_status", "Accepted") != "Review" and company_id not in scoped_company_ids:
+            scoped_company_ids.append(company_id)
+        if len(scoped_company_ids) >= config.max_priority_accounts:
+            break
     scoped_ids = set(scoped_company_ids)
     if config.ted_api_base_url and args.shortlist:
         for company_id in scoped_company_ids:
@@ -120,7 +133,7 @@ def main() -> int:
             for term in terms:
                 query = f"{company_name} {term}".strip()
                 try:
-                    notices = ted_search(config.ted_api_base_url, query, timeout=config.request_timeout_seconds, limit=50)
+                    notices = ted_search(config.ted_api_base_url, [company_name, term], timeout=config.request_timeout_seconds, limit=50)
                     if len(notices) >= 50:
                         truncated_by_company.add(company_id)
                     term_count = 0
@@ -130,8 +143,8 @@ def main() -> int:
                         buyer = text_value(notice.get("buyer-name"))
                         title = text_value(notice.get("notice-title"))
                         links_value = notice.get("links") if isinstance(notice.get("links"), dict) else {}
-                        html_links = links_value.get("html", {}) if isinstance(links_value, dict) else {}
-                        source_url = text_value(html_links.get("deu")) or text_value(html_links.get("eng"))
+                        html_links = localized_value(links_value, "html")
+                        source_url = text_value(localized_value(html_links, "deu", "eng"))
                         if event_id not in seen:
                             seen.add(event_id)
                             events.append({
@@ -147,12 +160,12 @@ def main() -> int:
                                 "retrieved_at": stamp(),
                             })
                         buyer_key = normalize_company_name(buyer)
-                        if buyer_key and buyer_key == company_key and source_url:
+                        if buyer_key and buyer_key == company_key and len(known.get(company_key, [])) == 1 and source_url:
                             link_key = (event_id, company_id)
                             if link_key not in link_keys:
                                 link_keys.add(link_key)
                                 links.append({"event_id": event_id, "company_id": company_id, "match_method": "account-scoped normalized buyer name with source URL", "match_confidence": "Verified", "source_url": source_url})
-                        elif buyer_key:
+                        else:
                             unresolved_by_company.add(company_id)
                         term_count += 1
                     audit.append({"company_id": company_id, "search_term": query, "search_status": "Searched", "event_count": str(term_count), "reason": "account-scoped TED search; only exact normalized buyer links are verified", "retrieved_at": stamp()})
@@ -175,8 +188,8 @@ def main() -> int:
                     buyer = text_value(notice.get("buyer-name"))
                     title = text_value(notice.get("notice-title"))
                     links_value = notice.get("links") if isinstance(notice.get("links"), dict) else {}
-                    html_links = links_value.get("html", {}) if isinstance(links_value, dict) else {}
-                    source_url = text_value(html_links.get("deu")) or text_value(html_links.get("eng"))
+                    html_links = localized_value(links_value, "html")
+                    source_url = text_value(localized_value(html_links, "deu", "eng"))
                     event = {
                         "event_id": event_id,
                         "source_type": "TED",

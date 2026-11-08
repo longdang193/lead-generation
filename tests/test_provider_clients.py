@@ -35,6 +35,10 @@ class ProviderClientTests(unittest.TestCase):
         self.assertIn("publication-number", body["fields"])
         self.assertIn("publication-date", body["fields"])
 
+    def test_ted_body_supports_separate_account_and_signal_terms(self):
+        body = build_ted_search_body(["Frankfurter Dienstleistungsholding GmbH", "Heizkostenabrechnung"])
+        self.assertEqual(body["query"], 'FT~"Frankfurter Dienstleistungsholding GmbH" AND FT~"Heizkostenabrechnung"')
+
     def test_normalize_apify_items_keeps_source_provenance(self):
         rows = normalize_apify_items([{"title": "Example", "url": "https://example.com"}], actor="apify/google-search-scraper", run_id="run-1")
         self.assertEqual(rows[0]["company_name"], "Example")

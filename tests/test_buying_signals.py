@@ -15,6 +15,139 @@ import collect_buying_signals
 
 
 class BuyingSignalTests(unittest.TestCase):
+    def test_shortlist_skips_ineligible_rows_before_applying_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            companies = root / "companies.csv"
+            companies.write_text(
+                "company_id,company_name,resolution_status\n"
+                "C1,Company 1,Accepted\n"
+                "C3,Company 3,Accepted\n"
+                "C4,Company 4,Review\n",
+                encoding="utf-8",
+            )
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id\nMISSING\nC4\nC3\nC1\n", encoding="utf-8")
+            events = root / "events.json"
+            links = root / "links.csv"
+            audit = root / "audit.csv"
+            config = SimpleNamespace(ted_api_base_url="https://ted.example", request_timeout_seconds=1, max_priority_accounts=2)
+            queries = []
+
+            def fake_ted_search(_base_url, search_term, timeout, limit):
+                queries.append(search_term)
+                return []
+
+            argv = [
+                "collect_buying_signals.py",
+                "--companies", str(companies),
+                "--shortlist", str(shortlist),
+                "--ted-output", str(events),
+                "--links-output", str(links),
+                "--audit-output", str(audit),
+            ]
+            with patch.object(collect_buying_signals.RuntimeConfig, "from_env", return_value=config), patch.object(collect_buying_signals, "ted_search", side_effect=fake_ted_search), patch.object(sys, "argv", argv):
+                self.assertEqual(collect_buying_signals.main(), 0)
+
+            self.assertEqual([query[0] for query in queries[::4]], ["Company 3", "Company 1"])
+
+    def test_buyerless_notice_does_not_become_completed_no_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            companies = root / "companies.csv"
+            companies.write_text("company_id,company_name\nC1,Alpha Hausverwaltung\n", encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id\nC1\n", encoding="utf-8")
+            events = root / "events.json"
+            links = root / "links.csv"
+            audit = root / "audit.csv"
+            config = SimpleNamespace(ted_api_base_url="https://ted.example", request_timeout_seconds=1, max_priority_accounts=30)
+
+            def fake_ted_search(_base_url, search_term, timeout, limit):
+                return [{"publication-number": "123", "links": {"html": {"ENG": "https://ted.example/notices/123"}}}]
+
+            argv = [
+                "collect_buying_signals.py",
+                "--companies", str(companies),
+                "--shortlist", str(shortlist),
+                "--ted-output", str(events),
+                "--links-output", str(links),
+                "--audit-output", str(audit),
+            ]
+            with patch.object(collect_buying_signals.RuntimeConfig, "from_env", return_value=config), patch.object(collect_buying_signals, "ted_search", side_effect=fake_ted_search), patch.object(sys, "argv", argv):
+                self.assertEqual(collect_buying_signals.main(), 0)
+
+            with audit.open(encoding="utf-8-sig", newline="") as handle:
+                company_audit = next(row for row in csv.DictReader(handle) if row.get("company_id") == "C1" and row.get("research_status"))
+            self.assertEqual(company_audit["research_status"], "Partial")
+            self.assertEqual(company_audit["signal_state"], "Unknown")
+
+    def test_colliding_normalized_buyers_are_not_verified_in_scoped_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            companies = root / "companies.csv"
+            companies.write_text("company_id,company_name\nC1,Alpha GmbH\nC2,Alpha AG\n", encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id\nC1\n", encoding="utf-8")
+            events = root / "events.json"
+            links = root / "links.csv"
+            audit = root / "audit.csv"
+            config = SimpleNamespace(ted_api_base_url="https://ted.example", request_timeout_seconds=1, max_priority_accounts=30)
+
+            def fake_ted_search(_base_url, search_term, timeout, limit):
+                return [{
+                    "publication-number": "123",
+                    "buyer-name": "Alpha GmbH",
+                    "links": {"html": {"ENG": "https://ted.example/notices/123"}},
+                }]
+
+            argv = [
+                "collect_buying_signals.py",
+                "--companies", str(companies),
+                "--shortlist", str(shortlist),
+                "--ted-output", str(events),
+                "--links-output", str(links),
+                "--audit-output", str(audit),
+            ]
+            with patch.object(collect_buying_signals.RuntimeConfig, "from_env", return_value=config), patch.object(collect_buying_signals, "ted_search", side_effect=fake_ted_search), patch.object(sys, "argv", argv):
+                self.assertEqual(collect_buying_signals.main(), 0)
+
+            with links.open(encoding="utf-8-sig", newline="") as handle:
+                self.assertEqual(list(csv.DictReader(handle)), [])
+
+    def test_punctuated_ek_suffix_matches_verified_buyer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            companies = root / "companies.csv"
+            companies.write_text("company_id,company_name\nC1,Müller Hausverwaltung\n", encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id\nC1\n", encoding="utf-8")
+            events = root / "events.json"
+            links = root / "links.csv"
+            audit = root / "audit.csv"
+            config = SimpleNamespace(ted_api_base_url="https://ted.example", request_timeout_seconds=1, max_priority_accounts=30)
+
+            def fake_ted_search(_base_url, search_term, timeout, limit):
+                return [{
+                    "publication-number": "123",
+                    "buyer-name": "Müller Hausverwaltung e.K.",
+                    "links": {"html": {"ENG": "https://ted.example/notices/123"}},
+                }]
+
+            argv = [
+                "collect_buying_signals.py",
+                "--companies", str(companies),
+                "--shortlist", str(shortlist),
+                "--ted-output", str(events),
+                "--links-output", str(links),
+                "--audit-output", str(audit),
+            ]
+            with patch.object(collect_buying_signals.RuntimeConfig, "from_env", return_value=config), patch.object(collect_buying_signals, "ted_search", side_effect=fake_ted_search), patch.object(sys, "argv", argv):
+                self.assertEqual(collect_buying_signals.main(), 0)
+
+            with links.open(encoding="utf-8-sig", newline="") as handle:
+                self.assertEqual(len(list(csv.DictReader(handle))), 1)
+
     def test_shortlist_preserves_rank_order_and_caps_account_queries(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -49,7 +182,7 @@ class BuyingSignalTests(unittest.TestCase):
                 self.assertEqual(collect_buying_signals.main(), 0)
 
             self.assertEqual(len(queries), 8)
-            self.assertTrue(all(query.startswith(prefix) for query, prefix in zip(queries, ["Company 3"] * 4 + ["Company 1"] * 4)))
+            self.assertTrue(all(query[0] == prefix for query, prefix in zip(queries, ["Company 3"] * 4 + ["Company 1"] * 4)))
             with audit.open(encoding="utf-8-sig", newline="") as handle:
                 audit_rows = list(csv.DictReader(handle))
             searched_ids = [row["company_id"] for row in audit_rows if row.get("search_term")]
@@ -94,7 +227,7 @@ class BuyingSignalTests(unittest.TestCase):
             self.assertEqual(untouched_audit["research_status"], "Not searched")
             self.assertEqual(untouched_audit["signal_state"], "Unknown")
             self.assertEqual(len(queries), 4)
-            self.assertTrue(all(query.startswith("Alpha Hausverwaltung ") for query in queries))
+            self.assertTrue(all(query[0] == "Alpha Hausverwaltung" for query in queries))
             self.assertEqual(json.loads(events.read_text(encoding="utf-8"))["status"], "Searched")
 
     def test_verified_company_event_match_completes_account_scope(self):
