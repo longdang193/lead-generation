@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: active
+status: completed
 template_id: implementation-plan
 contract_version: "1"
 name: live-delivery-bottleneck-remediation
@@ -150,7 +150,7 @@ treated as complete merely because the fixture path succeeds.
 - Branch: `codex/buying-signal-attribution`
 - Base commit: `68d4eaa9e3cd859639a4958b157e9362866fee5f`
 - Expected workspace: clean implementation tree with untracked `output/github-review/` preserved and excluded from commits
-- Next action: commit the completed local remediation, then run fresh personal and strict fixture bundles from that clean revision
+- Next action: hand off the verified branch for the explicitly authorized commit/push/PR/review/merge workflow
 - Blockers: provider-backed live probe is not authorized; the local remediation work is otherwise dependency-ready
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
@@ -162,7 +162,7 @@ treated as complete merely because the fixture path succeeds.
 | Task 5 | `completed` | current | `none (lead controller)` | Tasks 2–4 | resumable gap-driven dispatch regression | material-gap queue filtering, scope/payload/hash validation, terminal reuse, deterministic failure, attempt history, and bounded retry tests passed |
 | Task 6 | `completed` | current | `none (lead controller)` | Task 4 | claim-aware contact and workbook contract proof | external professional contact authorization, affiliation validation, assurance/provider/gap export tests passed |
 | Task 7 | `completed` | current | `none (lead controller)` | Tasks 1–6 | stale-revision and hash rejection proof | shared revision validator, current-HEAD rejection, full bucket hash checks, verifier input binding, and stale-revision regression passed |
-| Task 8 | `pending` | current | `unresolved` | Tasks 1–7 | full fixture verification and recorded live-probe gate | pending |
+| Task 8 | `completed` | current | `none (lead controller)` | Tasks 1–7 | full fixture verification and recorded live-probe gate | personal and strict bundles passed at `7c7f29d8c76f49eb5106d921356f4bec20f38f37`; 30 accepted/30 active/30 delivered each; replay assurance explicit; strict barriers true; production gate preserved |
 
 ## Task Breakdown
 
@@ -451,17 +451,18 @@ remains unverified before any provider-backed execution.
 - Stop for: provider-backed research, credential changes, external publication, a missing current-run revision, or any claim of production readiness without live evidence
 
 **Steps:**
-- [ ] Step 1: Run personal and strict fixture campaigns with reserve candidates, replay-only lanes, structural-only evidence, transient failure, timeout, valid external contact evidence, and a partial contact lane.
-- [ ] Step 2: Verify deterministic selection, research-gap projection, assurance labels, manifest hashes, active/dispatched/delivered scope, and strict barriers.
-- [ ] Step 3: Record the live-probe requirement and current blocker at `evidence/manifests/production-gate-blocked-2026-11-08.json:1`; do not execute the probe in this plan without separate authorization.
+- [x] Step 1: Run personal and strict fixture campaigns with reserve candidates, replay-only lanes, structural-only evidence, transient failure, timeout, valid external contact evidence, and a partial contact lane.
+- [x] Step 2: Verify deterministic selection, research-gap projection, assurance labels, manifest hashes, active/dispatched/delivered scope, and strict barriers.
+- [x] Step 3: Record the live-probe requirement and current blocker at `evidence/manifests/production-gate-blocked-2026-11-08.json:1`; do not execute the probe in this plan without separate authorization.
 
 **Verification:**
-- [ ] `py -3 -m unittest discover -s tests -p "test_*.py" -v`
-- [ ] `py -3 -m compileall -q scripts tests`
-- [ ] `git diff --check`
-- [ ] `py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx --schema config/lead_generation_schema.json`
-- [ ] `py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09-final.pptx --qa-report evidence/qa_report_2026-11-09.md --run-manifest evidence/run_manifest_2026-11-09.json --workbook-only`
-- Expected: all local checks pass on a freshly generated, same-revision fixture bundle; production-backed success remains explicitly unverified.
+- [x] `py -3 -m unittest discover -s tests -p "test_*.py" -v` — 103 tests passed.
+- [x] `py -3 -m compileall -q scripts tests`
+- [x] `git diff --check`
+- [x] `py -3 scripts/validate_workbook.py --workbook output/personal-proof-2026-11-09-v2.xlsx --schema config/lead_generation_schema.json`
+- [x] `py -3 scripts/validate_deliverables.py --workbook output/personal-proof-2026-11-09-v2.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/personal-proof-2026-11-09-v2/qa.md --run-manifest evidence/manifests/personal-proof-2026-11-09-v2.json --workbook-only`
+- [x] Equivalent workbook and deliverable validation passed for `strict-proof-2026-11-09`.
+- Expected: local checks pass on fresh, same-revision fixture bundles; production-backed success remains explicitly unverified.
 
 **Exit Criteria:** Local implementation proof is fresh and complete, strict-mode protections remain intact, untracked review evidence is preserved, and the live-provider gate is recorded rather than overstated.
 
@@ -473,8 +474,10 @@ Final artifact-level verification after Tasks 1–8:
 py -3 -m unittest discover -s tests -p "test_*.py" -v
 py -3 -m compileall -q scripts tests
 git diff --check
-py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx --schema config/lead_generation_schema.json
-py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09-reviewed.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09-final.pptx --qa-report evidence/qa_report_2026-11-09.md --run-manifest evidence/run_manifest_2026-11-09.json --workbook-only
+py -3 scripts/validate_workbook.py --workbook output/personal-proof-2026-11-09-v2.xlsx --schema config/lead_generation_schema.json
+py -3 scripts/validate_deliverables.py --workbook output/personal-proof-2026-11-09-v2.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/personal-proof-2026-11-09-v2/qa.md --run-manifest evidence/manifests/personal-proof-2026-11-09-v2.json --workbook-only
+py -3 scripts/validate_workbook.py --workbook output/strict-proof-2026-11-09.xlsx --schema config/lead_generation_schema.json
+py -3 scripts/validate_deliverables.py --workbook output/strict-proof-2026-11-09.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/strict-proof-2026-11-09/qa.md --run-manifest evidence/manifests/strict-proof-2026-11-09.json --workbook-only
 git status --short
 ```
 
