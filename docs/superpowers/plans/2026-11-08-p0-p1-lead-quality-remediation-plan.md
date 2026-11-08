@@ -203,13 +203,14 @@ Authority:
 - Preauthorized local actions: query configured public event sources within limits, collect public company-site signals, and write event/link/audit/score outputs.
 - Stop for: ambiguous attribution, predictive probabilities, unrecorded weight changes, or using contact availability to raise structural fit.
 Steps:
-- [ ] Index normalized names as lists, not one row; disambiguate with verified domain, legal name, address, or source identity evidence.
+- [ ] Index normalized names as lists, not one row; disambiguate with verified domain, legal name, address, or source identity evidence. Punctuated German legal forms such as e.K. and e.G. must normalize consistently.
 - [ ] Send ambiguous matches to review; only unique evidence-backed links use Verified.
 - [ ] Preserve event ID, buyer, type, publication date, deadline, scope, source URL, retrieval time, and match evidence.
-- [ ] Distinguish completed no-match (None found), not run (Not searched), provider failure (Unavailable), and pre-search Unknown.
+- [ ] Distinguish completed no-match (None found), not run (Not searched), provider failure (Unavailable), and pre-search Unknown; buyer-less, URL-less, ambiguous, or otherwise unattributable notices keep the account Unknown/Partial.
+- [ ] When `--shortlist` is supplied, run bounded account-scoped TED searches for at most `MAX_PRIORITY_ACCOUNTS` accepted companies in shortlist order, using separate account and signal TED terms; without it, global searches may produce only verified positive links and must not imply account-level no-match.
 - [ ] Read --events and join events/links/audit by company ID.
 - [ ] Add bounded official company news, modernization, portfolio-growth, and hiring signals only with explicit attribution/source URLs.
-- [ ] Keep weights 35/30/25/10 and calculate over observed weights; store coverage consistently as 0–100 percentage points.
+- [ ] Keep weights 35/30/25/10 and calculate fit over the fixed 100-point denominator; store observed-weight coverage consistently as 0–100 percentage points.
 - [ ] Apply A/B/C/Research gates and test duplicate names, stale deadlines, no-match searches, provider failures, and score recalculation.
 - [ ] Use this deterministic transition table: Strong = verified attributed
   event published within 180 days with a future or unknown deadline; Medium =
@@ -226,7 +227,8 @@ Steps:
 Verification:
 - [ ] py -3 -m unittest tests.test_buying_signals tests.test_scoring -v
 - [ ] py -3 scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv
-- [ ] py -3 scripts/score_leads.py --qualification data/intermediate/website_evidence_2026-11-08.jsonl --events data/raw/buying_events_2026-11-08.json --event-links data/processed/company_event_links_2026-11-08.csv --schema config/lead_generation_schema.json --output data/processed/lead_scores_2026-11-08.csv --audit-output evidence/scoring_audit_2026-11-08.csv
+- [ ] py -3 scripts/collect_buying_signals.py --companies data/intermediate/companies_normalized_2026-11-07.csv --shortlist data/processed/priority_leads_2026-11-08.csv --ted-output data/raw/buying_events_2026-11-08.json --links-output data/processed/company_event_links_2026-11-08.csv --audit-output evidence/buying_signal_audit_2026-11-08.csv
+- [ ] py -3 scripts/score_leads.py --qualification data/intermediate/website_evidence_2026-11-08.jsonl --events data/raw/buying_events_2026-11-08.json --event-links data/processed/company_event_links_2026-11-08.csv --schema config/lead_generation_schema.json --signal-audit evidence/buying_signal_audit_2026-11-08.csv --output data/processed/lead_scores_2026-11-08.csv --audit-output evidence/scoring_audit_2026-11-08.csv
 - [ ] Independently recalculate at least 20 rows and compare score, coverage, tier, signal, and search status to the audit.
 Exit Criteria: Signals are attributable/complete and structural fit is reproducible and independent of contact availability.
 
@@ -294,15 +296,14 @@ Steps:
 - [ ] Reject contacts without plausible full name, role, company association, official evidence, or correct email semantics.
 - [ ] Validate priority subset and choose the non-priority sample by company-ID set difference.
 - [ ] Distinguish configured, queried, completed-without-match, unavailable, and usable-evidence provider states.
-- [ ] Require evidence/run_manifest_2026-11-09.json; reject workbook or source
-  artifacts whose hashes do not match the same successful run.
+- [ ] Require evidence/run_manifest_2026-11-09.json in canonical QA and deliverable commands; reject workbook, input, supporting-source, or output artifacts whose hashes do not match the same successful run. Standalone builders may omit the manifest only when explicitly running outside the canonical gate.
 - [ ] Add fixtures for every accepted finding and assert QA exits nonzero for each invalid case.
 Verification:
 - [ ] py -3 -m unittest discover -s tests -v
 - [ ] Build the final workbook once before running semantic QA; never rebuild it
   after QA has passed.
 - [ ] py -3 scripts/build_workbook.py --companies data/intermediate/companies_normalized_2026-11-07.csv --scores data/processed/lead_scores_2026-11-08.csv --priority data/processed/priority_leads_2026-11-08.csv --contacts data/processed/contacts_2026-11-08.csv --sources evidence/source_register_2026-11-07.csv --output output/berlin-hausverwaltung-leads_2026-11-09.xlsx --build-report evidence/workbook_build_2026-11-09.json --run-manifest evidence/run_manifest_2026-11-09.json
-- [ ] py -3 scripts/qa_leads.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json --evidence-dir evidence --report evidence/qa_report_2026-11-09.md --sample-output evidence/qa_sample_2026-11-09.csv
+- [ ] py -3 scripts/qa_leads.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json --evidence-dir evidence --report evidence/qa_report_2026-11-09.md --sample-output evidence/qa_sample_2026-11-09.csv --run-manifest evidence/run_manifest_2026-11-09.json
 - [ ] py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json
 - [ ] Require zero errors only after all semantic checks pass; missing/stale evidence fails the run.
 Exit Criteria: QA catches every known baseline defect and passes only regenerated, evidence-consistent outputs.
@@ -321,7 +322,7 @@ Authority:
 - Stop for: any count/tier/contact discrepancy; do not hand-edit generated values.
 Steps:
 - [ ] Run py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json
-- [ ] Run py -3 scripts/build_deck.py --content presentation/berlin-hausverwaltung-methodology_2026-11-09.md --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --output output/berlin-hausverwaltung-methodology_2026-11-09.pptx
+- [ ] Run py -3 scripts/build_deck.py --content presentation/berlin-hausverwaltung-methodology_2026-11-09.md --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --output output/berlin-hausverwaltung-methodology_2026-11-09.pptx --run-manifest evidence/run_manifest_2026-11-09.json
 - [ ] Run py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09.pptx --qa-report evidence/qa_report_2026-11-09.md
 - [ ] Reconcile counts, tiers, signal/status counts, priority order, contact statuses, and limitations against source CSVs/evidence.
 - [ ] Record unresolved duplicates, inaccessible pages, missing signals, deferred contacts, and provider limitations in the QA report.
@@ -337,7 +338,7 @@ Exit Criteria: Local deliverables agree with QA, evidence registers, and methodo
 Focused proof:
 - py -3 -m unittest discover -s tests -v
 - py -3 -m json.tool config/lead_generation_schema.json
-- py -3 scripts/qa_leads.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json --evidence-dir evidence --report evidence/qa_report_2026-11-09.md --sample-output evidence/qa_sample_2026-11-09.csv
+- py -3 scripts/qa_leads.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json --evidence-dir evidence --report evidence/qa_report_2026-11-09.md --sample-output evidence/qa_sample_2026-11-09.csv --run-manifest evidence/run_manifest_2026-11-09.json
 - py -3 scripts/validate_workbook.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --schema config/lead_generation_schema.json
 - py -3 scripts/validate_deliverables.py --workbook output/berlin-hausverwaltung-leads_2026-11-09.xlsx --deck output/berlin-hausverwaltung-methodology_2026-11-09.pptx --qa-report evidence/qa_report_2026-11-09.md
 

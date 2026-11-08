@@ -86,7 +86,7 @@ def main() -> int:
     parser.add_argument("--sources", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--build-report", type=Path, required=True)
-    parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
+    parser.add_argument("--run-manifest", type=Path)
     args = parser.parse_args()
     companies = read_csv(args.companies)
     scores = read_csv(args.scores)
@@ -170,8 +170,9 @@ def main() -> int:
         },
         "counts": report["counts"],
     }
-    args.run_manifest.parent.mkdir(parents=True, exist_ok=True)
-    args.run_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if args.run_manifest:
+        args.run_manifest.parent.mkdir(parents=True, exist_ok=True)
+        args.run_manifest.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
     return 0
 

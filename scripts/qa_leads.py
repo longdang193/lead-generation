@@ -13,7 +13,8 @@ from openpyxl import load_workbook
 
 from runtime_config import RuntimeConfig, provider_limitation
 from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
-from score_leads import WEIGHTS, value
+from score_leads import calculate_fit
+from validate_deliverables import verify_manifest_bucket
 
 
 def rows(ws):
@@ -174,17 +175,18 @@ def main() -> int:
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--sample-output", type=Path, required=True)
-    parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
+    parser.add_argument("--run-manifest", type=Path)
     args = parser.parse_args()
     wb = load_workbook(args.workbook, read_only=True, data_only=False)
     companies = rows(wb["01_All_Leads"])
     qualification = rows(wb["02_Qualification"])
     priority = rows(wb["03_Priority_Leads"])
     contacts = rows(wb["04_Contacts"])
+    wb.close()
     errors: list[str] = []
-    if not args.run_manifest.exists():
+    if args.run_manifest and not args.run_manifest.exists():
         errors.append("run manifest missing")
-    else:
+    elif args.run_manifest:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
             expected = manifest.get("outputs", {}).get("workbook", {}).get("sha256")
@@ -192,6 +194,18 @@ def main() -> int:
                 errors.append("workbook hash does not match run manifest")
             if not manifest.get("run_id") or not manifest.get("generated_at") or not manifest.get("config_version"):
                 errors.append("run manifest lacks run identity or configuration version")
+            for key in ("workbook", "build_report"):
+                if key not in manifest.get("outputs", {}):
+                    errors.append(f"run manifest missing {key} output")
+            for key in ("companies", "scores", "priority", "contacts", "sources"):
+                if key not in manifest.get("inputs", {}):
+                    errors.append(f"run manifest missing {key} input")
+            for key in ("schema", "website_evidence", "source_register", "entity_resolution", "buying_signal_audit", "buying_events", "scoring_audit", "contact_sources"):
+                if key not in manifest.get("supporting_inputs", {}):
+                    errors.append(f"run manifest missing {key} supporting input")
+            verify_manifest_bucket(errors, args.run_manifest, "outputs", manifest.get("outputs", {}))
+            verify_manifest_bucket(errors, args.run_manifest, "inputs", manifest.get("inputs", {}))
+            verify_manifest_bucket(errors, args.run_manifest, "supporting_inputs", manifest.get("supporting_inputs", {}))
         except (OSError, ValueError, KeyError):
             errors.append("run manifest is unreadable")
     try:
@@ -262,15 +276,7 @@ def main() -> int:
             errors.append(f"actionability mismatch: {row.get('company_id')}")
         if row.get("sales_priority") != sales_priority_for(expected_actionability, row.get("lead_tier", "")):
             errors.append(f"sales priority mismatch: {row.get('company_id')}")
-        inputs = {
-            "service_fit": value("service_fit", row),
-            "residential_weg": value("residential_weg", row),
-            "portfolio_potential": value("portfolio_potential", row),
-            "geographic_fit": value("berlin_relevance", row),
-        }
-        observed_weight = sum(WEIGHTS[field] for field, item in inputs.items() if item is not None)
-        expected_fit = sum(WEIGHTS[field] * item for field, item in inputs.items() if item is not None) / observed_weight if observed_weight else None
-        expected_coverage = observed_weight
+        expected_fit, expected_coverage = calculate_fit(row)
         if numeric(row.get("evidence_coverage")) != expected_coverage:
             errors.append(f"evidence coverage mismatch: {row.get('company_id')}")
         if expected_fit is None and fit_value is not None or expected_fit is not None and (fit_value is None or abs(fit_value - expected_fit) > 0.01):
@@ -334,7 +340,7 @@ def main() -> int:
         report.extend(["", "All deterministic QA checks passed."])
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text("\n".join(report) + "\n", encoding="utf-8")
-    if args.run_manifest.exists():
+    if args.run_manifest and args.run_manifest.exists():
         update_run_manifest(args.run_manifest, inputs={"schema": args.schema, "website_evidence": website_evidence_path}, outputs={"qa_report": args.report, "qa_sample": args.sample_output})
     print("qa_errors=%d" % len(errors))
     return 1 if errors else 0

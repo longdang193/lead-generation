@@ -15,10 +15,15 @@ def actor_id(value: str) -> str:
     return value.replace("/", "~", 1)
 
 
-def build_ted_search_body(search_term: str, limit: int = 100) -> dict[str, Any]:
-    safe_term = search_term.replace('"', "").strip()
+def build_ted_search_body(search_term: str | list[str], limit: int = 100) -> dict[str, Any]:
+    if isinstance(search_term, list):
+        terms = [term.replace('"', "").strip() for term in search_term if term.strip()]
+        query = " AND ".join(f'FT~"{term}"' for term in terms)
+    else:
+        safe_term = search_term.replace('"', "").strip()
+        query = f'FT~"{safe_term}"'
     return {
-        "query": f'FT~"{safe_term}"',
+        "query": query,
         "fields": [
             "publication-number",
             "notice-title",
@@ -128,7 +133,7 @@ def overpass_query(api_url: str, query: str, timeout: int = 30, session: Any = r
     raise ProviderError(f"Overpass query failed after retries; last HTTP status {last_status}")
 
 
-def ted_search(base_url: str, search_term: str, timeout: int = 30, session: Any = requests, limit: int = 100) -> list[dict[str, Any]]:
+def ted_search(base_url: str, search_term: str | list[str], timeout: int = 30, session: Any = requests, limit: int = 100) -> list[dict[str, Any]]:
     if not base_url:
         raise ProviderError("TED_API_BASE_URL is not configured")
     endpoint = base_url.rstrip("/") + "/v3/notices/search"
