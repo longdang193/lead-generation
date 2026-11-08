@@ -150,6 +150,8 @@ breaks.
 - One immutable `run_id`, `head_sha`, `git_revision`, configuration version, and phase barrier state across all stages.
 - Repository-root resolution for manifests nested under `evidence/manifests/`.
 - No downstream stage may mint a replacement run identity.
+- The manifest contains exact `research_runs`, `verifier_runs`, `source_policy`, and `projection` registries. Each registry entry records the company ID, lane or claim scope, status, input/output paths, hashes, producer, and terminal timestamp.
+- The `projection` registry names the exact canonical output keys and repository-relative paths for qualification, events/links, buying signals, contacts, scores, shortlist, QA, and workbook artifacts; every downstream CLI receives those paths from the manifest rather than reconstructing them.
 
 **Required Skills:**
 - `skill-systematic-debugging`, `skill-test-driven-development`
@@ -176,6 +178,7 @@ breaks.
 - [ ] Step 2: Add one atomic manifest-update helper that preserves existing identity, queues, barriers, and evidence references while registering new files.
 - [ ] Step 3: Resolve repository-relative paths from the repository root, including manifests at `evidence/manifests/active_run.json`.
 - [ ] Step 4: Change workbook and QA manifest handling to update the active manifest rather than overwrite it.
+- [ ] Step 5: Add and validate the `research_runs`, `verifier_runs`, `source_policy`, and `projection` registries, including exact output key/path/format and CLI-argument records.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_orchestration tests.test_artifact_manifest_side_effects -v`
@@ -205,6 +208,8 @@ breaks.
 - Each queued company has exactly one terminal lane outcome before verifier dispatch.
 - Missing output, duplicate output, wrong run, wrong lane, or out-of-scope output blocks the run.
 - The verifier starts only after every required research lane reaches a valid terminal state.
+- `scripts/orchestrate_enrichment.py:main` (or a named `run_pipeline` helper called by it) owns the complete ordered sequence after queue reconciliation: verifier dispatch, promotion, canonical projection, reranking, readiness QA, workbook staging, validator invocation, and final manifest publication.
+- The production native executor contract is explicit: executable/API, selected role/profile, serialized arguments, bounded concurrency, per-item timeout, cancellation behavior, exit-status capture, retry budget, and mapping of every worker result to `succeeded`, `failed`, `cancelled`, or `timed_out` terminal states. Worker output is limited to the assigned candidate-evidence directory and must satisfy the recorded JSONL schema.
 
 **Required Skills:**
 - `skill-systematic-debugging`, `skill-test-driven-development`, `skill-backend-verification`
@@ -229,7 +234,8 @@ breaks.
 - [ ] Step 2: Add `dispatch_native_lane` with bounded concurrency, explicit role/profile selection, queue-item scope, output directory, and run ID.
 - [ ] Step 3: Add a fixture executor seam for tests and a production native executor seam that records worker exit status, output hash, attempts, and terminal state.
 - [ ] Step 4: Make `validate_lane_output` require exact queue coverage, then record research barriers before dispatching the verifier.
-- [ ] Step 5: Add a controller `run`/`resume` command that invokes queue, worker, verifier, and reconciliation phases in order.
+- [ ] Step 5: Add a controller `run`/`resume` command and named `run_pipeline` path that invokes queue, worker, verifier, promotion, canonical projection, reranking, readiness QA, workbook staging, semantic validators, and final manifest publication in order.
+- [ ] Step 6: Document and implement the native executor adapter contract, including role/profile selection, serialized CLI/API arguments, timeout/cancellation, retry limits, terminal-state mapping, and output-schema enforcement; keep the fixture executor behind the same interface.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_orchestration -v`
@@ -311,6 +317,7 @@ breaks.
 - `resolution_status == Accepted` and explicit eligibility are required for qualification and priority outputs.
 - Portfolio contributions require verified unit, scope, as-of date, and claim provenance.
 - Stable tie-breaking remains deterministic and contact availability does not alter structural fit or shortlist membership.
+- Post-enrichment reranking is restricted to the exact company IDs recorded in the manifest-bound provisional top-30 shortlist; rows outside that set are rejected or excluded before scoring, even if they are otherwise eligible.
 
 **Required Skills:**
 - `skill-systematic-debugging`, `skill-test-driven-development`
@@ -334,7 +341,8 @@ breaks.
 - [ ] Step 2: Reject non-accepted or ineligible qualification rows before score calculation.
 - [ ] Step 3: Compute portfolio contribution only from projected verified quantitative claims and preserve explicit `Unknown` states.
 - [ ] Step 4: Require account-scoped signal research outcomes before deriving `None found` and preserve `Partial`, `Unavailable`, and `Unknown` distinctly.
-- [ ] Step 5: Sort with a documented stable key and assert byte-identical scores and shortlist output after shuffled worker completion order.
+- [ ] Step 5: Pass the manifest-bound provisional top-30 company-ID set into `select_accounts()` and reject or exclude every row outside that set before score calculation and shortlist emission.
+- [ ] Step 6: Sort with a documented stable key and assert byte-identical scores and shortlist output after shuffled worker completion order.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_scoring tests.test_selection -v`
@@ -363,6 +371,7 @@ breaks.
 - Controller verification invokes `qa_leads.py`, `validate_workbook.py`, and `validate_deliverables.py` with manifest-bound paths.
 - QA checks research completion for every top-30 company, promoted evidence coverage, ranking consistency, contact provenance, and workbook-to-canonical equality.
 - Missing files, empty fallback sheets, stale hashes, old revisions, and wrong company sets fail before output replacement.
+- `validate_deliverables.py` supports an explicit workbook-only mode for this pipeline, or the controller schedules and validates `build_deck.py` before invoking the full five-slide deliverable gate; the selected mode is recorded in the manifest and is never inferred from missing files.
 
 **Required Skills:**
 - `skill-test-driven-development`, `skill-backend-verification`
@@ -389,6 +398,7 @@ breaks.
 - [ ] Step 2: Require exact `HEAD == manifest.head_sha == manifest.git_revision` and validate every required top-30 research outcome and promoted claim set.
 - [ ] Step 3: Make missing CSV inputs, empty required surfaces, stale manifest entries, and wrong company IDs hard failures instead of `No records` fallback text.
 - [ ] Step 4: Build the workbook to a staging path, validate it, then atomically replace the manifest-recorded output and register the final hash.
+- [ ] Step 5: Add the explicit workbook-only validator mode and its manifest contract, or wire `build_deck.py` into the controller before the full deliverable validator; test that omitted mode cannot silently skip the deck requirement.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_artifact_manifest_side_effects -v`
@@ -532,6 +542,26 @@ The final verification must confirm, from fresh output, that:
 8. One real provisional top-30 enriched run produces a fresh manifest-bound workbook with traceable evidence URLs and complete priority fields.
 9. No email, CRM mutation, public publication, or unapproved provider spend occurs.
 10. The plan remains `proposed` until `skill-verification-before-completion` returns `verified`.
+
+## Execution Record
+
+Execution date: `2026-11-08` (`Europe/Berlin`). The plan was patched after the
+plan review to make controller ownership, manifest registries, native executor
+behavior, shortlist scoping, and workbook-only validation explicit.
+
+- Focused regression proof: `py -3 -m unittest tests.test_orchestration tests.test_selection tests.test_evidence_promotion tests.test_canonical_projection tests.test_artifact_manifest_side_effects -v` — passed.
+- Full regression proof: `py -3 -m unittest discover -s tests -v` — `58` tests passed.
+- Provider-free controller proof: `lead-fixture-v3-6381fd60` executed queue, three fixture research lanes, verifier barrier, promotion, canonical projection, manifest-scoped reranking, workbook staging, workbook validation, and readiness settlement. Output: `output/lead-fixture-v3-6381fd60.xlsx`; manifest: `evidence/manifests/fixture_run_v3.json`.
+- Workbook boundary proof: `py -3 scripts/validate_workbook.py --workbook output/lead-fixture-v3-6381fd60.xlsx` — passed with five required sheets.
+- Deliverable boundary proof: `py -3 scripts/validate_deliverables.py --workbook output/lead-fixture-v3-6381fd60.xlsx --deck output/missing-fixture-deck.pptx --qa-report evidence/reports/lead-fixture-v3-6381fd60/qa.md --run-manifest evidence/manifests/fixture_run_v3.json --workbook-only` — passed without requiring a deck.
+- Real provisional-top-30 probe: stopped fail-closed before queue creation because only `24/30` existing priority rows had confirmed city, accepted identity, and trusted domain. No Berlin location was synthesized and no external provider was called.
+- Final strict manifest verification: `py -3 scripts/orchestrate_enrichment.py verify --root . --manifest evidence/manifests/fixture_run_v3.json` — rejected with `implementation worktree is dirty`; no production publication is claimed.
+
+The fixture output is regression evidence only: it contains no provider-enriched
+verified claims, so buying signals and named contacts remain explicit
+`Unknown`. Task 7 remains blocked until the implementation revision is committed
+and the provisional shortlist is repaired or requalified to exactly 30 accepted,
+Berlin-confirmed companies with trusted domains.
 
 ## Consolidated Review Evidence
 

@@ -42,7 +42,13 @@ def validate_verifier_decision(decision: dict[str, object], claims: dict[str, di
     return verifier_decision_valid(decision, claim)
 
 
-def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_path: Path) -> list[dict[str, object]]:
+def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_path: Path, run_manifest: Path | None = None) -> list[dict[str, object]]:
+    active_run_id = None
+    if run_manifest:
+        manifest = json.loads(run_manifest.read_text(encoding="utf-8"))
+        active_run_id = str(manifest.get("run_id") or "")
+        if not active_run_id:
+            raise ValueError("run manifest has no run_id")
     candidates = load_records(candidates_path)
     claims: dict[str, dict[str, object]] = {}
     for claim in candidates:
@@ -54,6 +60,8 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             raise ValueError(f"candidate claim schema invalid: {claim_id}: {'; '.join(errors)}")
         if claim.get("candidate_sha256") != candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"}):
             raise ValueError(f"candidate hash mismatch: {claim_id}")
+        if active_run_id and not str(claim.get("research_run_id") or "").startswith(active_run_id):
+            raise ValueError(f"candidate claim is outside active run: {claim_id}")
         complete, missing = claim_requirements_met(claim)
         if not complete:
             raise ValueError(f"candidate claim incomplete: {claim_id}: {', '.join(missing)}")
@@ -67,6 +75,8 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         valid, errors = validate_verifier_decision(decision, claims)
         if not valid:
             raise ValueError(f"invalid verifier decision {claim_id}: {', '.join(errors)}")
+        if active_run_id and not str(decision.get("verifier_run_id") or "").startswith(active_run_id):
+            raise ValueError(f"verifier decision is outside active run: {claim_id}")
         decisions[claim_id] = decision
 
     missing_decisions = sorted(set(claims) - set(decisions))
@@ -98,10 +108,10 @@ def main() -> int:
     parser.add_argument("--candidates", type=Path, required=True)
     parser.add_argument("--decisions", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--run-manifest", type=Path)
+    parser.add_argument("--run-manifest", type=Path, required=True)
     args = parser.parse_args()
-    promoted = promote_verified_claims(args.candidates, args.decisions, args.output)
-    if args.run_manifest and args.run_manifest.exists():
+    promoted = promote_verified_claims(args.candidates, args.decisions, args.output, args.run_manifest)
+    if args.run_manifest.exists():
         update_run_manifest(args.run_manifest, inputs={"candidate_evidence": args.candidates, "verifier_decisions": args.decisions}, outputs={"verified_evidence": args.output})
     print(json.dumps({"promoted": len(promoted)}, indent=2))
     return 0

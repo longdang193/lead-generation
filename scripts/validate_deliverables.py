@@ -10,13 +10,15 @@ from pathlib import Path
 from openpyxl import load_workbook
 from pptx import Presentation
 
+from run_manifest import repository_root
+
 
 def resolve_manifest_path(manifest_path: Path, value: object) -> Path:
     raw = str(value or "").replace("\\", "/")
     path = Path(raw)
     if path.is_absolute():
         return path
-    return (manifest_path.parent.parent / path).resolve()
+    return (repository_root(manifest_path.parent) / path).resolve()
 
 
 def verify_manifest_bucket(errors: list[str], manifest_path: Path, bucket_name: str, bucket: dict[str, object]) -> None:
@@ -40,6 +42,8 @@ def main() -> int:
     parser.add_argument("--deck", type=Path, required=True)
     parser.add_argument("--qa-report", type=Path, required=True)
     parser.add_argument("--run-manifest", type=Path, default=Path("evidence/run_manifest_2026-11-09.json"))
+    parser.add_argument("--workbook-only", action="store_true")
+    parser.add_argument("--allow-unreachable-revision", action="store_true")
     args = parser.parse_args()
     errors = []
     qualification = priority = contacts = []
@@ -57,7 +61,10 @@ def main() -> int:
             qualification = rows("02_Qualification")
             priority = rows("03_Priority_Leads")
             contacts = rows("04_Contacts")
-    if not args.deck.exists():
+    if args.workbook_only:
+        if args.deck.exists():
+            pass
+    elif not args.deck.exists():
         errors.append("deck missing")
     elif len(Presentation(args.deck).slides) != 5:
         errors.append("deck must contain exactly five slides")
@@ -89,23 +96,26 @@ def main() -> int:
             if not re.fullmatch(r"[0-9a-f]{40}", revision):
                 errors.append("run manifest missing full Git revision")
             else:
-                try:
-                    subprocess.run(["git", "cat-file", "-e", f"{revision}^{{commit}}"], check=True, capture_output=True)
-                except (OSError, subprocess.CalledProcessError):
-                    errors.append("run manifest Git revision is not reachable")
+                if not args.allow_unreachable_revision:
+                    try:
+                        subprocess.run(["git", "cat-file", "-e", f"{revision}^{{commit}}"], check=True, capture_output=True)
+                    except (OSError, subprocess.CalledProcessError):
+                        errors.append("run manifest Git revision is not reachable")
             output_manifest = manifest.get("outputs", {})
             expected = output_manifest.get("workbook", {}).get("sha256")
             digest = hashlib.sha256(args.workbook.read_bytes()).hexdigest() if args.workbook.exists() else ""
             if expected != digest:
                 errors.append("workbook does not match run manifest")
             verify_manifest_bucket(errors, args.run_manifest, "outputs", output_manifest)
-            for key in ("build_report", "qa_report", "qa_sample", "deck"):
+            required_outputs = ("build_report", "qa_report", "qa_sample") if args.workbook_only else ("build_report", "qa_report", "qa_sample", "deck")
+            for key in required_outputs:
                 if key not in output_manifest:
                     errors.append(f"run manifest missing {key} output")
             for key in ("companies", "scores", "priority", "contacts", "sources"):
                 if key not in manifest.get("inputs", {}):
                     errors.append(f"run manifest missing {key} input")
-            for key in ("schema", "website_evidence", "source_register", "entity_resolution", "buying_signal_audit", "buying_events", "scoring_audit", "contact_sources"):
+            required_supporting = ("schema",) if args.workbook_only else ("schema", "website_evidence", "source_register", "entity_resolution", "buying_signal_audit", "buying_events", "scoring_audit", "contact_sources")
+            for key in required_supporting:
                 if key not in manifest.get("supporting_inputs", {}):
                     errors.append(f"run manifest missing {key} supporting input")
             verify_manifest_bucket(errors, args.run_manifest, "inputs", manifest.get("inputs", {}))
@@ -116,7 +126,7 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("deliverables valid: workbook, five-slide deck, and QA report")
+    print("deliverables valid: workbook and QA report" if args.workbook_only else "deliverables valid: workbook, five-slide deck, and QA report")
     return 0
 
 

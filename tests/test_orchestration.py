@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import create_run_manifest, write_lane_queue
+from orchestrate_enrichment import create_run_manifest, validate_lane_output, write_lane_queue
+from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
@@ -29,6 +30,27 @@ class OrchestrationTests(unittest.TestCase):
             with patch("orchestrate_enrichment.git_output", side_effect=["a" * 40, " M dirty.py\n"]):
                 with self.assertRaises(ValueError):
                     create_run_manifest(root, root / "manifest.json", "run-1", [], [], require_clean=True)
+
+    def test_manifest_update_resolves_nested_paths_and_preserves_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".git").mkdir()
+            manifest_path = root / "evidence" / "manifests" / "active_run.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text(json.dumps({"run_id": "run-1", "head_sha": "a" * 40, "inputs": {}, "outputs": {}}), encoding="utf-8")
+            artifact = root / "data" / "result.csv"
+            artifact.parent.mkdir()
+            artifact.write_text("company_id\nC1\n", encoding="utf-8")
+            update(manifest_path, root, outputs={"result": artifact}, status="ready")
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["run_id"], "run-1")
+            self.assertEqual(manifest["outputs"]["result"]["path"], "data/result.csv")
+            self.assertEqual(manifest["status"], "ready")
+
+    def test_lane_output_requires_exact_queue_coverage(self):
+        queue = [{"company_id": "A"}, {"company_id": "B"}]
+        with self.assertRaisesRegex(ValueError, "missing queued companies"):
+            validate_lane_output([{"run_id": "run-1", "lane": "signals", "company_id": "A", "status": "succeeded"}], queue, "run-1", "signals")
 
 
 if __name__ == "__main__":
