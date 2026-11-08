@@ -114,7 +114,7 @@ def main() -> int:
         {"Topic": "Structural Lead Fit", "Definition": "Observed-weight score excluding Buying Signal and Actionability."},
         {"Topic": "Weights", "Definition": "Service/ICP 35%; residential/WEG 30%; portfolio 25%; geography 10%."},
         {"Topic": "Evidence Coverage", "Definition": "Observed declared structural weight divided by 100."},
-        {"Topic": "Unknown handling", "Definition": "Unknown stays Unknown and is excluded from observed-weight score numerator and denominator."},
+        {"Topic": "Unknown handling", "Definition": "Unknown contributes zero to the fixed 100-point structural-fit denominator; evidence coverage separately records the observed weight."},
         {"Topic": "A tier", "Definition": "Structural fit >= 70 and evidence coverage >= 75%."},
         {"Topic": "Source policy", "Definition": "VDIV directory for discovery; official websites for qualification; public contact pages for contacts."},
         {"Topic": "Buying signals", "Definition": "Separate event dataset; no account signal without verified company-event match."},

@@ -27,7 +27,5 @@
     "verification_mode": "structural_validation",
     "allow_fixture_replay": true
   },
-  "scoring_profile": "lead-score-v1",
-  "export_profile": "lead-workbook-v1",
-  "qa_profile": "lead-qa-v1"
+  "delivery_policy": "strict"
 }

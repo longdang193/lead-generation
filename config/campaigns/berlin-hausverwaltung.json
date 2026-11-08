@@ -27,9 +27,12 @@
   "adapter_policy": {
     "worker_profile": "default",
     "verifier_profile": "evidence-verifier",
-    "verification_mode": "source_verification"
+    "verification_mode": "structural_validation",
+    "source_policy": {
+      "approved_external_domains": ["ted.europa.eu"],
+      "external_source_kinds": ["procurement", "public_news"],
+      "company_domain_aliases": {}
+    }
   },
-  "scoring_profile": "lead-score-v1",
-  "export_profile": "lead-workbook-v1",
-  "qa_profile": "lead-qa-v1"
+  "delivery_policy": "personal"
 }

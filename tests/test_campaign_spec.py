@@ -29,9 +29,7 @@ class CampaignSpecTests(unittest.TestCase):
             "input_bindings": {"qualification": "data/qualification.jsonl"},
             "lanes": ["signals", "portfolio"],
             "adapter_policy": {"verification_mode": "source_verification"},
-            "scoring_profile": "lead-score-v1",
-            "export_profile": "lead-workbook-v1",
-            "qa_profile": "lead-qa-v1",
+            "delivery_policy": "strict",
         }
 
     def test_normalization_and_hash_are_stable(self):
@@ -39,7 +37,7 @@ class CampaignSpecTests(unittest.TestCase):
             root = Path(directory)
             path = self.write_spec(root, self.valid_spec())
             first = load_campaign_spec(root, path)
-            path.write_text(json.dumps({"qa_profile": "lead-qa-v1", **{key: value for key, value in self.valid_spec().items() if key != "qa_profile"}}, separators=(",", ":")), encoding="utf-8")
+            path.write_text(json.dumps({"delivery_policy": "strict", **self.valid_spec()}, separators=(",", ":")), encoding="utf-8")
             second = load_campaign_spec(root, path)
             self.assertEqual(first.normalized_json, second.normalized_json)
             self.assertEqual(first.sha256, second.sha256)

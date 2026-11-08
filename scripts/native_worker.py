@@ -15,6 +15,20 @@ def load_jsonl(path: Path | None) -> list[dict[str, object]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def load_event_records(path: Path | None) -> list[dict[str, object]]:
+    if path is None or not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if isinstance(payload, dict):
+        for key in ("items", "events", "results"):
+            values = payload.get(key)
+            if isinstance(values, list):
+                return [item for item in values if isinstance(item, dict)]
+    return []
+
+
 def load_csv(path: Path | None) -> list[dict[str, str]]:
     if path is None or not path.exists():
         return []
@@ -80,7 +94,7 @@ def run(args: argparse.Namespace) -> int:
         if contact.get("contact_name") not in (None, "", "Unknown"):
             claims.append(make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "contact", "claim_value": contact["contact_name"], "person_name": contact["contact_name"], "role": contact.get("contact_role") or "Unknown", "company_affiliation": company_name, "email": contact.get("contact_email"), "source_url": contact.get("email_source") or source_url, "evidence_excerpt": f"{contact['contact_name']} — {contact.get('contact_role') or 'company contact'}"}))
     elif args.lane == "signals":
-        events = json.loads(args.events_input.read_text(encoding="utf-8")) if args.events_input and args.events_input.exists() else []
+        events = load_event_records(args.events_input)
         links = load_csv(args.event_links_input) if args.event_links_input else []
         event_by_id = {str(item.get("event_id")): item for item in events if isinstance(item, dict)}
         for link in links:
@@ -90,10 +104,10 @@ def run(args: argparse.Namespace) -> int:
             event_id = str(event.get("event_id") or link.get("event_id"))
             published = str(event.get("publication_date") or event.get("published_at") or "")[:10]
             claims.extend([
-                make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "buying_signal", "claim_value": "Strong", "source_url": event.get("source_url") or source_url, "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
-                make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "event", "claim_value": {"event_id": event_id, "publication_date": published, "deadline": event.get("deadline")}, "source_url": event.get("source_url") or source_url, "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
+                make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "buying_signal", "claim_value": "Strong", "source_url": event.get("source_url") or source_url, "source_kind": event.get("source_kind") or "procurement", "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
+                make_claim(args.company_id, company_name, domain, args.run_id, {"lane": args.lane, "claim_type": "event", "claim_value": {"event_id": event_id, "publication_date": published, "deadline": event.get("deadline")}, "source_url": event.get("source_url") or source_url, "source_kind": event.get("source_kind") or "procurement", "evidence_excerpt": str(event.get("title") or "Verified company buying signal."), "published_at": published}),
             ])
-    research_run = {"record_type": "ResearchRun", "run_id": f"{args.run_id}:{args.lane}:{args.company_id}", "campaign_id": args.campaign_id, "company_id": args.company_id, "company_name": company_name, "trusted_domain": domain, "location": args.location, "research_type": args.lane, "source": args.profile, "scope": f"{args.lane}:{args.company_id}", "status": "Completed", "started_at": stamp(), "completed_at": stamp(), "result_count": len(claims), "truncated": False, "provider_status": "Available", "adapter_capability": "replay", "scope_version": args.scope_version or "native-v1", "scope_hash": args.scope_hash or "0" * 64, "attempts": [{"attempt_id": f"{args.run_id}:{args.lane}:{args.company_id}:1", "query_or_source": source_url, "status": "Completed", "truncated": False}]}
+    research_run = {"record_type": "ResearchRun", "run_id": f"{args.run_id}:{args.lane}:{args.company_id}", "campaign_id": args.campaign_id, "company_id": args.company_id, "company_name": company_name, "trusted_domain": domain, "location": args.location, "research_type": args.lane, "source": args.profile, "scope": f"{args.lane}:{args.company_id}", "status": "Not searched", "started_at": stamp(), "completed_at": stamp(), "result_count": len(claims), "truncated": False, "provider_status": "Unavailable", "adapter_capability": "replay", "scope_version": args.scope_version or "native-v1", "scope_hash": args.scope_hash or "0" * 64, "attempts": [{"attempt_id": f"{args.run_id}:{args.lane}:{args.company_id}:1", "query_or_source": source_url, "status": "Unavailable", "truncated": False, "error_code": "replay_only"}]}
     args.output.write_text(json.dumps({"adapter_capability": "replay", "research_run": research_run, "claims": claims}, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 

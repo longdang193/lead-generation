@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
@@ -22,7 +23,8 @@ class NativeExecutorConfig:
     executable: str
     profile: str
     timeout_seconds: int = 120
-    max_retries: int = 0
+    max_retries: int = 1
+    max_workers: int = 3
     adapter_args: tuple[str, ...] = ()
 
 
@@ -48,8 +50,7 @@ def dispatch_native_lane(
     code, attempts, timeout/cancellation, and output hash for reconciliation.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    records: list[dict[str, object]] = []
-    for item in queue:
+    def run_one(item: dict[str, object]) -> dict[str, object]:
         company_id = str(item["company_id"])
         item_output = output_dir / f"{lane}-{company_id}.json"
         if item_output.exists():
@@ -103,8 +104,14 @@ def dispatch_native_lane(
         }
         if item_output.exists():
             record["output_sha256"] = hashlib.sha256(item_output.read_bytes()).hexdigest()
-        records.append(record)
-    return records
+        return record
+
+    items = list(queue)
+    if config.max_workers <= 1 or len(items) <= 1:
+        return [run_one(item) for item in items]
+    with ThreadPoolExecutor(max_workers=max(1, config.max_workers)) as executor:
+        futures = [executor.submit(run_one, item) for item in items]
+        return [future.result() for future in futures]
 
 
 def dispatch_fixture_lanes(queues: dict[str, list[dict[str, object]]], run_id: str, output_dir: Path) -> dict[str, list[dict[str, object]]]:
@@ -201,12 +208,14 @@ def dispatch_fixture_lanes(queues: dict[str, list[dict[str, object]]], run_id: s
     return results
 
 
-def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str) -> None:
+def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str, *, allow_partial: bool = False) -> None:
     validate_lane_output(records, queue, run_id, lane)
-    if any(str(record.get("status")) != "succeeded" for record in records):
+    if not allow_partial and any(str(record.get("status")) != "succeeded" for record in records):
         raise ValueError(f"lane {lane} has unsuccessful terminal output")
     expected = {str(item["company_id"]): item for item in queue}
     for record in records:
+        if allow_partial and str(record.get("status")) != "succeeded":
+            continue
         output_path = Path(str(record.get("output_path") or ""))
         if not output_path.exists():
             raise ValueError(f"lane output is missing: {output_path}")

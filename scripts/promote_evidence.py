@@ -64,19 +64,30 @@ def _manifest_context(manifest: dict[str, object]) -> tuple[str, set[str], dict[
     return run_id, accepted, research, verifier
 
 
-def _source_allowed(source_url: object, policy: dict[str, object], company_id: str | None = None) -> bool:
+def _source_allowed(source_url: object, policy: dict[str, object], company_id: str | None = None, *, claim_type: str = "", source_kind: str = "") -> bool:
     company_domains = policy.get("company_domains")
     if company_id is not None and isinstance(company_domains, dict):
         raw_domain = company_domains.get(company_id)
         if not isinstance(raw_domain, str) or not raw_domain.strip():
             return False
         allowed = {raw_domain.lower().removeprefix("www.")}
+        aliases = policy.get("company_domain_aliases")
+        if isinstance(aliases, dict):
+            extra = aliases.get(company_id, [])
+            if isinstance(extra, str):
+                extra = [extra]
+            if isinstance(extra, list):
+                allowed.update(str(item).lower().removeprefix("www.") for item in extra if str(item).strip())
     else:
         allowed = {str(item).lower().removeprefix("www.") for item in policy.get("allowed_domains", []) if str(item).strip()}
     if not allowed:
         return False
     hostname = (urlparse(str(source_url or "")).hostname or "").lower().removeprefix("www.")
-    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed)
+    if any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed):
+        return True
+    external_domains = {str(item).lower().removeprefix("www.") for item in policy.get("approved_external_domains", []) if str(item).strip()}
+    external_kinds = {str(item).lower() for item in policy.get("external_source_kinds", [])}
+    return claim_type in {"buying_signal", "event"} and source_kind.lower() in external_kinds and any(hostname == domain or hostname.endswith(f".{domain}") for domain in external_domains)
 
 
 def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_path: Path, run_manifest: Path | None = None) -> list[dict[str, object]]:
@@ -85,12 +96,15 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
     research_registry: dict[str, dict[str, object]] = {}
     verifier_registry: dict[str, object] = {}
     source_policy: dict[str, object] = {}
+    delivery_policy = "strict"
     if run_manifest:
         manifest = json.loads(run_manifest.read_text(encoding="utf-8"))
         active_run_id, accepted_company_ids, research_registry, verifier_registry = _manifest_context(manifest)
         source_policy = manifest.get("source_policy") if isinstance(manifest.get("source_policy"), dict) else {}
+        delivery_policy = str(manifest.get("delivery_policy") or "strict")
     candidates = load_records(candidates_path)
     claims: dict[str, dict[str, object]] = {}
+    quarantined: list[dict[str, object]] = []
     for claim in candidates:
         claim_id = str(claim.get("candidate_claim_id") or "")
         if not claim_id or claim_id in claims:
@@ -108,10 +122,21 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             raise ValueError(f"candidate research run is not registered: {claim_id}")
         if active_run_id and research_registry[str(claim["research_run_id"])].get("company_id") != claim.get("company_id"):
             raise ValueError(f"candidate research run is bound to another company: {claim_id}")
-        if active_run_id and not _source_allowed(claim.get("source_url"), source_policy, str(claim.get("company_id") or "")):
+        if active_run_id and delivery_policy == "personal" and str(manifest.get("execution_mode") or "production") != "fixture":
+            research_run = research_registry[str(claim["research_run_id"])]
+            if research_run.get("adapter_capability") != "live_research" or research_run.get("status") != "Completed" or research_run.get("provider_status") != "Available":
+                quarantined.append({"claim": claim, "reason": "research_assurance"})
+                continue
+        if active_run_id and not _source_allowed(claim.get("source_url"), source_policy, str(claim.get("company_id") or ""), claim_type=str(claim.get("claim_type") or ""), source_kind=str(claim.get("source_kind") or "")):
+            if delivery_policy == "personal":
+                quarantined.append({"claim": claim, "reason": "source_policy"})
+                continue
             raise ValueError(f"candidate source is outside the active source policy: {claim_id}")
         complete, missing = claim_requirements_met(claim)
         if not complete:
+            if delivery_policy == "personal":
+                quarantined.append({"claim": claim, "reason": "incomplete_claim", "missing": missing})
+                continue
             raise ValueError(f"candidate claim incomplete: {claim_id}: {', '.join(missing)}")
         claims[claim_id] = claim
 
@@ -122,6 +147,8 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             raise ValueError(f"duplicate verifier decision: {claim_id}")
         valid, errors = validate_verifier_decision(decision, claims)
         if not valid:
+            if delivery_policy == "personal" and errors == ["unknown_candidate_claim_id"]:
+                continue
             raise ValueError(f"invalid verifier decision {claim_id}: {', '.join(errors)}")
         if active_run_id and not run_scope_matches(decision.get("verifier_run_id"), active_run_id):
             raise ValueError(f"verifier decision is outside active run: {claim_id}")
@@ -135,11 +162,15 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
 
     missing_decisions = sorted(set(claims) - set(decisions))
     if missing_decisions:
-        raise ValueError(f"missing verifier decisions: {', '.join(missing_decisions)}")
+        if delivery_policy == "personal":
+            for claim_id in missing_decisions:
+                quarantined.append({"claim": claims.pop(claim_id), "reason": "missing_verifier_decision"})
+        else:
+            raise ValueError(f"missing verifier decisions: {', '.join(missing_decisions)}")
 
     if active_run_id:
         execution_mode = str(manifest.get("execution_mode") or "production")
-        if execution_mode != "fixture":
+        if execution_mode != "fixture" and str(manifest.get("delivery_policy") or "strict") == "strict":
             capabilities = {str(item.get("capability")) for item in verifier_registry.values() if isinstance(item, dict)}
             if capabilities != {"source_verification"}:
                 raise ValueError("production promotion requires source_verification verifier capability")
@@ -161,6 +192,13 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
     with output_path.open("w", encoding="utf-8") as handle:
         for record in promoted:
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    if quarantined:
+        quarantine_path = output_path.parent / "quarantine.jsonl"
+        with quarantine_path.open("w", encoding="utf-8") as handle:
+            for record in quarantined:
+                handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+        if run_manifest:
+            update_run_manifest(run_manifest, inputs={"quarantined_candidate_evidence": quarantine_path}, outputs={"quarantine": quarantine_path})
     return promoted
 
 
