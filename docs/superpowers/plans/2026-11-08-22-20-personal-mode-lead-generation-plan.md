@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: in_progress
+status: completed
 template_id: implementation-plan
 contract_version: "1"
 name: personal-mode-lead-generation-hardening
@@ -611,3 +611,11 @@ remaining blocker.
 - Full tests, compile checks, diff checks, and fresh fixture backend evidence
   pass; the production provider-backed run remains explicitly unverified until
   separately authorized and executed.
+
+## Completion Evidence
+
+- Verification result: `verified` on branch `codex/buying-signal-attribution` at implementation head `335d4a03a2f5e178de8461820d8b30082e95f832`.
+- Publication: PR `#7` merged into `main` as `e4beb99783896ed367a6215be03f1c759bbbad65`; the implementation head is reachable from `origin/main`.
+- Fresh proof: `94` repository tests passed; `py -3 -m compileall -q scripts tests` passed; `git diff --check` passed.
+- Final review: review cycle `2/2` found duplicate fallback contacts; the fix and focused regression were committed before merge. Replay quarantine, claim-aware source authorization, contact isolation, and personal undersized-pool behavior remain covered.
+- Approved deferral: provider-backed production execution remains intentionally unrun and recorded at `evidence/manifests/production-gate-blocked-2026-11-08.json:1`; no production success is claimed.
