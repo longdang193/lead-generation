@@ -523,6 +523,9 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         reconcile_lane_outputs(records, queues[lane], run_id, lane, allow_partial=campaign.delivery_policy == "personal")
     replacement_log: list[dict[str, object]] = []
     delivered_ids = complete_company_ids(results, queues)
+    if campaign.delivery_policy == "strict" and delivered_ids != accepted_ids:
+        missing_ids = ", ".join(sorted(accepted_ids - delivered_ids))
+        raise ValueError(f"strict delivery requires complete research for every accepted company: {missing_ids}")
     if campaign.delivery_policy == "personal" and len(delivered_ids) < campaign.target_count:
         reserve_ids = sorted(accepted_ids - active_ids)
         for reserve_id in reserve_ids:
@@ -645,7 +648,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         projected_scores = list(csv.DictReader(handle))
     qualification = {row["company_id"]: row for row in _load_records_jsonl(canonical["qualification"])}
     from select_for_enrichment import select_accounts, write_provisional_shortlist
-    selection_scope = delivered_ids if campaign.delivery_policy == "personal" else accepted_ids
+    selection_scope = delivered_ids
     priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, selection_scope, campaign.delivery_policy)
     validate_final_priority_rows(priority_rows, selection_scope, campaign.target_count, campaign.delivery_policy)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"

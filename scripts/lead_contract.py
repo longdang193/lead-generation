@@ -149,7 +149,7 @@ def claim_requirements_met(claim: dict[str, object]) -> tuple[bool, list[str]]:
 
 def verifier_decision_valid(decision: dict[str, object], claim: dict[str, object]) -> tuple[bool, list[str]]:
     errors: list[str] = []
-    allowed_fields = {"record_type", "candidate_claim_id", "candidate_sha256", "decision", "reason_codes", "verifier_id", "verifier_run_id", "verified_at"}
+    allowed_fields = {"record_type", "candidate_claim_id", "candidate_sha256", "decision", "reason_codes", "verifier_id", "verifier_run_id", "assurance_level", "verified_at"}
     unexpected = sorted(set(decision) - allowed_fields)
     if unexpected:
         errors.append("decision_mutates_candidate")

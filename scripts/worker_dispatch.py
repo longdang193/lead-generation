@@ -11,11 +11,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
+import jsonschema
+
 from orchestrate_enrichment import validate_lane_output
 from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
 
 
 TERMINAL = {"succeeded", "failed", "cancelled", "timed_out"}
+RESEARCH_SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "config" / "research_evidence_schema.json").read_text(encoding="utf-8"))
+RESEARCH_VALIDATOR = jsonschema.Draft202012Validator(RESEARCH_SCHEMA)
 
 
 @dataclass(frozen=True)
@@ -96,6 +100,10 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
         return all(payload.get(field) == value for field, value in expected.items()) and isinstance(payload.get("decisions"), list)
     research_run = payload.get("research_run", payload)
     if not isinstance(research_run, dict):
+        return False
+    try:
+        RESEARCH_VALIDATOR.validate(research_run)
+    except jsonschema.ValidationError:
         return False
     expected = {
         "run_id": f"{run_id}:{lane}:{item['company_id']}",
@@ -422,6 +430,10 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
         research_run = payload.get("research_run", payload)
         if not isinstance(research_run, dict):
             raise ValueError(f"worker output lacks research_run: {output_path}")
+        try:
+            RESEARCH_VALIDATOR.validate(research_run)
+        except jsonschema.ValidationError as exc:
+            raise ValueError(f"worker research_run schema invalid: {output_path}: {exc.message}") from exc
         expected_values = {
             "run_id": f"{run_id}:{lane}:{item['company_id']}",
             "campaign_id": item.get("campaign_id", "legacy"),

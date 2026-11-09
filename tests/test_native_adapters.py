@@ -14,6 +14,8 @@ import jsonschema
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from orchestrate_enrichment import _native_command_builder, build_verifier_queue
+from lead_contract import candidate_claim_id, candidate_sha256
+from promote_evidence import promote_verified_claims
 from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
 
@@ -55,7 +57,7 @@ class NativeAdapterTests(unittest.TestCase):
             root = Path(directory)
             output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
             output_dir.mkdir(parents=True)
-            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
             output = output_dir / "signals-C1.json"
             output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
             self.write_cache_evidence(output, item)
@@ -70,7 +72,7 @@ class NativeAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory) / "candidate"
             output_dir.mkdir(parents=True)
-            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
             output = output_dir / "signals-C1.json"
             output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
             self.write_cache_evidence(output, item)
@@ -153,8 +155,8 @@ class NativeAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
-            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "company_name": "Company", "trusted_domain": "example.de", "location": "Berlin", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}
-            code = "from pathlib import Path; import json, sys; Path(sys.argv[1]).write_text(json.dumps({'research_run': {'run_id': 'run-1:signals:C1', 'campaign_id': 'campaign-1', 'company_id': 'C1', 'scope': 'signals:C1', 'scope_version': 'v1', 'scope_hash': 'hash'}, 'claims': [1]}))"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "company_name": "Company", "trusted_domain": "example.de", "location": "Berlin", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            code = "from pathlib import Path; import json, sys; Path(sys.argv[1]).write_text(json.dumps({'research_run': {'record_type': 'ResearchRun', 'run_id': 'run-1:signals:C1', 'campaign_id': 'campaign-1', 'company_id': 'C1', 'research_type': 'signals', 'source': 'fixture', 'scope': 'signals:C1', 'status': 'Completed', 'started_at': '2026-11-08T00:00:00+00:00', 'completed_at': '2026-11-08T00:00:01+00:00', 'result_count': 0, 'truncated': False, 'provider_status': 'Available', 'adapter_capability': 'replay', 'assurance_level': 'replay', 'scope_version': 'v1', 'scope_hash': '0000000000000000000000000000000000000000000000000000000000000000', 'attempts': [{'attempt_id': 'a1', 'query_or_source': 'fixture', 'status': 'Completed', 'truncated': False}]}, 'claims': [1]}))"
 
             def command_builder(queue_item, output_path, config):
                 return [sys.executable, "-c", code, str(output_path)]
@@ -166,6 +168,54 @@ class NativeAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash mismatch"):
                 reconcile_lane_outputs(records, [item], "run-1", "signals")
 
+    def test_native_verifier_nonempty_decision_promotes(self):
+        repository_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claims_path = root / "claims.jsonl"
+            decisions_path = root / "decisions.jsonl"
+            verifier_output = root / "verifier.json"
+            verified_path = root / "verified.jsonl"
+            claim = {
+                "record_type": "EvidenceClaim",
+                "company_id": "C1",
+                "claim_type": "service_fit",
+                "claim_value": "Confirmed",
+                "source_url": "https://example.de/services",
+                "source_domain": "example.de",
+                "source_kind": "official",
+                "evidence_excerpt": "Residential property management services.",
+                "retrieved_at": "2026-11-08T00:00:00+00:00",
+                "published_at": None,
+                "as_of_date": None,
+                "account_relationship": "direct",
+                "confidence": "high",
+                "research_run_id": "run-1:signals:C1",
+                "candidate_status": "Candidate",
+            }
+            claim["candidate_claim_id"] = candidate_claim_id(claim)
+            claim["candidate_sha256"] = candidate_sha256(claim)
+            claims_path.write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            result = subprocess.run([
+                sys.executable,
+                str(repository_root / "scripts" / "native_verifier.py"),
+                "--repo-root", str(root),
+                "--profile", "evidence-verifier",
+                "--run-id", "run-1",
+                "--lane", "verifier",
+                "--company-id", "C1",
+                "--scope-version", "v1",
+                "--scope-hash", "0" * 64,
+                "--claims", str(claims_path),
+                "--output", str(verifier_output),
+            ], check=False, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            decisions = json.loads(verifier_output.read_text(encoding="utf-8"))["decisions"]
+            decisions_path.write_text("\n".join(json.dumps(decision) for decision in decisions) + "\n", encoding="utf-8")
+            promoted = promote_verified_claims(claims_path, decisions_path, verified_path)
+            self.assertEqual(len(promoted), 1)
+            self.assertEqual(promoted[0]["candidate_claim_id"], claim["candidate_claim_id"])
+
     def test_personal_reconciliation_keeps_successful_outputs_when_one_worker_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -174,11 +224,11 @@ class NativeAdapterTests(unittest.TestCase):
             def command_builder(item, output_path, config):
                 if item["company_id"] == "C2":
                     return [sys.executable, "-c", "raise SystemExit(1)"]
-                return [sys.executable, "-c", "from pathlib import Path; import json,sys; Path(sys.argv[1]).write_text(json.dumps({'research_run': {'run_id': 'run-1:signals:C1', 'campaign_id': 'campaign-1', 'company_id': 'C1', 'scope': 'signals:C1', 'scope_version': 'v1', 'scope_hash': 'hash'}, 'claims': []}))", str(output_path)]
+                return [sys.executable, "-c", "from pathlib import Path; import json,sys; Path(sys.argv[1]).write_text(json.dumps({'research_run': {'record_type': 'ResearchRun', 'run_id': 'run-1:signals:C1', 'campaign_id': 'campaign-1', 'company_id': 'C1', 'research_type': 'signals', 'source': 'fixture', 'scope': 'signals:C1', 'status': 'Completed', 'started_at': '2026-11-08T00:00:00+00:00', 'completed_at': '2026-11-08T00:00:01+00:00', 'result_count': 0, 'truncated': False, 'provider_status': 'Available', 'adapter_capability': 'replay', 'assurance_level': 'replay', 'scope_version': 'v1', 'scope_hash': '0000000000000000000000000000000000000000000000000000000000000000', 'attempts': [{'attempt_id': 'a1', 'query_or_source': 'fixture', 'status': 'Completed', 'truncated': False}]}, 'claims': []}))", str(output_path)]
 
             queue = [
-                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"},
-                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C2", "lane": "signals", "scope": "signals:C2", "scope_version": "v1", "scope_hash": "hash"},
+                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64},
+                {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C2", "lane": "signals", "scope": "signals:C2", "scope_version": "v1", "scope_hash": "0" * 64},
             ]
             records = dispatch_native_lane(queue, "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1), command_builder=command_builder)
             self.assertEqual([record["status"] for record in records], ["succeeded", "failed"])

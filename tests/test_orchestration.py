@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -55,6 +56,43 @@ class OrchestrationTests(unittest.TestCase):
             results = {"signals": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}], "portfolio": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}]}
             queues = {"signals": [{"company_id": "C1"}], "portfolio": [{"company_id": "C1"}]}
             self.assertEqual(complete_company_ids(results, queues), set())
+
+    def test_strict_delivery_rejects_incomplete_research(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign_path = root / "config" / "strict.json"
+            campaign_path.parent.mkdir(parents=True)
+            source_campaign = Path(__file__).resolve().parents[1] / "config" / "campaigns" / "berlin-hausverwaltung.json"
+            campaign = json.loads(source_campaign.read_text(encoding="utf-8"))
+            campaign["target_count"] = 2
+            campaign["delivery_policy"] = "strict"
+            campaign_path.write_text(json.dumps(campaign), encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,resolution_status\nC00,Company 00,c00.de,c00.de,Berlin,Accepted\nC01,Company 01,c01.de,c01.de,Berlin,Accepted\n", encoding="utf-8")
+            manifest = root / "evidence" / "manifests" / "strict.json"
+            manifest.parent.mkdir(parents=True)
+            revision = __import__("subprocess").run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            campaign_record = __import__("campaign_spec").load_campaign_spec(root, campaign_path).manifest_record()
+            manifest.write_text(json.dumps({"run_id": "strict-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": campaign_record, "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": ["C00", "C01"], "inputs": {"provisional_shortlist": __import__("run_manifest").entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
+            original_dispatch = __import__("worker_dispatch").dispatch_fixture_lanes
+
+            def mark_unavailable(queues, run_id, output_dir):
+                results = original_dispatch(queues, run_id, output_dir)
+                if output_dir.name != "reserve":
+                    for records in results.values():
+                        for record in records:
+                            if record["company_id"] == "C00":
+                                output = Path(record["output_path"])
+                                payload = json.loads(output.read_text(encoding="utf-8"))
+                                payload["research_run"]["status"] = "Not searched"
+                                payload["research_run"]["provider_status"] = "Unavailable"
+                                output.write_text(json.dumps(payload), encoding="utf-8")
+                                record["output_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
+                return results
+
+            argv = ["orchestrate_enrichment.py", "run", "--root", str(root), "--manifest", str(manifest), "--shortlist", str(shortlist), "--campaign-config", str(campaign_path), "--fixture"]
+            with patch.object(sys, "argv", argv), patch("worker_dispatch.dispatch_fixture_lanes", side_effect=mark_unavailable):
+                self.assertEqual(__import__("orchestrate_enrichment").main(), 1)
 
     def test_queue_is_deterministic_and_scoped_to_shortlist(self):
         with tempfile.TemporaryDirectory() as directory:
