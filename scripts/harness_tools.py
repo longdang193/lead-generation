@@ -67,6 +67,11 @@ def _artifact(root: Path, path: Path, kind: str) -> dict[str, object]:
     return ArtifactRef(path=path.relative_to(root.resolve()).as_posix(), sha256=file_sha256(path), kind=kind).model_dump(mode="json")
 
 
+def _script(root: Path, name: str) -> Path:
+    candidate = root / "scripts" / name
+    return candidate if candidate.exists() else Path(__file__).resolve().with_name(name)
+
+
 def _records(path: Path) -> list[dict[str, object]]:
     if path.suffix.lower() == ".csv":
         import csv
@@ -203,7 +208,7 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         output = _resolve_path(root, payload.get("output"))
         build_report = _resolve_path(root, payload.get("build_report"))
         command = [
-            sys.executable, str(root / "scripts" / "build_workbook.py"),
+            sys.executable, str(_script(root, "build_workbook.py")),
             "--companies", str(_resolve_path(root, payload.get("companies"))),
             "--scores", str(_resolve_path(root, payload.get("scores"))),
             "--priority", str(_resolve_path(root, payload.get("priority"))),
@@ -222,7 +227,7 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         report = _resolve_path(root, payload.get("report"))
         sample_output = _resolve_path(root, payload.get("sample_output"))
         command = [
-            sys.executable, str(root / "scripts" / "qa_leads.py"),
+            sys.executable, str(_script(root, "qa_leads.py")),
             "--workbook", str(workbook), "--schema", str(_resolve_path(root, payload.get("schema"))),
             "--evidence-dir", str(_resolve_path(root, payload.get("evidence_dir"))),
             "--report", str(report), "--sample-output", str(sample_output),

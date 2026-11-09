@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -8,6 +9,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Mapping
+
+from openpyxl import load_workbook
 
 
 FULL_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -327,6 +330,139 @@ def publish_staged_output(
     return final
 
 
+def _validate_finalization_artifacts(
+    root: Path,
+    manifest: Mapping[str, object],
+    outputs: Mapping[str, object],
+    artifacts: Mapping[str, Path],
+    errors: list[str],
+) -> None:
+    """Validate semantic relationships between production artifacts before publish."""
+
+    run_id = str(manifest.get("run_id") or "")
+    accepted = {str(value) for value in manifest.get("accepted_company_ids", []) if str(value)}
+
+    def json_records(path: Path) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                errors.append(f"verified evidence is not valid JSON at line {line_number}")
+                continue
+            if not isinstance(value, dict):
+                errors.append(f"verified evidence record at line {line_number} is not an object")
+                continue
+            records.append(value)
+        return records
+
+    def csv_rows(path: Path, label: str) -> list[dict[str, str]]:
+        try:
+            with path.open(encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                rows = list(reader)
+                fields = reader.fieldnames or []
+        except (OSError, csv.Error) as exc:
+            errors.append(f"{label} is not readable CSV: {exc}")
+            return []
+        if "company_id" not in fields:
+            errors.append(f"{label} is missing a company_id column")
+        return rows
+
+    evidence_ids: set[str] = set()
+    evidence_path = artifacts.get("verified_evidence")
+    if evidence_path:
+        for record in json_records(evidence_path):
+            company_id = str(record.get("company_id") or "")
+            if not company_id or (accepted and company_id not in accepted):
+                errors.append("verified evidence contains a company outside the admitted run scope")
+            if not record.get("source_url") or not record.get("evidence_excerpt"):
+                errors.append("verified evidence contains an incomplete claim")
+            research_run_id = str(record.get("research_run_id") or "")
+            if not research_run_id.startswith(f"{run_id}:"):
+                errors.append("verified evidence is not bound to the admitted run")
+            if company_id:
+                evidence_ids.add(company_id)
+
+    scores_ids: set[str] = set()
+    scores_path = artifacts.get("scores")
+    if scores_path:
+        for row in csv_rows(scores_path, "projection scores"):
+            company_id = str(row.get("company_id") or "")
+            if not company_id:
+                errors.append("projection scores contain a row without company_id")
+                continue
+            scores_ids.add(company_id)
+            if accepted and company_id not in accepted:
+                errors.append("projection scores contain a company outside the admitted run scope")
+
+    priority_ids: set[str] = set()
+    priority_path = artifacts.get("priority")
+    if priority_path:
+        for row in csv_rows(priority_path, "ranked leads"):
+            company_id = str(row.get("company_id") or "")
+            if not company_id:
+                errors.append("ranked leads contain a row without company_id")
+                continue
+            priority_ids.add(company_id)
+            if company_id not in scores_ids:
+                errors.append("ranked leads contain a company absent from projection scores")
+            if accepted and company_id not in accepted:
+                errors.append("ranked leads contain a company outside the admitted run scope")
+
+    if evidence_ids and not evidence_ids.issubset(scores_ids):
+        errors.append("projection scores do not cover every verified-evidence company")
+
+    qa_report = artifacts.get("qa_report")
+    if qa_report:
+        report = qa_report.read_text(encoding="utf-8")
+        if not re.search(r"(?m)^- Errors: 0\s*$", report):
+            errors.append("QA report is not a zero-error report")
+    qa_sample = artifacts.get("qa_sample")
+    if qa_sample:
+        try:
+            sample = json.loads(qa_sample.read_text(encoding="utf-8"))
+            if not isinstance(sample, list):
+                errors.append("QA sample is not a JSON list")
+        except (OSError, json.JSONDecodeError):
+            errors.append("QA sample is not valid JSON")
+
+    workbook_record = outputs.get("workbook")
+    if isinstance(workbook_record, dict):
+        workbook_path = Path(str(workbook_record.get("path") or ""))
+        workbook_path = workbook_path if workbook_path.is_absolute() else root / workbook_path
+        workbook = None
+        try:
+            workbook = load_workbook(workbook_path.resolve(), read_only=True, data_only=True)
+            expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
+            if workbook.sheetnames != expected_sheets:
+                errors.append("workbook tabs do not match the native export contract")
+
+            def sheet_ids(name: str) -> set[str]:
+                if name not in workbook.sheetnames:
+                    return set()
+                rows = list(workbook[name].values)
+                if not rows or not rows[0]:
+                    return set()
+                headers = [str(value or "") for value in rows[0]]
+                if "company_id" not in headers:
+                    return set()
+                index = headers.index("company_id")
+                return {str(row[index]) for row in rows[1:] if len(row) > index and row[index] not in (None, "", "No records")}
+
+            if sheet_ids("02_Qualification") != scores_ids:
+                errors.append("workbook qualification rows do not match projection scores")
+            if sheet_ids("03_Priority_Leads") != priority_ids:
+                errors.append("workbook priority rows do not match ranked leads")
+        except Exception as exc:
+            errors.append(f"workbook semantic validation failed: {exc}")
+        finally:
+            if workbook is not None:
+                workbook.close()
+
+
 def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery_policy: str, *, overlay: Mapping[str, object] | None = None) -> dict[str, object]:
     """Reconstruct finalization prerequisites from durable evidence, not flags alone."""
 
@@ -371,6 +507,7 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             "qa_sample": "QA sample",
         }
         output_bucket = outputs if isinstance(outputs, dict) else {}
+        validated_artifacts: dict[str, Path] = {}
         for key, label in required_outputs.items():
             artifact = output_bucket.get(key)
             if not isinstance(artifact, dict):
@@ -388,6 +525,9 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
                 continue
             if not path.exists() or not path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", raw_hash) or file_sha256(path) != raw_hash:
                 errors.append(f"{label} artifact hash is invalid or stale")
+            else:
+                validated_artifacts[key] = path
+        _validate_finalization_artifacts(root, manifest, output_bucket, validated_artifacts, errors)
     workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
     if not isinstance(workbook, dict):
         errors.append("finalization requires a recorded workbook artifact")

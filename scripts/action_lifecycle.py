@@ -121,7 +121,21 @@ def admit_action(root: Path, request: NativeActionRequest | dict[str, object], m
         admissions = [event for event in events if event.event_type == "admitted"]
         for event in admissions:
             if event.action_id == validated.action_id and event.attempt_id == validated.attempt_id:
-                if event.idempotency_key != validated.idempotency_key or event.request_hash != validated.request_hash:
+                expected = {
+                    "parent_action_id": event.parent_action_id,
+                    "company_id": event.company_id,
+                    "action_type": event.action_type,
+                    "scope": event.scope,
+                    "contract_version": event.contract_version,
+                    "strategy_version": event.strategy_version,
+                    "profile_version": event.profile_version,
+                    "idempotency_key": event.idempotency_key,
+                    "request_hash": event.request_hash,
+                    "budget_units": event.budget_units,
+                    "provenance": event.provenance,
+                }
+                actual = validated.model_dump(exclude_none=True)
+                if any(expected[key] != actual.get(key) for key in expected):
                     raise ValueError("conflicting duplicate action admission")
                 return validated
             if event.idempotency_key == validated.idempotency_key:
@@ -134,6 +148,24 @@ def admit_action(root: Path, request: NativeActionRequest | dict[str, object], m
     return validated
 
 
+def _artifact_path(root: Path, result: WorkerResult) -> tuple[str, str] | None:
+    if result.artifact is None:
+        return None
+    path = Path(result.artifact.path)
+    path = path if path.is_absolute() else root / path
+    path = path.resolve()
+    try:
+        relative = path.relative_to(root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError("worker artifact path escapes repository root") from exc
+    if not path.exists() or not path.is_file():
+        raise ValueError("worker artifact is missing")
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != result.artifact.sha256:
+        raise ValueError("worker artifact hash is invalid or stale")
+    return relative, actual
+
+
 def _canonical_result_hash(result: WorkerResult) -> str:
     payload = canonical_json(result.result)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -141,8 +173,11 @@ def _canonical_result_hash(result: WorkerResult) -> str:
 
 def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> WorkerResult:
     validated = result if isinstance(result, WorkerResult) else WorkerResult.model_validate(result)
+    if validated.validation_errors:
+        raise ValueError("worker result validation failed: " + "; ".join(validated.validation_errors))
     if validated.result_hash != _canonical_result_hash(validated):
         raise ValueError("result hash mismatch")
+    artifact = _artifact_path(root, validated)
     with _run_lock(root, validated.run_id):
         events = _read(lifecycle_path(root, validated.run_id))
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
@@ -157,6 +192,8 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
                 existing.result_hash != validated.result_hash,
                 existing.terminal_status != validated.status,
                 existing.provenance != validated.provenance,
+                existing.artifact_path != (artifact[0] if artifact else None),
+                existing.artifact_hash != (artifact[1] if artifact else None),
             )):
                 raise ValueError("conflicting duplicate result validation")
             return validated
@@ -175,6 +212,8 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             request_hash=admission.request_hash,
             budget_units=admission.budget_units,
             result_hash=validated.result_hash,
+            artifact_path=artifact[0] if artifact else None,
+            artifact_hash=artifact[1] if artifact else None,
             terminal_status=validated.status,
             provenance=validated.provenance,
             created_at=datetime.now(timezone.utc),
@@ -212,6 +251,8 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
                 raise ValueError(f"receipt {field} does not match admission")
         if validated.result_hash != result.result_hash:
             raise ValueError("receipt result hash does not match validated result")
+        if validated.artifact_hash != result.artifact_hash:
+            raise ValueError("receipt artifact hash does not match validated result")
         if validated.terminal_status != result.terminal_status:
             raise ValueError("receipt terminal status does not match validated result")
         if validated.budget_requested != admission.budget_units:
@@ -293,10 +334,4 @@ def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
         "budget_settled": settled,
         "coverage": dict(sorted(coverage.items())),
     }
-
-
-
-
-
-
 

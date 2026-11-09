@@ -83,6 +83,41 @@ class HarnessToolTests(unittest.TestCase):
             self.assertFalse(proof["ready"])
             self.assertTrue(any("verified evidence artifact" in error for error in proof["errors"]))
 
+    def test_finalization_rejects_unrelated_artifacts_and_failed_qa(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "verified.jsonl"
+            scores = root / "scores.csv"
+            priority = root / "priority.csv"
+            qa_report = root / "qa.md"
+            qa_sample = root / "qa.json"
+            workbook = root / "workbook.xlsx"
+            evidence.write_text(json.dumps({"company_id": "FOREIGN", "source_url": "https://example.com", "evidence_excerpt": "unrelated", "research_run_id": "run-1:signals:FOREIGN"}) + "\n", encoding="utf-8")
+            scores.write_text("company_id\nFOREIGN\n", encoding="utf-8")
+            priority.write_text("company_id\nFOREIGN\n", encoding="utf-8")
+            qa_report.write_text("- Errors: 99\n", encoding="utf-8")
+            qa_sample.write_text("[]\n", encoding="utf-8")
+            workbook.write_bytes(b"not-an-xlsx")
+            manifest = root / "manifest.json"
+            outputs = {
+                "verified_evidence": {"path": "verified.jsonl", "sha256": file_sha256(evidence)},
+                "scores": {"path": "scores.csv", "sha256": file_sha256(scores)},
+                "priority": {"path": "priority.csv", "sha256": file_sha256(priority)},
+                "qa_report": {"path": "qa.md", "sha256": file_sha256(qa_report)},
+                "qa_sample": {"path": "qa.json", "sha256": file_sha256(qa_sample)},
+                "workbook": {"path": "workbook.xlsx", "sha256": file_sha256(workbook)},
+            }
+            atomic_write(manifest, {
+                "run_id": "run-1", "execution_mode": "production", "accepted_company_ids": ["C1"],
+                "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "complete"}, "delivery": {"status": "completed", "delivery_policy": "strict", "target_count": 0, "delivered_count": 0, "shortfall": 0},
+                "outputs": outputs,
+            })
+            proof = reconstruct_finalization_readiness(root, manifest, "strict")
+            self.assertFalse(proof["ready"])
+            self.assertTrue(any("zero-error" in error for error in proof["errors"]))
+            self.assertTrue(any("outside the admitted run scope" in error for error in proof["errors"]))
+
     def test_discover_companies_is_bounded_to_repository_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

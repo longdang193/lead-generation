@@ -8,6 +8,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from openpyxl import load_workbook
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from account_intelligence import project_account_intelligence
@@ -64,9 +66,27 @@ class HarnessE2ETests(unittest.TestCase):
             thesis = {"company_id": "C1", "structural_fit": 35, "confidence": "high", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}
             projection = project_account_intelligence(claims, thesis)
             self.assertEqual(projection["timeline"][0]["event_identity"], "C1:E1")
+            inputs = root / "inputs"
+            inputs.mkdir(parents=True, exist_ok=True)
+            (inputs / "companies.csv").write_text("company_id,company_name\nC1,Example GmbH\n", encoding="utf-8")
+            score_row = "company_id,company_name,source_url,retrieved_at,service_fit,residential_weg,berlin_relevance,structural_lead_fit,evidence_coverage,buying_signal,signal_search_status,actionability,sales_priority,lead_tier,evidence_urls\nC1,Example GmbH,https://example.com,2026-11-09T00:00:00+00:00,Confirmed,Confirmed,Confirmed,80,90,None found,Searched,Ready,Pursue,A,https://example.com\n"
+            (inputs / "scores.csv").write_text(score_row, encoding="utf-8")
+            (inputs / "priority.csv").write_text(score_row, encoding="utf-8")
+            (inputs / "contacts.csv").write_text("company_id,contact_name,contact_role,contact_email,email_source,verification_status,last_verified\nC1,Unknown,Unknown,Unknown,Unknown,Unknown,Unknown\n", encoding="utf-8")
+            (inputs / "sources.csv").write_text("company_id,source_url\nC1,https://example.com\n", encoding="utf-8")
             staged = root / "output" / f"{run_id}.staging.xlsx"
-            staged.parent.mkdir(parents=True, exist_ok=True)
-            staged.write_bytes(b"native-handoff-workbook")
+            build_report = root / "output" / f"{run_id}.build.json"
+            exported = invoke({"action": "export_workbook", "payload": {
+                "companies": "inputs/companies.csv", "scores": "inputs/scores.csv", "priority": "inputs/priority.csv",
+                "contacts": "inputs/contacts.csv", "sources": "inputs/sources.csv", "output": staged.relative_to(root).as_posix(),
+                "build_report": build_report.relative_to(root).as_posix(),
+            }}, root)
+            self.assertEqual(exported["workbook"]["sha256"], file_sha256(staged))
+            workbook = load_workbook(staged, read_only=True)
+            try:
+                self.assertEqual(workbook.sheetnames, ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"])
+            finally:
+                workbook.close()
             manifest["barriers"] = {key: True for key in manifest["barriers"]}
             manifest["outputs"] = {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": file_sha256(staged)}}
             atomic_write(manifest_path, manifest)

@@ -254,13 +254,15 @@ class LifecycleEvent(ContractModel):
     request_hash: str
     budget_units: int = Field(default=0, ge=0)
     result_hash: str | None = None
+    artifact_path: str | None = None
+    artifact_hash: str | None = None
     terminal_status: Literal["Completed", "Partial", "Unavailable", "Failed", "Rejected"] | None = None
     budget_settled: int = Field(default=0, ge=0)
     coverage_delta: dict[str, Any] = Field(default_factory=dict)
     provenance: dict[str, str] = Field(default_factory=dict)
     created_at: datetime
 
-    @field_validator("request_hash", "result_hash")
+    @field_validator("request_hash", "result_hash", "artifact_hash")
     @classmethod
     def validate_hash(cls, value: str | None) -> str | None:
         if value is not None and not HASH64.fullmatch(value):

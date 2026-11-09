@@ -109,6 +109,12 @@ class ActionLifecycleTests(unittest.TestCase):
         self.assertEqual(first.action_id, second.action_id)
         self.assertEqual(replay_lifecycle(self.root, "run-1")["action_count"], 1)
 
+    def test_conflicting_duplicate_admission_cannot_change_contract_or_budget(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        with self.assertRaisesRegex(ValueError, "conflicting duplicate action admission"):
+            admit_action(self.root, action(company_id="FOREIGN", budget_units=999), self.manifest)
+
     def test_exact_duplicate_result_validation_is_idempotent(self):
         request = action()
         admit_action(self.root, request, self.manifest)
@@ -133,6 +139,34 @@ class ActionLifecycleTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "company_id"):
             settle_action(self.root, receipt)
+
+    def test_rejected_result_cannot_become_validated_or_settled(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        with self.assertRaisesRegex(ValueError, "validation failed"):
+            validate_result(self.root, result_for(request, validation_errors=["invalid evidence"]))
+        self.assertEqual(replay_lifecycle(self.root, "run-1")["actions"][0]["status"], "Admitted")
+
+    def test_worker_artifact_is_verified_and_bound_to_result_event(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        artifact = self.root / "worker.json"
+        artifact.write_text('{"ok": true}\n', encoding="utf-8")
+        artifact_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        validated = validate_result(self.root, result_for(request, artifact={"path": "worker.json", "sha256": artifact_hash, "kind": "worker"}))
+        receipt = {
+            **request,
+            "result_hash": validated.result_hash,
+            "artifact_hash": artifact_hash,
+            "terminal_status": "Completed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "created_at": datetime.now(timezone.utc),
+        }
+        settle_action(self.root, receipt)
+        self.assertEqual(replay_lifecycle(self.root, "run-1")["budget_settled"], 1)
+        with self.assertRaisesRegex(ValueError, "artifact hash"):
+            settle_action(self.root, {**receipt, "artifact_hash": "c" * 64})
 
     def test_replay_marks_validated_only_action_unsettled(self):
         request = action()
