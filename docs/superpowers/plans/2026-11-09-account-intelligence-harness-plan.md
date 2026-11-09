@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: active
 template_id: implementation-plan
 name: account-intelligence-harness
 targets:
@@ -93,14 +93,35 @@ what weakens it; who should be approached; what action is recommended; and what
 unknown could change the decision.
 
 Facts and hypotheses remain separate. Every hypothesis cites supporting claim
-IDs, counterevidence claim IDs, confidence, and a validation step.
+IDs, counterevidence claim IDs, confidence, and a validation step. Structural
+claim verification is not semantic thesis verification: every material thesis
+assertion must also pass an offer-relevance, temporal-relevance, entailment, and
+contradiction review by a separate semantic-review action.
+
+The parent Codex runtime is the only research planner. Repository Python may
+validate requests, persist receipts, run one explicitly selected action,
+promote verified evidence, calculate deterministic contributions, and export
+results. It may not choose the next account/action, schedule follow-up
+research, own research continuation, or decide when the account is complete.
+
+Every `OfferProfile` has an immutable `offer_id` and `offer_version`. Every
+thesis, indicator, semantic-review decision, and rank audit is bound to that
+version, and each commercial feature records the offer criterion it satisfies.
+
+Negative research uses a finite account/offer coverage manifest. The manifest
+declares the required source/query families for that account, records each
+completed check and provider state, and permits `No trigger found` only after
+all declared checks complete without truncation, unresolved candidates, or
+provider failure.
 
 ## Execution Approach
 
 Use `subagent-ready`, followed by `inline sequential` at the shared projection
-and export barrier. Research lanes may be delegated only with disjoint write
-sets and account-scoped requests. Typed contracts, canonical projection,
-ranking, QA, and workbook integration have one serialized owner.
+and export barrier. The parent Codex runtime selects and sequences research
+actions. Repository actions may be delegated only as explicitly requested,
+account-scoped, idempotent operations with disjoint write sets. Typed
+contracts, canonical projection, ranking, QA, and workbook integration have
+one serialized owner.
 
 Use the current workspace unless a delegated lane needs isolation. Reuse
 existing action receipts, run manifests, native workers, and verifier decisions;
@@ -136,9 +157,9 @@ tests under `tests/`.
 
 **Steps:**
 
-1. Add `OfferProfile` with solution, target customer, problems solved, value
-   propositions, economic-buyer roles, relevant triggers, disqualifiers, and
-   incumbent or competitor signals.
+1. Add `OfferProfile` with immutable `offer_id` and `offer_version`, solution,
+   target customer, problems solved, value propositions, economic-buyer roles,
+   relevant triggers, disqualifiers, and incumbent or competitor signals.
 2. Add typed `AccountIndicator` values for `direct_intent`, `trigger`,
    `need_indicator`, and `change_readiness`, including strength, recency,
    confidence, supporting claims, and counterevidence claims.
@@ -149,14 +170,23 @@ tests under `tests/`.
    `Research incomplete`, and `Unavailable`. Reserve `None found` for complete
    account-scoped research only.
 5. Define visible dimensions: fit, opportunity, need, change, direct intent,
-   access, and evidence confidence.
+   access, and evidence confidence. Each opportunity, need, and change value
+   must include supporting claim IDs and the offer criterion it satisfies.
+6. Add a semantic-review contract separate from fact verification. It records
+   assertion IDs, reviewed claim IDs, offer criterion, temporal check,
+   contradiction result, decision, reason codes, and reviewer identity.
+7. Add a coverage-manifest contract with declared checks, completed checks,
+   provider states, truncation, unresolved-candidate counts, and the finite
+   negative-state decision.
 
 **Verification:** Write failing tests for missing offer context, invalid
 indicators, unsupported hypotheses, false `None found`, and proactive leads
 with strong evidence but no direct intent.
 
-**Exit Criteria:** A complete account dossier is representable and an
-unexplained priority record is rejected without requiring a tender.
+**Exit Criteria:** A complete account dossier is representable, an unrelated
+claim cannot validate a material thesis assertion, offer versions bind every
+commercial conclusion, and an unexplained priority record is rejected without
+requiring a tender.
 
 ### Task 2: Teach Codex account-intelligence research
 
@@ -171,19 +201,22 @@ profile that can safely update skill and agent metadata.
 **Required Skills:** `skill-test-driven-development` and
 `skill-backend-verification`.
 
-**Files And Symbols:** New `.agents/skills/account-intelligence/SKILL.md` and
-`.agents/skills/buying-signal-research/SKILL.md`; existing
-`.agents/skills/account-research/SKILL.md`, `lead-evidence/SKILL.md`, and
-`contact-verification/SKILL.md`; new `agents/account-intelligence-researcher.toml`;
+**Files And Symbols:** New `.agents/skills/account-intelligence/SKILL.md` as
+the canonical research-loop skill; new `.agents/skills/buying-signal-research/SKILL.md`
+as a signal-domain playbook only; existing `account-research/SKILL.md` becomes
+the bounded action/receipt contract, `lead-evidence/SKILL.md` remains the
+claim-provenance contract, and `contact-verification/SKILL.md` remains the
+access/contact contract; new `agents/account-intelligence-researcher.toml`;
 `agents/signal-researcher.toml`; `config/signal_taxonomy.json`.
 
 **Dependencies:** Task 1.
 
 **Steps:**
 
-1. Teach the loop: known evidence → decision-relevant gap → source selection →
-   claim capture → timeline → indicators → hypotheses → counterevidence →
-   thesis → stop or research again.
+1. Teach the canonical loop: known evidence → decision-relevant gap → parent
+   Codex selects one action → source selection → claim capture → timeline →
+   indicators → hypotheses → semantic review → counterevidence → thesis →
+   parent Codex stops or requests another action.
 2. Add source playbooks for official services/portfolio, news/projects,
    careers, management/Impressum, references/client announcements,
    procurement, approved external sources, and professional profiles.
@@ -193,22 +226,29 @@ profile that can safely update skill and agent metadata.
    negative-result semantics, and generic-mailbox handling.
 5. Require every thesis to include why-this-account, why-now, support,
    counterevidence, uncertainty, confidence, access, and next action.
-6. Add adaptive stopping rules: continue only when a material gap can change
-   tier, action, or stakeholder.
+6. Add adaptive stopping rules for the parent Codex planner: continue only when
+   a material gap can change tier, action, or stakeholder. Workers and Python
+   adapters cannot select the next action or stop the account.
+7. Add a responsibility matrix: account-intelligence owns the loop and thesis
+   semantics; buying-signal-research owns signal terminology and source
+   patterns; account-research owns bounded action scope and receipts;
+   lead-evidence owns immutable claims; contact-verification owns access
+   validation; the parent Codex runtime owns planning and stopping.
 
 **Verification:** Add skill evaluations for no direct signal, misleading hiring,
 stale events, namesakes, contradictory sources, generic mailboxes, and
 incomplete providers.
 
 **Exit Criteria:** A fresh Codex worker request receives a concrete method and
-returns a typed evidence package suitable for thesis construction.
+returns a typed evidence package suitable for thesis construction, while the
+skill composition has one canonical loop and no contradictory stopping owner.
 
 ### Task 3: Replace TED-only research with account-environment research
 
 **Purpose:** Make intent research commercially meaningful while retaining TED
 as an optional accelerator.
 
-**Task Function:** Research orchestration and evidence promotion.
+**Task Function:** Per-action tool boundary and evidence promotion.
 
 **Template Profile:** unresolved until Planning Dispatch selects the lowest
 profile that can safely change the research boundary.
@@ -225,29 +265,45 @@ adapters, account intelligence, and projection.
 
 **Dependencies:** Tasks 1 and 2.
 
+**Authority:** Use only approved tools and configured source policy. No hidden
+reasoning persistence. No live-provider claim from replay or structural output.
+No generic industry event may become an account claim without exact company
+binding and page-local evidence. Python must not plan, schedule, retry, select
+the next account/action, or decide research completion; it may only execute the
+single parent-selected action and return a typed result.
+
 **Steps:**
 
 1. Trace callers of `derive_account_signal`, `account_research_state`, and
-   shortlist selection with `skill-systematic-debugging`.
+   shortlist selection with `skill-systematic-debugging`, then split the
+   existing Python orchestration into explicit parent-selected action
+   boundaries without adding another planner.
 2. Add account-scoped attempts for official site, public news/events, careers,
    management/contact, and optional TED/procurement.
 3. Capture direct-intent, trigger, need, and change-readiness claims separately
    with claim IDs, source family, date, excerpt, and assurance.
 4. Emit `Verified trigger`, `No trigger found`, `Research incomplete`, or
    `Unavailable` only from complete attempts and provider state.
-5. Research a reserve pool of 40–50 structurally promising accounts, then
-   deeply research 10–15 accounts whose evidence gaps can change the decision.
+5. Use a reserve pool of 40–50 and a deep-research sample of 10–15 only as
+   benchmark inputs selected by the parent Codex runtime; do not encode those
+   counts as Python scheduling or backfill logic.
 6. Keep research adaptive; do not force a fixed signals→portfolio→contacts
-   sequence.
+   sequence. The parent Codex runtime chooses continuation, parallelism,
+   retries, and stopping from returned evidence and coverage manifests.
+7. Add semantic-review execution after fact verification and before thesis
+   promotion. Reject assertions whose cited claims do not entail the statement,
+   satisfy the bound offer criterion, remain temporally relevant, or survive
+   contradiction review.
 
 **Verification:** Prove that official non-TED triggers are retained, unrelated
 TED events are not attributed, incomplete research remains unknown, direct TED
 intent boosts but does not gate priority, and replay evidence cannot become
 source assurance.
 
-**Exit Criteria:** The collector produces meaningful indicators or an honest
-no-trigger/incomplete state, with every promoted record bound to company,
-source, date, and verifier decision.
+**Exit Criteria:** The per-action boundary produces meaningful indicators or
+an honest no-trigger/incomplete state, with every promoted record bound to
+company, offer version, source, date, verifier decision, semantic decision,
+and coverage manifest. No Python loop owns research planning.
 
 ### Task 4: Make thesis-backed commercial ranking canonical
 
@@ -283,14 +339,20 @@ profile that can safely change canonical ranking behavior.
    30 only.
 6. Generate `priority_reason` from thesis facts and claim IDs; remove generic
    company-ID ordering as the stakeholder-facing rationale.
+7. Require every rank audit to include immutable offer ID/version and
+   deterministic per-dimension contributions so the ordering is derivable
+   rather than a post-hoc narrative.
+8. Require semantic-review approval for every material thesis assertion before
+   it can contribute to opportunity, need, change, or priority.
 
 **Verification:** Add comparison tests where a smaller account with recent
 verified change outranks a larger account with no trigger, and where direct
 intent boosts but does not exclusively gate priority. Reject missing theses,
 unsupported hypotheses, false contact names, and replay evidence.
 
-**Exit Criteria:** No top lead can be emitted without an explanation, and the
-ranking makes why A outranks B visible and deterministic.
+**Exit Criteria:** No top lead can be emitted without a semantically supported
+explanation, offer-bound rank contributions, and a visible reason why A
+outranks B.
 
 ### Task 5: Export account dossiers and benchmark product value
 
@@ -321,13 +383,18 @@ builder feeding it, `scripts/validate_workbook.py`, workbook tests, and new
    evidence to fill an export cell.
 4. Define a 10–20 account manual benchmark for identity, claim accuracy, event
    attribution, thesis defensibility, ranking agreement, contact usefulness,
-   and research cost.
+   and research cost. Completion gates are at least 90% claim-support
+   precision; 100% of priority thesis assertions semantically supported; zero
+   critical account-attribution errors; at least 70% top-10 pairwise ranking
+   agreement; and at least 80% usefulness for named contacts that the output
+   claims are outreach owners. A failed threshold blocks completion.
 5. Run the first milestone on 10–15 Berlin Hausverwaltungen from the reserve
    pool and compare the result with the old structural shortlist.
 
 **Verification:** Validate workbook sheets, identities, hyperlinks, thesis
 completeness, source provenance, and a one-minute stakeholder read of every
-priority dossier.
+priority dossier. Record benchmark threshold results in the release manifest;
+do not mark the plan complete when a threshold fails.
 
 **Exit Criteria:** The deliverable demonstrates account intelligence rather
 than a spreadsheet of fit scores, with benchmark findings recorded.
@@ -354,13 +421,18 @@ surface unless a failed acceptance proof identifies its canonical owner.
 
 1. Run focused contract, research, scoring, projection, and workbook tests.
 2. Run `py -3 -m unittest discover -s tests -v`.
-3. Execute one representative native account-research trace and verify request,
-   worker result, verifier decision, action receipt, promoted claims, thesis,
-   rank, and workbook row share company ID and run context.
+3. Execute one representative parent-Codex native account-research trace and
+   verify the trace names the selected native profile and skills, records the
+   parent-selected action and returned evidence, shows the parent selecting the
+   next action or stopping, and proves no Python loop selected or scheduled
+   subsequent research. Also verify request, worker result, verifier decision,
+   semantic-review decision, action receipt, promoted claims, thesis, rank, and
+   workbook row share company ID, offer ID/version, and run context.
 4. Confirm replay never appears as live/source assurance and no-trigger is not
    emitted for incomplete research.
-5. Compare benchmark judgments with computed order and record disagreements as
-   evidence, not hidden exceptions.
+5. Compare benchmark judgments with computed order and enforce the declared
+   claim, thesis, attribution, ranking, and contact thresholds. A disagreement
+   below threshold is a failed acceptance gate, not merely a recorded note.
 6. Reconcile actual files, commands, test counts, and limitations; only then
    mark this plan completed through `skill-verification-before-completion`.
 
@@ -370,7 +442,9 @@ incomplete.
 
 ## Acceptance Criteria
 
-- `OfferProfile` is present before commercial opportunity scoring.
+- `OfferProfile` is present before commercial opportunity scoring, and every
+  thesis, indicator, semantic decision, and rank audit binds to its immutable
+  offer ID/version.
 - Direct intent, triggers, need indicators, change readiness, access, and
   evidence confidence are separate fields.
 - Every priority account has a validated thesis with support, counterevidence,
@@ -381,7 +455,8 @@ incomplete.
 - Deep research can change the shortlist from a reserve pool.
 - The workbook exposes why-this-account, why-now, evidence, counterevidence,
   contact owner, confidence, and next action.
-- A 10–20 account benchmark measures research quality, not only code quality.
+- A 10–20 account benchmark meets the declared claim-support, thesis-support,
+  attribution, ranking-agreement, and contact-usefulness thresholds.
 - Full tests and a representative backend/native trace pass, with live-provider
   limitations explicit.
 
