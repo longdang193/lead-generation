@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sys
@@ -78,6 +79,25 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(row["postal_code"], "10178")
         self.assertEqual(row["city"], "Berlin")
         self.assertEqual(row["source_url"], "https://example.de")
+
+    def test_provider_reuse_status_is_preserved_in_import(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            provider = root / "provider.json"
+            output = root / "discovery.csv"
+            provider.write_text(json.dumps({"items": [{"name": "Example GmbH", "website": "https://example.de", "source_reuse_status": "New retrieval"}]}), encoding="utf-8")
+            with patch.object(sys, "argv", ["import_discovery.py", "--apify", str(provider), "--output", str(output)]):
+                self.assertEqual(import_discovery.main(), 0)
+            with output.open(encoding="utf-8", newline="") as handle:
+                row = next(csv.DictReader(handle))
+        self.assertEqual(row["source_reuse_status"], "New retrieval")
+
+    def test_provider_metadata_reuse_status_applies_to_nested_rows(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "provider.json"
+            path.write_text(json.dumps({"source_reuse_status": "New retrieval", "elements": [{"tags": {"name": "Example GmbH", "website": "https://example.de"}}]}), encoding="utf-8")
+            row = read_rows(path, "Overpass")[0]
+        self.assertEqual(row["source_reuse_status"], "New retrieval")
 
     @patch("import_discovery.requests.get")
     def test_vdiv_refresh_repairs_url_shaped_identity(self, get):
