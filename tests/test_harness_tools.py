@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from harness_tools import discover_profiles, invoke
+from run_manifest import atomic_write, load
 
 
 class HarnessToolTests(unittest.TestCase):
@@ -47,7 +48,28 @@ class HarnessToolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("live legacy execution is disabled", result.stdout)
 
+    def test_publication_requires_finalization_and_persists_terminal_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "evidence" / "manifests" / "run.json"
+            staged = root / "output" / "run.staging.xlsx"
+            staged.parent.mkdir(parents=True)
+            staged.write_bytes(b"workbook")
+            atomic_write(manifest_path, {"run_id": "run-1", "head_sha": "0" * 40, "git_revision": "0" * 40, "outputs": {}})
+            with self.assertRaisesRegex(ValueError, "finalization admission"):
+                invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": "output/run.xlsx", "status": "complete"}}, root)
+
+            manifest = {
+                "run_id": "run-1", "head_sha": "0" * 40, "git_revision": "0" * 40, "delivery_policy": "personal",
+                "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "partial"},
+                "delivery": {"status": "partial", "delivery_policy": "personal", "target_count": 1, "delivered_count": 0, "shortfall": 1},
+                "outputs": {},
+            }
+            atomic_write(manifest_path, manifest)
+            invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": "output/run.xlsx", "status": "complete"}}, root)
+            self.assertEqual(load(manifest_path)["status"], "complete")
+
 
 if __name__ == "__main__":
     unittest.main()
-

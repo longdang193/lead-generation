@@ -102,7 +102,16 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         manifest = load(manifest_path)
         if str(manifest.get("run_id") or "") != run_id:
             raise ValueError("run_id does not match manifest")
-        published = publish_staged_output(root, manifest_path, staging, final, status=status)
+        campaign = manifest.get("campaign")
+        campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
+        published = publish_staged_output(
+            root,
+            manifest_path,
+            staging,
+            final,
+            status=status,
+            delivery_policy=str(payload.get("delivery_policy") or manifest.get("delivery_policy") or campaign_policy or "strict"),
+        )
         return {"published": True, "path": published.relative_to(root.resolve()).as_posix()}
     raise ValueError(f"unknown harness action: {action}")
 
@@ -120,4 +129,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

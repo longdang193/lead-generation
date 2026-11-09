@@ -624,15 +624,19 @@ def finalize_run(
     registries: dict[str, object] | None = None,
     barriers: dict[str, object] | None = None,
     delivery_policy: str | None = None,
-    enforce_policy: bool = False,
 ) -> Path:
     """Single controller-owned final-delivery barrier."""
 
-    if enforce_policy:
-        allowed, errors = finalization_eligibility(load_manifest(manifest_ref), delivery_policy or "")
-        if not allowed:
-            raise ValueError("finalization admission failed: " + "; ".join(errors))
-    return publish_staged_output(root, manifest_ref, staging, final, status=status, registries=registries, barriers=barriers)
+    return publish_staged_output(
+        root,
+        manifest_ref,
+        staging,
+        final,
+        status=status,
+        registries=registries,
+        barriers=barriers,
+        delivery_policy=delivery_policy,
+    )
 
 
 def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campaign_config: Path | None = None, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
@@ -942,7 +946,10 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         staging,
         final_output,
         status=str(final_delivery["status"]),
-        registries={"delivery": final_delivery},
+        registries={
+            "delivery": final_delivery,
+            "coverage": {"status": "complete" if final_delivery["shortfall"] == 0 else "partial"},
+        },
         barriers={"readiness": True},
     )
     return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report, "delivery": final_delivery}

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from score_leads import calculate_fit
 from typed_contracts import AccountHypothesis, AccountThesis, AssuranceLevel, EvidenceClaim, SourceKind
 
 
@@ -27,7 +28,7 @@ def _claim_model(value: EvidenceClaim | dict[str, Any]) -> EvidenceClaim:
     normalized.setdefault("assurance_level", "unknown")
     normalized.setdefault("confidence", "medium")
     normalized.setdefault("retrieved_at", normalized.get("verified_at"))
-    for legacy_key in ("candidate_claim_id", "claim_value", "candidate_status", "account_relationship"):
+    for legacy_key in ("candidate_claim_id", "claim_value", "account_relationship"):
         normalized.pop(legacy_key, None)
     return EvidenceClaim.model_validate(normalized)
 
@@ -93,8 +94,13 @@ def validate_account_hypothesis(hypothesis: AccountHypothesis | dict[str, Any], 
 
 def validate_account_thesis(thesis: AccountThesis | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]]) -> AccountThesis:
     validated = thesis if isinstance(thesis, AccountThesis) else AccountThesis.model_validate(thesis)
-    claim_list = list(claims)
+    claim_list = [_claim_model(item) for item in claims]
+    foreign_claims = sorted({claim.company_id for claim in claim_list if claim.company_id != validated.company_id})
+    if foreign_claims:
+        raise ValueError("thesis claims include another company: " + ", ".join(foreign_claims))
     for hypothesis in validated.hypotheses:
+        if hypothesis.company_id != validated.company_id:
+            raise ValueError("thesis hypotheses must match the enclosing company")
         validate_account_hypothesis(hypothesis, claim_list)
     return validated
 
@@ -102,10 +108,18 @@ def validate_account_thesis(thesis: AccountThesis | dict[str, Any], claims: Iter
 def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> float:
     """Calculate a fact-only fit score; hypotheses are intentionally ignored."""
 
-    verified = [claim for claim in (_claim_model(item) for item in claims) if claim.assurance_level == AssuranceLevel.source]
-    positive_types = {"service_fit", "residential_weg", "berlin_relevance", "management_type", "portfolio_size"}
-    covered = {claim.claim_type for claim in verified if claim.claim_type in positive_types}
-    return round(min(100.0, len(covered) / len(positive_types) * 100), 2)
+    record: dict[str, object] = {}
+    for raw_claim in claims:
+        claim = _claim_model(raw_claim)
+        status = claim.candidate_status or "Verified"
+        if claim.assurance_level != AssuranceLevel.source or status not in {"Verified", "Supported"}:
+            continue
+        if claim.claim_type in {"service_fit", "residential_weg", "berlin_relevance"}:
+            record[claim.claim_type] = claim.value
+        elif claim.claim_type == "portfolio_size":
+            record["portfolio_size"] = claim.value
+    fit, _ = calculate_fit(record)
+    return round(fit or 0.0, 2)
 
 
 def project_account_intelligence(
@@ -128,4 +142,3 @@ def project_account_intelligence(
             for row in timeline:
                 handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True, default=str) + "\n")
     return result
-

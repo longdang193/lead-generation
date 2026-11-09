@@ -33,10 +33,29 @@ class AccountIntelligenceTests(unittest.TestCase):
                 "hypotheses": [{"company_id": "C1", "hypothesis_type": "need", "statement": "Likely need", "supporting_claim_ids": ["c2"], "confidence": "medium"}],
             }, [claim("c2", "C2")])
 
+    def test_thesis_hypothesis_must_match_enclosing_company(self):
+        with self.assertRaises(ValueError):
+            validate_account_thesis({
+                "company_id": "C1", "structural_fit": 50, "confidence": "medium", "recommended_action": "research",
+                "hypotheses": [{"company_id": "C2", "hypothesis_type": "need", "statement": "Likely need", "confidence": "medium"}],
+            }, [claim("c1", "C1")])
+
+    def test_promoted_claim_envelope_preserves_provenance(self):
+        rows = build_account_timeline([{
+            **claim("c1", "C1"),
+            "record_type": "EvidenceClaim",
+            "research_run_id": "run-1:signals:C1",
+            "candidate_sha256": "a" * 64,
+            "verified_at": "2026-11-09T00:00:00Z",
+            "verifier_run_id": "run-1:verifier",
+        }])
+        self.assertEqual(rows[0]["claim_id"], "c1")
+
     def test_fact_fit_ignores_hypotheses(self):
-        self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Confirmed")]), 20.0)
+        self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Confirmed")]), 35.0)
+        self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Not evident")]), 0.0)
+        self.assertEqual(calculate_structural_fit([claim("c1", status="Rejected", claim_type="service_fit", value="Confirmed")]), 0.0)
 
 
 if __name__ == "__main__":
     unittest.main()
-

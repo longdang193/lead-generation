@@ -20,4 +20,3 @@ def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str,
     missing = sorted(allowed - seen)
     if missing:
         raise ValueError(f"lane output missing queued companies: {', '.join(missing)}")
-

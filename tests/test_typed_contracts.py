@@ -49,7 +49,15 @@ class TypedContractTests(unittest.TestCase):
                 budget_requested=1, budget_settled=2, created_at=datetime.now(timezone.utc),
             )
 
+    def test_receipt_json_round_trip_allows_missing_artifact_hash(self):
+        receipt = ActionReceipt(
+            run_id="r1", action_id="a1", attempt_id="t1", company_id="C1", action_type="signals", scope="C1",
+            contract_version="1", strategy_version="1", profile_version="1", idempotency_key="k",
+            request_hash="a" * 64, result_hash="b" * 64, terminal_status="Completed",
+            budget_requested=1, budget_settled=1, created_at=datetime.now(timezone.utc),
+        )
+        self.assertEqual(ActionReceipt.model_validate(receipt.model_dump(mode="json")).artifact_hash, None)
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -99,6 +99,19 @@ class EvidenceClaim(ContractModel):
     scope: str = Field(default="account", min_length=1)
     published_at: date | None = None
     artifact: ArtifactRef | None = None
+    record_type: str | None = None
+    research_run_id: str | None = None
+    candidate_sha256: str | None = None
+    candidate_status: str | None = None
+    verified_at: datetime | None = None
+    verifier_run_id: str | None = None
+
+    @field_validator("candidate_sha256")
+    @classmethod
+    def validate_candidate_hash(cls, value: str | None) -> str | None:
+        if value is not None and not HASH64.fullmatch(value):
+            raise ValueError("candidate_sha256 must be a lowercase 64-character hexadecimal digest")
+        return value
 
 
 class VerifierDecision(ContractModel):
@@ -236,7 +249,9 @@ class ActionReceipt(ContractModel):
 
     @field_validator("request_hash", "result_hash", "artifact_hash")
     @classmethod
-    def validate_hash(cls, value: str) -> str:
+    def validate_hash(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         if not HASH64.fullmatch(value):
             raise ValueError("receipt hashes must be lowercase 64-character hexadecimal digests")
         return value
@@ -279,4 +294,3 @@ class FinalizationRequest(ContractModel):
     completed_checks: list[str] = Field(default_factory=list)
     allow_partial: bool = False
     stop_decision: StopDecision | None = None
-

@@ -108,4 +108,3 @@ def replay_receipts(receipts: Iterable[ActionReceipt]) -> dict[str, Any]:
 
 def replay_run(root: Path, run_id: str) -> dict[str, Any]:
     return replay_receipts(read_receipts(root, run_id))
-

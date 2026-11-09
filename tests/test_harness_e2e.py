@@ -29,9 +29,16 @@ class HarnessE2ETests(unittest.TestCase):
         manifest_path = root / "evidence" / "manifests" / f"native_handoff_{run_id}.json"
         manifest = {
             "record_type": "RunManifest", "run_id": run_id, "head_sha": "0" * 40, "git_revision": "0" * 40,
+            "delivery_policy": "strict" if strict else "personal",
             "barriers": {"research": not stop_early, "verifier": not stop_early, "verified_evidence": not stop_early, "projection": not stop_early, "ranking": not stop_early, "readiness": not stop_early},
             "coverage": {"status": "complete" if strict and not stop_early else "partial"},
-            "delivery": {"status": "complete" if strict and not stop_early else "partial"},
+            "delivery": {
+                "status": "completed" if not stop_early else "partial",
+                "delivery_policy": "strict" if strict else "personal",
+                "target_count": 1,
+                "delivered_count": 1 if not stop_early else 0,
+                "shortfall": 0 if not stop_early else 1,
+            },
             "outputs": {},
         }
         atomic_write(manifest_path, manifest)
@@ -61,6 +68,7 @@ class HarnessE2ETests(unittest.TestCase):
             checked = invoke({"action": "check_finalization", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "delivery_policy": "strict" if strict else "personal"}}, root)
             self.assertTrue(checked["eligible"])
             invoke({"action": "publish_staged_output", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": f"output/{run_id}.xlsx", "status": "complete"}}, root)
+            self.assertEqual(load(manifest_path)["status"], "complete")
         else:
             checked = invoke({"action": "check_finalization", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "delivery_policy": "personal"}}, root)
             self.assertFalse(checked["eligible"])
@@ -83,4 +91,3 @@ class HarnessE2ETests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

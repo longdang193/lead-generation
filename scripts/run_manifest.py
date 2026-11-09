@@ -164,6 +164,27 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
     expected = str(marker.get("staging_sha256") or "")
     if not expected or not re.fullmatch(r"[0-9a-f]{64}", expected):
         raise ValueError("publication recovery marker has an invalid staging hash")
+    campaign = manifest.get("campaign")
+    campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
+    delivery_policy = str(marker.get("delivery_policy") or manifest.get("delivery_policy") or campaign_policy or "strict")
+    status = str(marker.get("status") or manifest.get("status") or "ready_for_validation")
+    registries = marker.get("registries")
+    if not isinstance(registries, dict):
+        registries = {}
+    barriers = marker.get("barriers")
+    if not isinstance(barriers, dict):
+        barriers = {}
+    candidate = dict(manifest)
+    candidate.update(registries)
+    candidate["status"] = status
+    candidate_barriers = candidate.get("barriers")
+    if not isinstance(candidate_barriers, dict):
+        candidate_barriers = {}
+    candidate_barriers = {**candidate_barriers, **barriers, "published": True}
+    candidate["barriers"] = candidate_barriers
+    allowed, errors = finalization_eligibility(candidate, delivery_policy)
+    if not allowed:
+        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
     if staging.exists():
         if file_sha256(staging) != expected:
             raise ValueError("publication recovery found a mismatched staging output")
@@ -172,7 +193,14 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
         raise ValueError("publication recovery found neither a valid staging nor final output")
     elif file_sha256(final) != expected:
         raise ValueError("publication recovery found a mismatched final output")
-    update(path=manifest_path, root=root, outputs={"workbook": final}, status=str(manifest.get("status") or "ready_for_validation"), barriers={"published": True})
+    update(
+        path=manifest_path,
+        root=root,
+        outputs={"workbook": final},
+        registries=registries,
+        status=status,
+        barriers=candidate_barriers,
+    )
     marker_path.unlink()
     return
 
@@ -196,6 +224,7 @@ def publish_staged_output(
     status: str,
     registries: Mapping[str, object] | None = None,
     barriers: Mapping[str, object] | None = None,
+    delivery_policy: str | None = None,
 ) -> Path:
     """Publish one validated staging artifact through the shared barrier."""
 
@@ -213,6 +242,19 @@ def publish_staged_output(
             raise ValueError(f"{label} output escapes repository root") from exc
     if not staging.exists():
         raise FileNotFoundError(staging)
+    campaign = manifest.get("campaign")
+    campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
+    policy = delivery_policy or str(manifest.get("delivery_policy") or campaign_policy or "strict")
+    candidate = dict(manifest)
+    candidate.update(registries or {})
+    candidate["status"] = status
+    candidate_barriers = candidate.get("barriers")
+    if not isinstance(candidate_barriers, dict):
+        candidate_barriers = {}
+    candidate["barriers"] = {**candidate_barriers, **(barriers or {}), "published": True}
+    allowed, errors = finalization_eligibility(candidate, policy)
+    if not allowed:
+        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
     marker_path = publication_marker_path(root, run_id)
     atomic_write(marker_path, {
         "run_id": run_id,
@@ -220,16 +262,12 @@ def publish_staged_output(
         "staging_path": staging.relative_to(root_resolved).as_posix(),
         "final_path": final.relative_to(root_resolved).as_posix(),
         "staging_sha256": file_sha256(staging),
+        "status": status,
+        "delivery_policy": policy,
+        "registries": dict(registries or {}),
+        "barriers": dict(barriers or {}),
     })
     _complete_publication(root, manifest_path, marker_path, load(marker_path))
-    if registries or barriers:
-        update(
-            manifest_path,
-            root,
-            registries=registries,
-            status=status,
-            barriers={"published": True, **(barriers or {})},
-        )
     return final
 
 
@@ -254,12 +292,40 @@ def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: st
     elif delivery_policy == "strict":
         errors.append("strict finalization requires recorded policy coverage")
     delivery = manifest.get("delivery")
-    if isinstance(delivery, dict):
+    if not isinstance(delivery, dict):
+        errors.append("finalization requires recorded delivery")
+    else:
         status = str(delivery.get("status") or "")
+        if status not in {"complete", "completed", "partial", "blocked"}:
+            errors.append("delivery has an invalid status")
         if delivery_policy == "strict" and status not in {"complete", "completed"}:
             errors.append("strict finalization requires complete delivery")
         if status == "none_found":
             errors.append("None found is not a finalization substitute")
+        recorded_policy = str(delivery.get("delivery_policy") or "")
+        if recorded_policy != delivery_policy:
+            errors.append("delivery policy does not match finalization policy")
+        try:
+            target_count = int(delivery["target_count"])
+            delivered_count = int(delivery["delivered_count"])
+            shortfall = int(delivery["shortfall"])
+        except (KeyError, TypeError, ValueError):
+            errors.append("delivery counts are incomplete")
+        else:
+            if min(target_count, delivered_count, shortfall) < 0:
+                errors.append("delivery counts cannot be negative")
+            if shortfall != max(target_count - delivered_count, 0):
+                errors.append("delivery shortfall is inconsistent with delivery counts")
+            if status in {"complete", "completed"} and delivered_count < target_count:
+                errors.append("complete delivery is below target count")
+            campaign = manifest.get("campaign")
+            expected_target = campaign.get("target_count") if isinstance(campaign, dict) else manifest.get("target_count")
+            if expected_target is not None:
+                try:
+                    if target_count != int(expected_target):
+                        errors.append("delivery target count does not match the admitted campaign")
+                except (TypeError, ValueError):
+                    errors.append("admitted campaign target count is invalid")
     if manifest.get("none_found_unqualified") is True:
         errors.append("None found is not allowed for partial or unavailable research")
     return not errors, errors
