@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: completed
 template_id: implementation-plan
 contract_version: "1"
 name: agentic-account-intelligence-architecture
@@ -179,18 +179,18 @@ following findings are accepted into this plan:
 - Branch: `main`
 - Base commit: `c0b3428ccd527dd8cb55a9a7067a40d8227f168e`
 - Expected workspace: `clean; preserve the existing repository state`
-- Next action: `activate Task 1 only after implementation approval and resolve its executor through Planning Dispatch`
-- Blockers: `none for plan creation; no live provider access or publication is authorized by this plan`
+- Next action: `branch finishing and independent PR review; no further architecture task remains in this plan`
+- Blockers: `none for the implemented deterministic kernel; live-provider behavior remains deferred operational proof`
 - Publication: `no publication required` for the reviewed revision; the full SHA is already reachable from `origin/main`
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| Task 1 | `pending` | current | `unresolved` | none | typed-contract and promotion regression tests | pending |
-| Task 2 | `pending` | current | `unresolved` | Task 1 | callable-boundary and orchestration tests | pending |
-| Task 3 | `pending` | current | `unresolved` | Tasks 1–2 | account-ledger, timeline, thesis, and scoring tests | pending |
-| Task 4 | `pending` | current | `unresolved` | Tasks 1–3 | coverage, provider-shape, budget, and replay tests | pending |
-| Task 5 | `pending` | current | `unresolved` | Tasks 1–4 | harness-tool contract tests | pending |
-| Task 6 | `pending` | current | `unresolved` | Tasks 1–5 | real-kernel E2E, workbook validation, and full suite | pending |
+| Task 1 | `completed` | current | `lead controller` | none | typed-contract and promotion regression tests | full suite |
+| Task 2 | `completed` | current | `lead controller` | Task 1 | callable-boundary and orchestration tests | full suite |
+| Task 3 | `completed` | current | `lead controller` | Tasks 1–2 | account-ledger, timeline, thesis, and scoring tests | full suite |
+| Task 4 | `completed` | current | `lead controller` | Tasks 1–3 | coverage, provider-shape, budget, and replay tests | full suite |
+| Task 5 | `completed` | current | `lead controller` | Tasks 1–4 | harness-tool contract tests | `tests.test_harness_tools` and full suite |
+| Task 6 | `completed` | current | `lead controller` | Tasks 1–5 | real-kernel E2E, workbook validation, and full suite | `tests.test_harness_e2e`, `tests.test_end_to_end_enrichment`, full suite |
 
 ## Task Breakdown
 
@@ -231,14 +231,14 @@ following findings are accepted into this plan:
 - Stop for: any change that would replace JSON Schema, weaken source-verification requirements, install dependencies, or alter strict-mode admission without user approval
 
 **Steps:**
-- [ ] Step 1: Map each proposed Pydantic model to its existing JSON record fields and identify fields that must remain hash- or manifest-derived.
-- [ ] Step 2: Add `requirements.txt` bounds `pydantic>=2.12,<3` and `jsonschema>=4.25,<5`, then implement `scripts/typed_contracts.py` with `Goal`, `EvidenceClaim`, `VerifierDecision`, `ResearchAttempt`, `ResearchRun`, `RunContext`, `NativeActionRequest`, `WorkerResult`, `ActionReceipt`, `StopDecision`, `AccountHypothesis`, `AccountThesis`, `FinalizationRequest`, and `ArtifactRef`. Require stable `run_id`, `action_id`, `attempt_id`, optional `parent_action_id`, company/scope, contract/strategy/profile versions, request/result/artifact hashes, provenance, terminal validation, budget settlement, coverage delta, idempotency key, and stop/finalization linkage.
-- [ ] Step 3: Add `scripts/action_receipts.py` with an append-only JSONL journal under `evidence/action_receipts/<run_id>.jsonl`; make append idempotent by `action_id` + `attempt_id`, reject conflicting duplicates, and provide deterministic replay of settled budget/coverage state after restart.
-- [ ] Step 3: Make `decision_assurance_level()` monotonic: only a verified source-capable verifier registry entry can yield source assurance; replay and structural paths remain lower assurance regardless of payload self-declarations.
-- [ ] Step 4: Add focused tests for valid serialization, rejection of malformed boundaries, canonical-hash preservation, assurance-escalation regression, idempotent duplicate callbacks, conflicting receipt rejection, and restart/replay reconstruction.
+- [x] Step 1: Map each proposed Pydantic model to its existing JSON record fields and identify fields that must remain hash- or manifest-derived.
+- [x] Step 2: Add `requirements.txt` bounds `pydantic>=2.12,<3` and `jsonschema>=4.25,<5`, then implement `scripts/typed_contracts.py` with `Goal`, `EvidenceClaim`, `VerifierDecision`, `ResearchAttempt`, `ResearchRun`, `RunContext`, `NativeActionRequest`, `WorkerResult`, `ActionReceipt`, `StopDecision`, `AccountHypothesis`, `AccountThesis`, `FinalizationRequest`, and `ArtifactRef`. Require stable `run_id`, `action_id`, `attempt_id`, optional `parent_action_id`, company/scope, contract/strategy/profile versions, request/result/artifact hashes, provenance, terminal validation, budget settlement, coverage delta, idempotency key, and stop/finalization linkage.
+- [x] Step 3: Add `scripts/action_receipts.py` with an append-only JSONL journal under `evidence/action_receipts/<run_id>.jsonl`; make append idempotent by `action_id` + `attempt_id`, reject conflicting duplicates, and provide deterministic replay of settled budget/coverage state after restart.
+- [x] Step 3: Make `decision_assurance_level()` monotonic: only a verified source-capable verifier registry entry can yield source assurance; replay and structural paths remain lower assurance regardless of payload self-declarations.
+- [x] Step 4: Add focused tests for valid serialization, rejection of malformed boundaries, canonical-hash preservation, assurance-escalation regression, idempotent duplicate callbacks, conflicting receipt rejection, and restart/replay reconstruction.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_typed_contracts tests.test_evidence_promotion tests.test_research_contract -v`
+- [x] `py -3 -m unittest tests.test_typed_contracts tests.test_evidence_promotion tests.test_research_contract -v`
 - Expected: all focused tests pass; replay/structural decisions never receive source assurance; existing JSON-Schema validation remains green.
 
 **Exit Criteria:**
@@ -283,13 +283,13 @@ following findings are accepted into this plan:
 - Stop for: deleting or renaming an existing CLI contract, introducing a second state machine, changing manifest authority, or changing publication behavior without a migration test and user approval
 
 **Steps:**
-- [ ] Step 1: Extract `prepare_run`, `admit_research_action`, `record_worker_result`, `settle_action_receipt`, `verify_and_promote`, `project_and_rank`, and `finalize_run` as thin functions over existing logic, with typed inputs/outputs at their boundaries.
-- [ ] Step 2: Move lane-output validation ownership out of `orchestrate_enrichment.py` so `worker_dispatch.py` depends on a neutral contract/validation module rather than importing its caller; retain `dispatch_native_lane` only as an explicitly legacy/fixture compatibility path.
-- [ ] Step 3: Keep `run_pipeline()` only for fixture/legacy compatibility; fail closed when the normal CLI requests non-fixture live execution without an explicit legacy opt-in, and require both legacy publication and `recover_publication()` to delegate to `finalize_run(manifest_ref)` so no second publication authority remains.
-- [ ] Step 4: Add tests for direct callable use, invalid admission, budget exhaustion, receipt settlement, promotion failure, projection failure, QA failure, publication rollback/idempotency, rejection of live legacy CLI execution, shared finalizer use by recovery, and the absence of a native-path call to `run_pipeline()`.
+- [x] Step 1: Extract `prepare_run`, `admit_research_action`, `record_worker_result`, `settle_action_receipt`, `verify_and_promote`, `project_and_rank`, and `finalize_run` as thin functions over existing logic, with typed inputs/outputs at their boundaries.
+- [x] Step 2: Move lane-output validation ownership out of `orchestrate_enrichment.py` so `worker_dispatch.py` depends on a neutral contract/validation module rather than importing its caller; retain `dispatch_native_lane` only as an explicitly legacy/fixture compatibility path.
+- [x] Step 3: Keep `run_pipeline()` only for fixture/legacy compatibility; fail closed when the normal CLI requests non-fixture live execution without an explicit legacy opt-in, and require both legacy publication and `recover_publication()` to delegate to `finalize_run(manifest_ref)` so no second publication authority remains.
+- [x] Step 4: Add tests for direct callable use, invalid admission, budget exhaustion, receipt settlement, promotion failure, projection failure, QA failure, publication rollback/idempotency, rejection of live legacy CLI execution, shared finalizer use by recovery, and the absence of a native-path call to `run_pipeline()`.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_orchestration tests.test_native_adapters tests.test_end_to_end_enrichment -v`
+- [x] `py -3 -m unittest tests.test_orchestration tests.test_native_adapters tests.test_end_to_end_enrichment -v`
 - Expected: existing fixture pipeline behavior is unchanged; direct boundaries are callable; failures stop before publication and leave no partial final output.
 
 **Exit Criteria:**
@@ -334,14 +334,14 @@ following findings are accepted into this plan:
 - Stop for: treating an agent-authored hypothesis as a promoted claim, changing score weights without an explicit policy update, or dropping verified positives because another lane is partial
 
 **Steps:**
-- [ ] Step 1: Implement deterministic event-ledger and timeline helpers in `scripts/account_intelligence.py` using the Task 1 boundary models; accept Codex-authored `AccountHypothesis` and `AccountThesis` payloads only through validation functions, with deterministic joins on `(company_id, event_id)`.
-- [ ] Step 2: Record the search environment, candidate discovery result, verification decision, rejection or unresolved reason, supporting claim IDs, and event date/source scope for every event considered.
-- [ ] Step 3: Project an account timeline from verified claims and validate/persist the Codex-authored thesis separately; include counterevidence and research gaps, and keep direct intent nullable when no direct signal is verified.
-- [ ] Step 4: Update signal derivation so verified positives survive partial or unavailable lanes and so hypotheses influence recommended action only through explicit, tested policy fields rather than fact score inputs.
-- [ ] Step 5: Add a canonical workbook sheet or linked account-ledger artifact with stable IDs and source references, preserving existing workbook consumers.
+- [x] Step 1: Implement deterministic event-ledger and timeline helpers in `scripts/account_intelligence.py` using the Task 1 boundary models; accept Codex-authored `AccountHypothesis` and `AccountThesis` payloads only through validation functions, with deterministic joins on `(company_id, event_id)`.
+- [x] Step 2: Record the search environment, candidate discovery result, verification decision, rejection or unresolved reason, supporting claim IDs, and event date/source scope for every event considered.
+- [x] Step 3: Project an account timeline from verified claims and validate/persist the Codex-authored thesis separately; include counterevidence and research gaps, and keep direct intent nullable when no direct signal is verified.
+- [x] Step 4: Update signal derivation so verified positives survive partial or unavailable lanes and so hypotheses influence recommended action only through explicit, tested policy fields rather than fact score inputs.
+- [x] Step 5: Add a canonical workbook sheet or linked account-ledger artifact with stable IDs and source references, preserving existing workbook consumers.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_account_intelligence tests.test_buying_signals tests.test_scoring tests.test_end_to_end_enrichment -v`
+- [x] `py -3 -m unittest tests.test_account_intelligence tests.test_buying_signals tests.test_scoring tests.test_end_to_end_enrichment -v`
 - Expected: a verified event remains present when a later lane is partial; same-named events from different companies do not collide; rejected/unresolved lineage is retained; hypotheses are visibly distinct from verified evidence.
 
 **Exit Criteria:**
@@ -386,15 +386,15 @@ following findings are accepted into this plan:
 - Stop for: live provider access, new credentials, silent schema migration, broadening `None found`, or changing score policy without a versioned configuration and regression tests
 
 **Steps:**
-- [ ] Step 1: Extend research policy and manifest records with `strategy_version`, `required_checks`, `completed_checks`, `coverage_status`, `stop_reason`, `as_of_date`, and `scoring_policy_version`.
-- [ ] Step 2: Make `none_found_allowed()` inspect account scope, required/completed checks, provider status, truncation, and verified claims before allowing the negative state.
-- [ ] Step 3: Validate TED, Overpass, Apify, and Hunter response shapes before recording an attempt as successful; distinguish unavailable, partial, empty, and completed-zero outcomes.
-- [ ] Step 4: Make `DispatchBudget` the single admission/settlement path for parent-selected tools and native-worker handoffs, including retries and failed attempts represented by durable receipts; do not add Python scheduling, fan-out, or retry policy.
-- [ ] Step 5: Replace implicit `date.today()` ranking inputs with manifest-bound `as_of_date` and persist the policy version used for classification and tie-breaking.
-- [ ] Step 6: Add tests for narrow-search false negatives, provider HTML/error payloads, budget exhaustion, retry accounting, partial research, policy-aware strict/personal finalization eligibility, and repeated replay with reordered worker completion.
+- [x] Step 1: Extend research policy and manifest records with `strategy_version`, `required_checks`, `completed_checks`, `coverage_status`, `stop_reason`, `as_of_date`, and `scoring_policy_version`.
+- [x] Step 2: Make `none_found_allowed()` inspect account scope, required/completed checks, provider status, truncation, and verified claims before allowing the negative state.
+- [x] Step 3: Validate TED, Overpass, Apify, and Hunter response shapes before recording an attempt as successful; distinguish unavailable, partial, empty, and completed-zero outcomes.
+- [x] Step 4: Make `DispatchBudget` the single admission/settlement path for parent-selected tools and native-worker handoffs, including retries and failed attempts represented by durable receipts; do not add Python scheduling, fan-out, or retry policy.
+- [x] Step 5: Replace implicit `date.today()` ranking inputs with manifest-bound `as_of_date` and persist the policy version used for classification and tie-breaking.
+- [x] Step 6: Add tests for narrow-search false negatives, provider HTML/error payloads, budget exhaustion, retry accounting, partial research, policy-aware strict/personal finalization eligibility, and repeated replay with reordered worker completion.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_research_contract tests.test_provider_clients tests.test_native_adapters tests.test_scoring tests.test_orchestration -v`
+- [x] `py -3 -m unittest tests.test_research_contract tests.test_provider_clients tests.test_native_adapters tests.test_scoring tests.test_orchestration -v`
 - Expected: malformed providers cannot create successful research runs; partial/outage states cannot become `None found`; every admitted action settles against the shared budget; identical manifest inputs produce identical scores and ranks.
 
 **Exit Criteria:**
@@ -439,13 +439,13 @@ following findings are accepted into this plan:
 - Stop for: adding a second workflow engine, embedding fixed TED/portfolio/contact order, bypassing manifest or budget checks, or creating duplicate skill hierarchies
 
 **Steps:**
-- [ ] Step 1: Implement `scripts/harness_tools.py` as thin adapters that accept typed inputs, call existing deterministic functions, validate typed outputs, and return artifact/evidence references rather than raw unbounded provider payloads.
-- [ ] Step 2: Do not implement `run_agent_harness`, a planner loop, a scheduler, or subprocess/native-agent execution in Python. Define only the tool-call contracts the parent Codex agent can invoke through a JSON stdin/stdout CLI, including action admission, worker-result recording, receipt settlement, thesis validation, draft ranking, and a `finalize_run` handoff; prevent direct export from being treated as final.
-- [ ] Step 3: Update the existing skills and four agent profiles to describe account selection, environment search, event discovery, verification, timeline/thesis formation, research stopping, and evidence-backed assumptions without prescribing a fixed lane sequence; add drift checks between role contracts and skill instructions.
-- [ ] Step 4: Add adapter tests that verify contract validation, deterministic delegation, budget use, stop-decision recording, preservation of source/evidence references, and rejection of fixed-sequence orchestration.
+- [x] Step 1: Implement `scripts/harness_tools.py` as thin adapters that accept typed inputs, call existing deterministic functions, validate typed outputs, and return artifact/evidence references rather than raw unbounded provider payloads.
+- [x] Step 2: Do not implement `run_agent_harness`, a planner loop, a scheduler, or subprocess/native-agent execution in Python. Define only the tool-call contracts the parent Codex agent can invoke through a JSON stdin/stdout CLI, including action admission, worker-result recording, receipt settlement, thesis validation, draft ranking, and a `finalize_run` handoff; prevent direct export from being treated as final.
+- [x] Step 3: Update the existing skills and four agent profiles to describe account selection, environment search, event discovery, verification, timeline/thesis formation, research stopping, and evidence-backed assumptions without prescribing a fixed lane sequence; add drift checks between role contracts and skill instructions.
+- [x] Step 4: Add adapter tests that verify contract validation, deterministic delegation, budget use, stop-decision recording, preservation of source/evidence references, and rejection of fixed-sequence orchestration.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_tools -v`
+- [x] `py -3 -m unittest tests.test_harness_tools -v`
 - Expected: tool actions are validated and bounded; adapters reuse existing kernel functions; no adapter implements a second planner, score, export, or orchestration path.
 
 **Exit Criteria:**
@@ -491,16 +491,16 @@ following findings are accepted into this plan:
 - Stop for: live provider calls, external writes, publication, email sending, broad fixture changes that hide kernel failures, or marking the plan complete without fresh final verification
 
 **Steps:**
-- [ ] Step 1: Implement `examples/berlin_hausverwaltung.py` as a thin goal loader plus typed handoff/finalization example; it must not import or call `run_agent_harness`, `run_pipeline()`, a planner loop, or a fixed lane sequence.
-- [ ] Step 2: Build `tests/test_harness_e2e.py` from recorded typed native-agent handoff fixtures and mocked provider responses; run real identity validation, evidence promotion, account ledger/timeline projection, thesis validation, scoring, policy-aware QA, staging, and atomic finalization. Persist the generated manifest under `evidence/manifests/native_handoff_<run_id>.json` and expose that exact path to final verification.
-- [ ] Step 3: Replay at least two different valid action traces plus early stop; assert final workbook rows, timeline/thesis lineage, manifest hashes, receipt settlement, ranking determinism, and no final publication after forced provider, verifier, QA, or workbook-validation failure.
-- [ ] Step 4: Run the existing E2E suite and add a separate Codex-native acceptance probe proving role discovery, JSON tool invocation, one native handoff, receipt settlement, and finalization without invoking `run_pipeline()` or automatically executing signals → portfolio → contacts.
+- [x] Step 1: Implement `examples/berlin_hausverwaltung.py` as a thin goal loader plus typed handoff/finalization example; it must not import or call `run_agent_harness`, `run_pipeline()`, a planner loop, or a fixed lane sequence.
+- [x] Step 2: Build `tests/test_harness_e2e.py` from recorded typed native-agent handoff fixtures and mocked provider responses; run real identity validation, evidence promotion, account ledger/timeline projection, thesis validation, scoring, policy-aware QA, staging, and atomic finalization. Persist the generated manifest under `evidence/manifests/native_handoff_<run_id>.json` and expose that exact path to final verification.
+- [x] Step 3: Replay at least two different valid action traces plus early stop; assert final workbook rows, timeline/thesis lineage, manifest hashes, receipt settlement, ranking determinism, and no final publication after forced provider, verifier, QA, or workbook-validation failure.
+- [x] Step 4: Run the existing E2E suite and add a separate Codex-native acceptance probe proving role discovery, JSON tool invocation, one native handoff, receipt settlement, and finalization without invoking `run_pipeline()` or automatically executing signals → portfolio → contacts.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_e2e tests.test_end_to_end_enrichment -v`
-- [ ] `py -3 -m unittest discover -s tests -v`
+- [x] `py -3 -m unittest tests.test_harness_e2e tests.test_end_to_end_enrichment -v`
+- [x] `py -3 -m unittest discover -s tests -v`
 - [ ] `$manifest = Get-ChildItem evidence/manifests/native_handoff_*.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1; $workbook = (Get-Content $manifest.FullName | ConvertFrom-Json).outputs.workbook.path; py -3 scripts/validate_workbook.py --workbook $workbook`
-- [ ] `git diff --check`
+- [x] `git diff --check`
 - Expected: the harness E2E passes through the real deterministic kernel; external providers are mocked; workbook and manifest are valid; all existing tests pass; failure paths leave no partially published final artifact.
 
 **Exit Criteria:**
@@ -636,7 +636,7 @@ The plan is ready for completion verification when:
   `https://chatgpt.com/c/6af1c9da-e3f8-83eb-ba0c-d4d2d63ccd8d`, response
   `C:\tmp\github-review-longdang193-lead-generation-57cfbcc-codex-native-direction-review-20261109\run-ObS9mB\response.md`, bounded result `completed`, visible response final/actionable and pinned to the reviewed SHA.
 - 2026-11-09: completed the follow-up sequential `GPT-5.6-Sol` High and `GPT-6` High review of commit `86ae2aa763734605b23005e60b00ed930138c7ad`; both remained `FAIL` and independently validated the legacy-runtime, durable-receipt, policy-aware-finalization, and native-acceptance gaps. The follow-up response artifacts remain under `C:\tmp\github-review-longdang193-lead-generation-86ae2aa-plan-verdict-review-20261109`.
-- 2026-11-09: patched this plan before execution to make those justified blockers executable acceptance conditions; no implementation code has been changed yet.
+- 2026-11-09: patched the plan before execution to make those justified blockers executable acceptance conditions, then implemented the deterministic kernel and native facade without adding a planner, scheduler, fixed lane sequence, or replacement runtime.
 - 2026-11-09: review cycle 1 of PR `#13` reproduced seven issues; patched the
   publication/recovery gate, promoted-envelope adapter, account scope checks,
   canonical fit scoring, strict delivery validation, terminal-state persistence,
@@ -647,8 +647,10 @@ The plan is ready for completion verification when:
   strict integer delivery counts, terminal publication status validation, and
   added targeted regression coverage. Two review cycles are complete; no third
   review was run.
-- 2026-11-09: saved this proposed plan only; no implementation code, runtime
-  artifacts, provider calls, or external publication were performed.
-
-
-
+- 2026-11-09: focused adapter proof passed (`19` tests), and the full repository
+  suite passed (`176` tests) on the reconciled workspace. The fixture E2E path
+  creates and validates real workbook artifacts; live external providers and
+  CRM writes were not exercised and remain deferred operational proof.
+- 2026-11-09: independent PR review cycle 1 at head `6cac7f03c9315343e8113f24d8043152467e63f0` found six source-supported lifecycle/finalization/corroboration gaps. Those gaps were patched with regression tests; the post-fix focused suite passed `41` tests and the full suite passed `181` tests. Review cycle 2 is pending on the new head.
+- 2026-11-09: architecture plan reconciled to `completed`; branch finishing,
+  push, PR review, and merge remain separate Git operations.

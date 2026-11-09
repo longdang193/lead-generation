@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import os
@@ -8,6 +9,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Mapping
+
+from openpyxl import load_workbook
 
 
 FULL_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -149,6 +152,17 @@ def _marker_paths(root: Path, marker: Mapping[str, object]) -> tuple[Path, Path]
     return marker_path_value("staging_path"), marker_path_value("final_path")
 
 
+def _bind_workbook_output(manifest: dict[str, object], root: Path, workbook: Path, sha256: str) -> dict[str, object]:
+    outputs = manifest.get("outputs")
+    bound_outputs = dict(outputs) if isinstance(outputs, dict) else {}
+    bound_outputs["workbook"] = {
+        "path": workbook.resolve().relative_to(root.resolve()).as_posix(),
+        "sha256": sha256,
+    }
+    manifest["outputs"] = bound_outputs
+    return manifest
+
+
 def _publication_status_errors(status: str, manifest: Mapping[str, object]) -> list[str]:
     errors: list[str] = []
     if status not in {"complete", "completed", "partial"}:
@@ -191,7 +205,7 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
     marker_head_sha = str(marker.get("head_sha") or "")
     if marker_head_sha and marker_head_sha != str(manifest.get("head_sha") or ""):
         raise ValueError("publication recovery marker head_sha mismatch")
-    revision_errors = validate_manifest_revision(root, manifest)
+    revision_errors = validate_manifest_revision(root, manifest, require_current=False)
     if revision_errors:
         raise ValueError("publication recovery revision validation failed: " + "; ".join(revision_errors))
     staging, final = _marker_paths(root, marker)
@@ -219,9 +233,10 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
     status_errors = _publication_status_errors(status, candidate)
     if status_errors:
         raise ValueError("publication status validation failed: " + "; ".join(status_errors))
-    allowed, errors = finalization_eligibility(candidate, delivery_policy)
-    if not allowed:
-        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
+    candidate = _bind_workbook_output(candidate, root, staging if staging.exists() else final, expected)
+    proof = reconstruct_finalization_readiness(root, manifest_path, delivery_policy, overlay=candidate)
+    if not proof["ready"]:
+        raise ValueError("publication finalization admission failed: " + "; ".join(proof["errors"]))
     if staging.exists():
         if file_sha256(staging) != expected:
             raise ValueError("publication recovery found a mismatched staging output")
@@ -238,6 +253,7 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
         registries=registries,
         status=status,
         barriers=candidate_barriers,
+        require_current_revision=False,
     )
     marker_path.unlink()
     return
@@ -293,9 +309,10 @@ def publish_staged_output(
     status_errors = _publication_status_errors(status, candidate)
     if status_errors:
         raise ValueError("publication status validation failed: " + "; ".join(status_errors))
-    allowed, errors = finalization_eligibility(candidate, policy)
-    if not allowed:
-        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
+    candidate = _bind_workbook_output(candidate, root, staging, file_sha256(staging))
+    proof = reconstruct_finalization_readiness(root, manifest_path, policy, overlay=candidate)
+    if not proof["ready"]:
+        raise ValueError("publication finalization admission failed: " + "; ".join(proof["errors"]))
     _validate_publication_artifact(root, manifest, staging, final, file_sha256(staging))
     marker_path = publication_marker_path(root, run_id)
     atomic_write(marker_path, {
@@ -312,6 +329,248 @@ def publish_staged_output(
     _complete_publication(root, manifest_path, marker_path, load(marker_path))
     return final
 
+
+def _validate_finalization_artifacts(
+    root: Path,
+    manifest: Mapping[str, object],
+    outputs: Mapping[str, object],
+    artifacts: Mapping[str, Path],
+    errors: list[str],
+) -> None:
+    """Validate semantic relationships between production artifacts before publish."""
+
+    run_id = str(manifest.get("run_id") or "")
+    accepted = {str(value) for value in manifest.get("accepted_company_ids", []) if str(value)}
+
+    def json_records(path: Path) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                errors.append(f"verified evidence is not valid JSON at line {line_number}")
+                continue
+            if not isinstance(value, dict):
+                errors.append(f"verified evidence record at line {line_number} is not an object")
+                continue
+            records.append(value)
+        return records
+
+    def csv_rows(path: Path, label: str) -> list[dict[str, str]]:
+        try:
+            with path.open(encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                rows = list(reader)
+                fields = reader.fieldnames or []
+        except (OSError, csv.Error) as exc:
+            errors.append(f"{label} is not readable CSV: {exc}")
+            return []
+        if "company_id" not in fields:
+            errors.append(f"{label} is missing a company_id column")
+        return rows
+
+    evidence_ids: set[str] = set()
+    evidence_path = artifacts.get("verified_evidence")
+    if evidence_path:
+        for record in json_records(evidence_path):
+            company_id = str(record.get("company_id") or "")
+            if not company_id or (accepted and company_id not in accepted):
+                errors.append("verified evidence contains a company outside the admitted run scope")
+            if not record.get("source_url") or not record.get("evidence_excerpt"):
+                errors.append("verified evidence contains an incomplete claim")
+            research_run_id = str(record.get("research_run_id") or "")
+            if not research_run_id.startswith(f"{run_id}:"):
+                errors.append("verified evidence is not bound to the admitted run")
+            if company_id:
+                evidence_ids.add(company_id)
+
+    scores_ids: set[str] = set()
+    scores_path = artifacts.get("scores")
+    if scores_path:
+        for row in csv_rows(scores_path, "projection scores"):
+            company_id = str(row.get("company_id") or "")
+            if not company_id:
+                errors.append("projection scores contain a row without company_id")
+                continue
+            scores_ids.add(company_id)
+            if accepted and company_id not in accepted:
+                errors.append("projection scores contain a company outside the admitted run scope")
+
+    priority_ids: set[str] = set()
+    priority_path = artifacts.get("priority")
+    if priority_path:
+        for row in csv_rows(priority_path, "ranked leads"):
+            company_id = str(row.get("company_id") or "")
+            if not company_id:
+                errors.append("ranked leads contain a row without company_id")
+                continue
+            priority_ids.add(company_id)
+            if company_id not in scores_ids:
+                errors.append("ranked leads contain a company absent from projection scores")
+            if accepted and company_id not in accepted:
+                errors.append("ranked leads contain a company outside the admitted run scope")
+
+    if evidence_ids and not evidence_ids.issubset(scores_ids):
+        errors.append("projection scores do not cover every verified-evidence company")
+
+    qa_report = artifacts.get("qa_report")
+    if qa_report:
+        report = qa_report.read_text(encoding="utf-8")
+        if not re.search(r"(?m)^- Errors: 0\s*$", report):
+            errors.append("QA report is not a zero-error report")
+    qa_sample = artifacts.get("qa_sample")
+    if qa_sample:
+        try:
+            sample = json.loads(qa_sample.read_text(encoding="utf-8"))
+            if not isinstance(sample, list):
+                errors.append("QA sample is not a JSON list")
+        except (OSError, json.JSONDecodeError):
+            errors.append("QA sample is not valid JSON")
+
+    workbook_record = outputs.get("workbook")
+    if isinstance(workbook_record, dict):
+        workbook_path = Path(str(workbook_record.get("path") or ""))
+        workbook_path = workbook_path if workbook_path.is_absolute() else root / workbook_path
+        workbook = None
+        try:
+            workbook = load_workbook(workbook_path.resolve(), read_only=True, data_only=True)
+            expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
+            if workbook.sheetnames != expected_sheets:
+                errors.append("workbook tabs do not match the native export contract")
+
+            def sheet_ids(name: str) -> set[str]:
+                if name not in workbook.sheetnames:
+                    return set()
+                rows = list(workbook[name].values)
+                if not rows or not rows[0]:
+                    return set()
+                headers = [str(value or "") for value in rows[0]]
+                if "company_id" not in headers:
+                    return set()
+                index = headers.index("company_id")
+                return {str(row[index]) for row in rows[1:] if len(row) > index and row[index] not in (None, "", "No records")}
+
+            if sheet_ids("02_Qualification") != scores_ids:
+                errors.append("workbook qualification rows do not match projection scores")
+            if sheet_ids("03_Priority_Leads") != priority_ids:
+                errors.append("workbook priority rows do not match ranked leads")
+        except Exception as exc:
+            errors.append(f"workbook semantic validation failed: {exc}")
+        finally:
+            if workbook is not None:
+                workbook.close()
+
+
+def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery_policy: str, *, overlay: Mapping[str, object] | None = None) -> dict[str, object]:
+    """Reconstruct finalization prerequisites from durable evidence, not flags alone."""
+
+    manifest = load(manifest_path)
+    existing_barriers = manifest.get("barriers")
+    if overlay:
+        manifest = {**manifest, **overlay}
+        if isinstance(overlay.get("barriers"), Mapping):
+            manifest["barriers"] = {
+                **(existing_barriers if isinstance(existing_barriers, Mapping) else {}),
+                **overlay["barriers"],
+            }
+    errors: list[str] = []
+    run_id = str(manifest.get("run_id") or "")
+    lifecycle: dict[str, object] = {}
+    if not run_id:
+        errors.append("manifest run_id is missing")
+    elif str(manifest.get("execution_mode") or "production") == "fixture":
+        lifecycle = {"action_count": 0, "actions": [], "budget_reserved": 0, "budget_settled": 0, "coverage": {}, "fixture_replay": True}
+    else:
+        from action_lifecycle import replay_lifecycle
+        try:
+            lifecycle = replay_lifecycle(root, run_id)
+        except (OSError, ValueError) as exc:
+            errors.append(f"lifecycle replay failed: {exc}")
+        if not lifecycle.get("action_count"):
+            errors.append("finalization requires durable action lifecycle evidence")
+        else:
+            unsettled = [item for item in lifecycle.get("actions", []) if item.get("settled") is not True]
+            if unsettled:
+                errors.append("finalization requires all admitted actions to settle")
+    allowed, policy_errors = finalization_eligibility(manifest, delivery_policy)
+    if not allowed:
+        errors.extend(policy_errors)
+    outputs = manifest.get("outputs")
+    if str(manifest.get("execution_mode") or "production") != "fixture":
+        required_outputs = {
+            "verified_evidence": "verified evidence",
+            "scores": "projection scores",
+            "priority": "ranked leads",
+            "qa_report": "QA report",
+            "qa_sample": "QA sample",
+        }
+        output_bucket = outputs if isinstance(outputs, dict) else {}
+        validated_artifacts: dict[str, Path] = {}
+        for key, label in required_outputs.items():
+            artifact = output_bucket.get(key)
+            if not isinstance(artifact, dict):
+                errors.append(f"finalization requires a recorded {label} artifact")
+                continue
+            raw_path = str(artifact.get("path") or "")
+            raw_hash = str(artifact.get("sha256") or "")
+            path = Path(raw_path)
+            path = path if path.is_absolute() else root / path
+            try:
+                path = path.resolve()
+                path.relative_to(root.resolve())
+            except ValueError:
+                errors.append(f"{label} artifact path escapes repository root")
+                continue
+            if not path.exists() or not path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", raw_hash) or file_sha256(path) != raw_hash:
+                errors.append(f"{label} artifact hash is invalid or stale")
+            else:
+                validated_artifacts[key] = path
+        _validate_finalization_artifacts(root, manifest, output_bucket, validated_artifacts, errors)
+    workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
+    if not isinstance(workbook, dict):
+        errors.append("finalization requires a recorded workbook artifact")
+    else:
+        recorded_path = Path(str(workbook.get("path") or ""))
+        recorded_path = recorded_path if recorded_path.is_absolute() else root / recorded_path
+        recorded_path = recorded_path.resolve()
+        recorded_hash = str(workbook.get("sha256") or "")
+        if not recorded_path.exists():
+            errors.append("recorded workbook artifact is missing")
+        elif not re.fullmatch(r"[0-9a-f]{64}", recorded_hash) or file_sha256(recorded_path) != recorded_hash:
+            errors.append("recorded workbook artifact hash is invalid or stale")
+    return {
+        "ready": not errors,
+        "errors": errors,
+        "run_id": run_id,
+        "lifecycle": lifecycle,
+        "manifest": manifest,
+    }
+
+
+def finalize_run(
+    root: Path,
+    manifest_path: Path,
+    staging: Path,
+    final: Path,
+    *,
+    status: str,
+    delivery_policy: str | None = None,
+    registries: Mapping[str, object] | None = None,
+    barriers: Mapping[str, object] | None = None,
+) -> Path:
+    manifest = load(manifest_path)
+    campaign = manifest.get("campaign")
+    campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
+    policy = delivery_policy or str(manifest.get("delivery_policy") or campaign_policy or "strict")
+    pending_manifest = dict(registries or {})
+    if barriers:
+        pending_manifest["barriers"] = dict(barriers)
+    proof = reconstruct_finalization_readiness(root, manifest_path, policy, overlay=pending_manifest)
+    if not proof["ready"]:
+        raise ValueError("finalization readiness proof failed: " + "; ".join(str(item) for item in proof["errors"]))
+    return publish_staged_output(root, manifest_path, staging, final, status=status, delivery_policy=policy, registries=registries, barriers=barriers)
 
 def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: str) -> tuple[bool, list[str]]:
     """Check finalization policy without inferring facts from agent claims."""
@@ -388,12 +647,13 @@ def update(
     registries: Mapping[str, object] | None = None,
     status: str | None = None,
     barriers: Mapping[str, object] | None = None,
+    require_current_revision: bool = True,
 ) -> dict[str, object]:
     manifest = load(path)
     if not manifest.get("run_id") or not manifest.get("head_sha"):
         raise ValueError("manifest identity is incomplete")
     manifest.setdefault("git_revision", manifest["head_sha"])
-    revision_errors = validate_manifest_revision(root, manifest)
+    revision_errors = validate_manifest_revision(root, manifest, require_current=require_current_revision)
     if revision_errors:
         raise ValueError("manifest revision validation failed: " + "; ".join(revision_errors))
     for section, values in (

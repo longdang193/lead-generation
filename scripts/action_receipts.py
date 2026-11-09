@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
+from contextlib import contextmanager
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Iterable
@@ -12,6 +14,32 @@ from typed_contracts import ActionReceipt
 
 
 _LOCK = threading.RLock()
+
+
+@contextmanager
+def _process_lock(path: Path):
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as handle:
+        if os.name == "nt":
+            import msvcrt
+            handle.seek(0)
+            handle.write(b"0")
+            handle.flush()
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def receipt_path(root: Path, run_id: str) -> Path:
@@ -52,7 +80,7 @@ def append_receipt(root: Path, receipt: ActionReceipt | dict[str, Any]) -> Actio
     path = receipt_path(root, validated.run_id)
     incoming = _record(validated)
     key = (validated.action_id, validated.attempt_id)
-    with _LOCK:
+    with _LOCK, _process_lock(path):
         existing = _read(path)
         for record in existing:
             if (record.get("action_id"), record.get("attempt_id")) != key:

@@ -79,5 +79,34 @@ class AccountIntelligenceTests(unittest.TestCase):
         self.assertEqual(calculate_structural_fit([claim("c1", status="Rejected", claim_type="service_fit", value="Confirmed")]), 0.0)
 
 
+    def test_duplicate_event_claims_preserve_lineage_without_extra_corroboration(self):
+        first = claim("c1", "C1")
+        second = {**claim("c2", "C1"), "source_url": "https://syndicated.example/copy"}
+        rows = build_account_timeline([first, second])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["claim_ids"], ["c1", "c2"])
+        self.assertEqual(rows[0]["corroboration_count"], 1)
+        self.assertEqual(rows[0]["status"], "Verified")
+
+    def test_same_source_family_does_not_gain_weight_from_distinct_excerpts(self):
+        first = claim("c1", "C1")
+        second = {**claim("c2", "C1"), "evidence_excerpt": "A separate excerpt from the same source"}
+        rows = build_account_timeline([first, second])
+        self.assertEqual(rows[0]["corroboration_count"], 1)
+
+    def test_unsupported_hypothesis_is_marked_speculative(self):
+        thesis = validate_account_thesis({
+            "company_id": "C1", "structural_fit": 0, "confidence": "medium", "recommended_action": "research",
+            "hypotheses": [{"company_id": "C1", "hypothesis_type": "need", "statement": "Likely need", "confidence": "medium"}],
+        }, [])
+        self.assertTrue(thesis.hypotheses[0].speculative)
+
+    def test_projection_rejects_agent_structural_fit_mismatch(self):
+        from account_intelligence import project_account_intelligence
+        with self.assertRaisesRegex(ValueError, "deterministic fact score"):
+            project_account_intelligence([claim("c1", claim_type="service_fit", value="Confirmed")], {
+                "company_id": "C1", "structural_fit": 99, "confidence": "medium", "recommended_action": "research",
+            })
+
 if __name__ == "__main__":
     unittest.main()

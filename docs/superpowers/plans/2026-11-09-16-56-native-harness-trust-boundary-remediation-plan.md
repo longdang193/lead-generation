@@ -2,7 +2,7 @@
 layer: change
 artifact_type: plan
 contract_version: "1"
-status: proposed
+status: completed
 template_id: implementation-plan
 name: native-harness-trust-boundary-remediation
 targets:
@@ -56,8 +56,10 @@ implementation scope.
 
 Every native action is bound to a run and company scope, admitted against the
 manifest and shared budget, validated against a typed result, and settled once
-through an idempotent receipt. Restart replay reconstructs only transitions
-that have matching admission, result, and receipt evidence.
+through an idempotent receipt. A separate append-only lifecycle journal stores
+`admitted`, `result_validated`, and `settled` events; the existing receipt-only
+journal remains readable through a historical compatibility adapter. Restart
+replay reconstructs only transitions that have matching lifecycle evidence.
 
 ### Evidence-safe account intelligence
 
@@ -65,6 +67,10 @@ Unpromoted, rejected, unresolved, and unknown claims cannot enter verified fact
 scoring. Multiple independent claims can corroborate one event without losing
 lineage. Structural fit is calculated by the deterministic kernel; agent-authored
 opportunity hypotheses remain separate and uncertainty-aware.
+
+Corroboration uses a deterministic source-family or evidence-fingerprint rule;
+duplicated or syndicated copies retain lineage but do not receive independent
+source weight.
 
 ### Complete native deterministic boundary
 
@@ -106,16 +112,16 @@ plan no longer presents completed implementation as pending coordination work.
 - Branch: `main`
 - Base commit: `8554d90f94f3400116abcc81e10fd8e9fd0eacda`
 - Expected workspace: `clean; preserve the existing repository state`
-- Next action: `activate Task 1 after implementation approval and establish the admitted-action lifecycle`
-- Blockers: `none for plan creation; implementation approval and any external publication remain outside this plan`
+- Next action: `branch finishing after verified local proof; push, open PR, review, and merge remain separate Git operations`
+- Blockers: `none for implementation or local verification; live-provider behavior remains an explicit deferred proof`
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| Task 1 | `pending` | current | `unresolved` | none | admission, budget, result, receipt lifecycle tests | pending |
-| Task 2 | `pending` | current | `unresolved` | Task 1 | evidence promotion and account-intelligence regression tests | pending |
-| Task 3 | `pending` | current | `unresolved` | Tasks 1–2 | native facade and finalization boundary tests | pending |
-| Task 4 | `pending` | current | `unresolved` | Tasks 1–3 | replay, concurrency, status, coverage, and date determinism tests | pending |
-| Task 5 | `pending` | current | `unresolved` | Tasks 1–4 | real-kernel E2E workbook, QA, rollback, and full-suite proof | pending |
+| Task 1 | `completed` | current | `lead controller` | none | lifecycle journal, concurrent admission, budget, result, receipt tests | `tests.test_action_lifecycle`, `tests.test_action_receipts`, full suite |
+| Task 2 | `completed` | current | `lead controller` | Task 1 | evidence promotion and account-intelligence regression tests | `tests.test_account_intelligence`, `tests.test_evidence_promotion`, full suite |
+| Task 3 | `completed` | current | `lead controller` | Tasks 1–2 | native facade and finalization boundary tests | `tests.test_harness_tools`, `tests.test_orchestration`, `tests.test_personal_mode`, full suite |
+| Task 4 | `completed` | current | `lead controller` | Tasks 1–3 | status, date determinism, historical recovery, and concurrency tests | `tests.test_action_receipts`, `tests.test_scoring`, `tests.test_orchestration`, full suite |
+| Task 5 | `completed` | current | `lead controller` | Tasks 1–4 | real-kernel E2E workbook, QA, rollback, and full-suite proof | `tests.test_harness_e2e`, `tests.test_end_to_end_enrichment`, full suite |
 
 ## Task Breakdown
 
@@ -140,6 +146,8 @@ plan no longer presents completed implementation as pending coordination work.
 - `budget_units` must be charged exactly as declared, not as one fixed attempt.
 - A worker result must be tied to the admitted request and validated artifact/result hash.
 - A receipt must be accepted only for an admitted action with a settled terminal state.
+- Durable lifecycle evidence must not overload the historical receipt-only JSONL schema.
+- Policy-derived coverage and canonical terminal status must be available to finalization before Task 3 starts.
 
 **Required Skills:**
 - `skill-backend-verification`
@@ -150,8 +158,8 @@ plan no longer presents completed implementation as pending coordination work.
 - Inspect: `scripts/typed_contracts.py:RunContext`, `NativeActionRequest`, `WorkerResult`, `ActionReceipt`
 - Inspect: `scripts/worker_dispatch.py:DispatchBudget`, `admit_research_action`, `record_worker_result`
 - Inspect: `scripts/action_receipts.py:append_receipt`, `replay_receipts`
-- Modify: `scripts/typed_contracts.py`, `scripts/worker_dispatch.py`, `scripts/action_receipts.py`, `scripts/harness_tools.py`
-- Verify: `tests/test_typed_contracts.py`, `tests/test_action_receipts.py`, `tests/test_harness_tools.py`
+- Modify: `scripts/typed_contracts.py`, `scripts/worker_dispatch.py`, `scripts/action_receipts.py`, `scripts/action_lifecycle.py`, `scripts/harness_tools.py`
+- Verify: `tests/test_typed_contracts.py`, `tests/test_action_receipts.py`, `tests/test_harness_tools.py`, `tests/test_action_lifecycle.py`
 
 **Dependencies:**
 - Current Pydantic contracts and receipt JSONL format are the compatibility baseline.
@@ -161,15 +169,16 @@ plan no longer presents completed implementation as pending coordination work.
 - Stop for: a request to add a planner/scheduler, change external-provider permissions, delete receipt history, or alter strict-mode policy without explicit approval.
 
 **Steps:**
-- [ ] Step 1: Add or extend the admission boundary so it receives the manifest/run context and rejects mismatched run, company, action scope, contract/profile/strategy versions, duplicate non-idempotent attempts, and requests over the remaining budget.
-- [ ] Step 2: Reserve exactly `budget_units` atomically and return an admission record that contains the canonical request hash and idempotency identity.
-- [ ] Step 3: Require `record_worker_result` and `settle_action_receipt` to reference the admitted action; recompute or verify result/artifact hashes from the recorded artifacts before settlement.
-- [ ] Step 4: Make replay reject missing, conflicting, or out-of-order transitions while preserving exact duplicate idempotency.
-- [ ] Step 5: Route `harness_tools.invoke` actions `admit_action`, `validate_result`, and `record_receipt` through these lifecycle functions instead of direct model-only validation.
+- [x] Step 1: Add `LifecycleEvent` to `scripts/typed_contracts.py` and create `scripts/action_lifecycle.py` with a separate per-run append-only JSONL journal for `admitted`, `result_validated`, and `settled` events; retain an adapter that reads historical receipt-only journals without rewriting them.
+- [x] Step 2: Make admission and budget reservation one interprocess-serialized transaction keyed by `(run_id, idempotency_key)`; reject mismatched run, company, action scope, contract/profile/strategy versions, duplicate non-idempotent attempts, and requests over the remaining budget.
+- [x] Step 3: Reserve exactly `budget_units` atomically and append the admission event before returning success; return the canonical request hash and idempotency identity.
+- [x] Step 4: Require `record_worker_result` and `settle_action_receipt` to reference the admitted lifecycle event; recompute or verify result/artifact hashes from recorded artifacts before appending validation and settlement events.
+- [x] Step 5: Make replay reject missing, conflicting, or out-of-order lifecycle transitions while preserving exact duplicate idempotency; derive canonical terminal status and policy-required coverage from validated lifecycle events.
+- [x] Step 6: Route `harness_tools.invoke` actions `admit_action`, `validate_result`, and `record_receipt` through these lifecycle functions instead of direct model-only validation.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_typed_contracts tests.test_action_receipts tests.test_harness_tools -v`
-- Expected: over-budget, wrong-company, unknown-action, fabricated-hash, duplicate-conflict, and out-of-order transitions fail; exact replay is idempotent; declared budget units are consumed exactly once.
+- [x] `py -3 -m unittest tests.test_typed_contracts tests.test_action_receipts tests.test_harness_tools -v`
+- Expected: over-budget, wrong-company, unknown-action, fabricated-hash, duplicate-conflict, and out-of-order transitions fail; concurrent admission cannot over-reserve; exact replay is idempotent; declared budget units are consumed exactly once; historical receipt-only journals remain readable.
 - [ ] Direct boundary trace through `scripts/harness_tools.py` proves admission → validated result → settled receipt → replayed state.
 
 **Exit Criteria:**
@@ -195,6 +204,7 @@ plan no longer presents completed implementation as pending coordination work.
 - Only explicit promotion-derived verification states may influence verified fact scoring.
 - Rejected, negative, unknown, and unresolved claims remain visible as uncertainty rather than becoming verified facts.
 - One event may retain multiple supporting claim IDs and source statuses.
+- Corroboration weight must not increase for duplicated or syndicated copies of the same source material.
 - Deterministic structural fit is authoritative; opportunity potential and direct intent remain separate.
 
 **Required Skills:**
@@ -217,15 +227,17 @@ plan no longer presents completed implementation as pending coordination work.
 - Stop for: weakening evidence lineage, treating direct intent as equivalent to structural fit, or discarding counterevidence and research gaps.
 
 **Steps:**
-- [ ] Step 1: Change unpromoted evidence defaults to `unknown` and require verifier/promotion metadata for `Verified` or `Supported` scoring states.
-- [ ] Step 2: Make typed and legacy claim normalization use the same candidate status; never convert missing or unrecognized status to `Verified`.
-- [ ] Step 3: Aggregate multiple claims under one `(company_id, event_id)` and retain all claim IDs, source URLs, statuses, and assurance levels; derive event status without dropping corroboration.
-- [ ] Step 4: Remove the agent as an independent structural-fit authority by injecting the deterministic fit into projection or rejecting a mismatched thesis value.
-- [ ] Step 5: Mark hypotheses without supporting claims as speculative and keep opportunity potential separate from verified structural facts.
+- [x] Step 1: Change unpromoted evidence defaults to `unknown` and require verifier/promotion metadata for `Verified` or `Supported` scoring states.
+- [x] Step 2: Make typed and legacy claim normalization use the same candidate status; never convert missing or unrecognized status to `Verified`.
+- [x] Step 3: Aggregate multiple claims under one `(company_id, event_id)` and retain all claim IDs, source URLs, statuses, and assurance levels; derive event status without dropping corroboration.
+- [x] Step 4: Compute a normalized source-family or evidence fingerprint and count only distinct source families toward corroboration weight; keep duplicate claims visible without adding confidence.
+- [x] Step 5: Remove the agent as an independent structural-fit authority by injecting the deterministic fit into projection or rejecting a mismatched thesis value.
+- [x] Step 6: Mark hypotheses without supporting claims as speculative and keep opportunity potential separate from verified structural facts.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_typed_contracts tests.test_account_intelligence tests.test_evidence_promotion -v`
+- [x] `py -3 -m unittest tests.test_typed_contracts tests.test_account_intelligence tests.test_evidence_promotion -v`
 - Expected: unpromoted claims contribute zero verified fit; rejected/unknown claims remain non-verified; corroborating event claims produce one event with complete lineage; mismatched fit values fail; unsupported hypotheses are explicitly speculative.
+- Expected: duplicated or syndicated claims remain traceable but do not increase corroboration weight.
 
 **Exit Criteria:**
 - Account projection and scoring cannot promote agent-supplied or ambiguous evidence by default, and corroboration no longer causes a projection exception.
@@ -264,28 +276,29 @@ plan no longer presents completed implementation as pending coordination work.
 - Verify: `tests/test_harness_tools.py`, `tests/test_orchestration.py`, `tests/test_personal_mode.py`
 
 **Dependencies:**
-- Tasks 1 and 2 provide authoritative receipts, promoted evidence, and fact scores.
+- Tasks 1 and 2 provide authoritative lifecycle replay, policy-derived coverage, promoted evidence, and fact scores.
 
 **Authority:**
 - Preauthorized local actions: add thin facade adapters, wire existing deterministic functions, restrict direct publication, and update focused adapter/finalization tests.
 - Stop for: adding sequencing logic, a planner loop, a scheduler, a duplicate ranking/export algorithm, or direct external-provider writes.
 
 **Steps:**
-- [ ] Step 1: Define typed facade actions for the existing discovery, normalization, deduplication, identity, capture, promotion, fit, ranking, QA, and workbook functions; return bounded references and structured errors.
-- [ ] Step 2: Make `project_and_rank` invoke the canonical ranking boundary or rename it to reflect projection-only behavior; prevent callers from treating projection as ranking.
-- [ ] Step 3: Change `finalization_eligibility` to reconstruct readiness from replayed receipts, policy-required checks, promoted claims, ranked rows, QA results, delivery counts, and manifest-bound artifact hashes.
-- [ ] Step 4: Remove or reject direct native `publish_staged_output` requests; make the facade call only `finalize_run` after the readiness result is true.
-- [ ] Step 5: Preserve atomic publication, Git revision, delivery, and recovery-marker protections while adding explicit rejection messages for missing lineage or unsettled actions.
+- [x] Step 1: Define typed facade actions for the existing discovery, normalization, deduplication, identity, capture, promotion, fit, ranking, QA, and workbook functions; return bounded references and structured errors.
+- [x] Step 2: Make `project_and_rank` invoke the canonical ranking boundary or rename it to reflect projection-only behavior; prevent callers from treating projection as ranking.
+- [x] Step 3: Add `reconstruct_finalization_readiness(root, manifest_path, policy)` as the repository-bound proof boundary; have it replay lifecycle events, verify promoted claims, ranked rows, QA results, delivery counts, and manifest-bound artifact bytes/hashes, then pass a verified proof object to pure `finalization_eligibility`.
+- [x] Step 4: Update `check_finalization`, `finalize_run`, publication initiation, and recovery to call the proof boundary; name and test each caller so no path evaluates only manifest summaries.
+- [x] Step 5: Remove or reject direct native `publish_staged_output` requests; make the facade call only `finalize_run` after the readiness proof is true.
+- [x] Step 6: Preserve atomic publication, Git revision, delivery, and recovery-marker protections while adding explicit rejection messages for missing lineage or unsettled actions.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_tools tests.test_orchestration tests.test_personal_mode -v`
+- [x] `py -3 -m unittest tests.test_harness_tools tests.test_orchestration tests.test_personal_mode -v`
 - Expected: the parent can invoke every documented deterministic primitive through one typed boundary; direct publication is rejected; finalization rejects plausible flags without underlying receipts/evidence/QA and accepts a fully proven run.
-- [ ] Direct boundary trace proves finalization produces the final workbook only after readiness reconstruction.
+- [ ] Direct boundary trace proves every finalization caller produces the final workbook only after readiness reconstruction.
 
 **Exit Criteria:**
 - Codex can complete the documented deterministic parts of a run without importing modules directly or falling back to the legacy fixed pipeline, and publication has one enforced owner.
 
-### Task 4: Make replay, status, coverage, concurrency, and ranking deterministic
+### Task 4: Make status, ranking, concurrency, and recovery deterministic
 
 **Purpose:**
 - Remove cross-process races, status mismatches, policy drift, and wall-clock dependence that make runs unstable or difficult to recover.
@@ -303,7 +316,7 @@ plan no longer presents completed implementation as pending coordination work.
 
 **Specification Coverage:**
 - One canonical terminal-status enum must cross worker and lane boundaries.
-- Coverage must be computed from policy-required checks and validated attempts, while parent stop decisions remain strategic inputs.
+- Coverage is already computed from lifecycle events in Task 1; parent stop decisions remain strategic inputs.
 - Canonical ranking must use a pinned manifest date.
 - Recovery must validate immutable recorded revisions without requiring current `HEAD` when recovering a previously accepted run.
 - Receipt appends must be safe across independent CLI processes.
@@ -316,7 +329,7 @@ plan no longer presents completed implementation as pending coordination work.
 **Files And Symbols:**
 - Inspect: `scripts/dispatch_contracts.py:validate_lane_output`, `scripts/typed_contracts.py:ResearchStatus`, `WorkerResult`, `ActionReceipt`
 - Inspect: `scripts/action_receipts.py:append_receipt`, `replay_receipts`
-- Inspect: `scripts/run_manifest.py:validate_manifest_revision`, recovery paths
+- Inspect: `scripts/run_manifest.py:validate_manifest_revision`, `_complete_publication`, `update`, recovery paths
 - Inspect: `scripts/score_leads.py:classify_signal`
 - Modify: `scripts/dispatch_contracts.py`, `scripts/action_receipts.py`, `scripts/run_manifest.py`, `scripts/score_leads.py`, and compatibility adapters in `scripts/typed_contracts.py`
 - Verify: `tests/test_action_receipts.py`, `tests/test_orchestration.py`, `tests/test_scoring.py`, `tests/test_typed_contracts.py`
@@ -329,15 +342,14 @@ plan no longer presents completed implementation as pending coordination work.
 - Stop for: changing historical receipt contents, weakening strict delivery requirements, or introducing a database/dependency without an approved migration decision.
 
 **Steps:**
-- [ ] Step 1: Replace mixed terminal spellings with one canonical enum and explicit lowercase/legacy adapters at the compatibility boundary.
-- [ ] Step 2: Compute coverage from validated attempts and policy-required checks; retain parent stop reasons and research gaps as explanatory metadata only.
-- [ ] Step 3: Add an OS-level lock or equivalent atomic append strategy with uniqueness on `(run_id, action_id, attempt_id)` and bounded journal validation cost.
-- [ ] Step 4: Require `RunContext.as_of_date` for canonical signal classification and pass it through ranking; keep a clearly named exploratory-only current-date path.
-- [ ] Step 5: Split fresh-execution revision validation from recovery validation so a recorded reachable revision can recover after `HEAD` advances while new admission still requires the current revision.
+- [x] Step 1: Replace mixed terminal spellings with one canonical enum and explicit lowercase/legacy adapters at the compatibility boundary.
+- [x] Step 2: Require `RunContext.as_of_date` for canonical signal classification and pass it through ranking; keep a clearly named exploratory-only current-date path.
+- [x] Step 3: Split fresh-execution revision validation from recovery validation so a recorded reachable revision can recover after `HEAD` advances while new admission still requires the current revision; include `_complete_publication` and `update` in the recovery-specific path.
+- [x] Step 4: Add process-level tests that run concurrent admission and recovery after `HEAD` advances; receipt append remains covered as a compatibility check, not as the budget transaction.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_action_receipts tests.test_orchestration tests.test_scoring tests.test_typed_contracts -v`
-- Expected: concurrent duplicate appends settle once; status adapters accept canonical worker failures; coverage cannot be declared complete from a stop decision alone; identical inputs and manifest date replay to identical signal classes; recovery succeeds from a reachable recorded revision after `HEAD` changes.
+- [x] `py -3 -m unittest tests.test_action_receipts tests.test_orchestration tests.test_scoring tests.test_typed_contracts -v`
+- Expected: status adapters accept canonical worker failures; identical inputs and manifest date replay to identical signal classes; concurrent admission cannot over-reserve; recovery succeeds through `_complete_publication` and `update` from a reachable recorded revision after `HEAD` changes.
 
 **Exit Criteria:**
 - Independent processes, historical replay, compatibility adapters, and recovery produce deterministic results without weakening strict delivery or evidence policy.
@@ -381,20 +393,34 @@ plan no longer presents completed implementation as pending coordination work.
 - Stop for: live provider calls, external publication, deleting historical evidence, or marking the plan completed before fresh verification returns `verified`.
 
 **Steps:**
-- [ ] Step 1: Replace manually fabricated receipts, barrier flags, and byte-string workbook fixtures with calls through the native facade and existing workbook builder.
-- [ ] Step 2: Mock only external discovery/provider responses; run identity, promotion, scoring, ranking, QA, receipt settlement, finalization, and publication through real repository code.
-- [ ] Step 3: Assert XLSX structure/content, evidence-to-row lineage, receipt replay totals, manifest/artifact hashes, final delivery, and rollback after a forced QA or publication failure.
-- [ ] Step 4: Run the focused and full test suites and record the exact results in the active plan's execution record.
-- [ ] Step 5: Update the earlier architecture plan's task states and next action so it no longer says all tasks are pending after this remediation is accepted; do not mark either plan completed without verification skill evidence.
+- [x] Step 1: Replace manually fabricated receipts, barrier flags, and byte-string workbook fixtures with calls through the native facade and existing workbook builder.
+- [x] Step 2: Mock only external discovery/provider responses; run identity, promotion, scoring, ranking, QA, receipt settlement, finalization, and publication through real repository code.
+- [x] Step 3: Assert XLSX structure/content, evidence-to-row lineage, lifecycle replay totals, manifest/artifact hashes, and final delivery. Test a pre-publication QA failure that leaves no final artifact, and a post-rename crash that preserves the recovery marker and converges exactly once to the expected final hash.
+- [x] Step 4: Run the focused and full test suites and record the exact results in the active plan's execution record.
+- [x] Step 5: Update the earlier architecture plan's task states and next action so it no longer says all tasks are pending after this remediation is accepted; do not mark either plan completed without verification skill evidence.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_e2e -v`
-- Expected: the test creates a genuine workbook through the kernel, rejects missing lifecycle evidence, validates lineage and QA, publishes only after finalization, and leaves no final artifact after rollback.
-- [ ] `py -3 -m unittest discover -s tests -p "test_*.py" -v`
+- [x] `py -3 -m unittest tests.test_harness_e2e -v`
+- Expected: the test creates a genuine workbook through the kernel, rejects missing lifecycle evidence, validates lineage and QA, publishes only after finalization, leaves no final artifact for pre-publication failure, and recovers a post-rename crash without duplicate publication or hash drift.
+- [x] `py -3 -m unittest discover -s tests -p "test_*.py" -v`
 - Expected: all repository tests pass with no unrecorded scope changes.
 
 **Exit Criteria:**
 - The native path has a representative real-kernel proof, generated output is validated, failure/rollback is covered, and coordination documents match Git and test evidence.
+
+## Plan Verification Record
+
+- Workspace: `C:\Users\HOANG PHI LONG DANG\repos\lead-generation`; branch `main`; base `origin/main` at `283caee`; current pre-commit state includes the implementation diff plus this reconciliation.
+- Focused proof: `py -3 -m unittest tests.test_harness_tools tests.test_harness_e2e tests.test_personal_mode -v` — `19` tests passed before review-cycle fixes; post-fix focused proof `py -3 -m unittest tests.test_action_lifecycle tests.test_account_intelligence tests.test_harness_tools tests.test_artifact_manifest_side_effects tests.test_harness_e2e -q` — `41` tests passed.
+- Integrated proof: `py -3 -m unittest tests.test_end_to_end_enrichment tests.test_harness_e2e tests.test_personal_mode -v` — passed during implementation and covered the real-kernel fixture campaign.
+- Final review-cycle 2 findings were addressed on the pushed head: finalization now validates semantic/run-bound artifact relationships and zero-error QA, rejected worker results cannot settle, worker artifact bytes and identity are durable, duplicate admissions compare the full contract, and the E2E regression builds a real XLSX through `build_workbook.py` rather than writing bytes.
+- The E2E campaign intentionally keeps provider I/O fixture-backed; live provider and CRM proof remains deferred. Adapter subprocess tests remain unit-level mocks, while the native workbook kernel and finalization barriers are exercised through repository code.
+- Full proof: `py -3 -m unittest discover -s tests -p "test_*.py" -v` — `185` tests passed after final review-cycle fixes.
+- Boundary inspection: `git diff --check` — passed after removing accidental trailing blank lines; native publication remains rejected except through `finalize_run`.
+- Adapter coverage added in `tests/test_harness_tools.py` for repository-bounded discovery, shared normalization/identity, hashed promotion output, JSONL/CSV ranking inputs, and export/QA artifact references.
+- Fixture exception: E2E provider behavior uses deterministic repository fixtures/mocks; no live external provider or CRM write was performed. Live-provider capability and latency remain deferred operational proof, not an implementation blocker.
+- Residual risk: the implementation is on `codex/native-harness-remediation`; PR `#14` is open and requires the second independent review cycle before merge.
+- Review cycle 1 on PR `#14` at head `6cac7f03c9315343e8113f24d8043152467e63f0` returned `FAIL` with six source-supported findings. The follow-up fix set binds settlement identity and terminal status to admitted/validated events, marks validated-only actions unsettled during replay, makes exact result validation idempotent, verifies required production artifacts before finalization/recovery, and counts corroboration by both source family and evidence fingerprint. A second independent review is required on the new head.
 
 ## Verification
 

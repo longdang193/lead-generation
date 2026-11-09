@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+
+from openpyxl import load_workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -20,6 +23,7 @@ def _claim(claim_id: str, company_id: str, claim_type: str, value: object) -> di
         "claim_id": claim_id, "company_id": company_id, "claim_type": claim_type, "value": value,
         "source_url": "https://example.com/account", "evidence_excerpt": "Page-local evidence",
         "source_kind": "official_site", "confidence": "high", "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "candidate_status": "Verified",
         "assurance_level": "source",
     }
 
@@ -28,8 +32,9 @@ class HarnessE2ETests(unittest.TestCase):
     def _trace(self, root: Path, run_id: str, *, strict: bool, stop_early: bool = False) -> dict[str, object]:
         manifest_path = root / "evidence" / "manifests" / f"native_handoff_{run_id}.json"
         manifest = {
-            "record_type": "RunManifest", "run_id": run_id, "head_sha": "0" * 40, "git_revision": "0" * 40,
+            "record_type": "RunManifest", "run_id": run_id, "execution_mode": "fixture", "head_sha": "0" * 40, "git_revision": "0" * 40,
             "delivery_policy": "strict" if strict else "personal",
+            "budget_limit": 1,
             "barriers": {"research": not stop_early, "verifier": not stop_early, "verified_evidence": not stop_early, "projection": not stop_early, "ranking": not stop_early, "readiness": not stop_early},
             "coverage": {"status": "complete" if strict and not stop_early else "partial"},
             "delivery": {
@@ -45,29 +50,49 @@ class HarnessE2ETests(unittest.TestCase):
         goal = {"goal_id": run_id, "objective": "find Berlin property-management leads", "delivery_policy": "strict" if strict else "personal"}
         invoke({"action": "validate_goal", "payload": goal}, root)
         request_hash = "a" * 64
-        result_hash = "b" * 64
+        result_payload = {"claims": 1}
+        result_hash = hashlib.sha256(json.dumps(result_payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         action = {
             "run_id": run_id, "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1", "action_type": "signals",
             "scope": "signals:C1", "contract_version": "1", "strategy_version": "1", "profile_version": "signal-v1",
             "idempotency_key": f"{run_id}/action-1/attempt-1", "request_hash": request_hash, "budget_units": 1,
         }
+        action["manifest_path"] = manifest_path.relative_to(root).as_posix()
         invoke({"action": "admit_action", "payload": action}, root)
-        invoke({"action": "validate_result", "payload": {"run_id": run_id, "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1", "status": "Partial" if stop_early else "Completed", "result_hash": result_hash, "result": {"claims": 1}}}, root)
-        invoke({"action": "record_receipt", "payload": {key: value for key, value in {**action, "result_hash": result_hash, "terminal_status": "Unavailable" if stop_early else "Completed", "budget_requested": 1, "budget_settled": 1, "created_at": datetime.now(timezone.utc).isoformat(), "coverage_delta": {"signals": 0 if stop_early else 1}}.items() if key != "budget_units"}}, root)
+        invoke({"action": "validate_result", "payload": {"run_id": run_id, "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1", "status": "Partial" if stop_early else "Completed", "result_hash": result_hash, "result": result_payload}}, root)
+        invoke({"action": "record_receipt", "payload": {key: value for key, value in {**action, "result_hash": result_hash, "terminal_status": "Partial" if stop_early else "Completed", "budget_requested": 1, "budget_settled": 1, "created_at": datetime.now(timezone.utc).isoformat(), "coverage_delta": {"signals": 0 if stop_early else 1}}.items() if key not in {"budget_units", "manifest_path"}}}, root)
         if not stop_early:
             claims = [_claim("c1", "C1", "service_fit", "Confirmed"), _claim("c2", "C1", "event", {"event_id": "E1", "event_type": "tender", "event_date": "2026-11-01"})]
-            thesis = {"company_id": "C1", "structural_fit": 80, "confidence": "high", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}
+            thesis = {"company_id": "C1", "structural_fit": 35, "confidence": "high", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}
             projection = project_account_intelligence(claims, thesis)
             self.assertEqual(projection["timeline"][0]["event_identity"], "C1:E1")
+            inputs = root / "inputs"
+            inputs.mkdir(parents=True, exist_ok=True)
+            (inputs / "companies.csv").write_text("company_id,company_name\nC1,Example GmbH\n", encoding="utf-8")
+            score_row = "company_id,company_name,source_url,retrieved_at,service_fit,residential_weg,berlin_relevance,structural_lead_fit,evidence_coverage,buying_signal,signal_search_status,actionability,sales_priority,lead_tier,evidence_urls\nC1,Example GmbH,https://example.com,2026-11-09T00:00:00+00:00,Confirmed,Confirmed,Confirmed,80,90,None found,Searched,Ready,Pursue,A,https://example.com\n"
+            (inputs / "scores.csv").write_text(score_row, encoding="utf-8")
+            (inputs / "priority.csv").write_text(score_row, encoding="utf-8")
+            (inputs / "contacts.csv").write_text("company_id,contact_name,contact_role,contact_email,email_source,verification_status,last_verified\nC1,Unknown,Unknown,Unknown,Unknown,Unknown,Unknown\n", encoding="utf-8")
+            (inputs / "sources.csv").write_text("company_id,source_url\nC1,https://example.com\n", encoding="utf-8")
             staged = root / "output" / f"{run_id}.staging.xlsx"
-            staged.parent.mkdir(parents=True, exist_ok=True)
-            staged.write_bytes(b"native-handoff-workbook")
+            build_report = root / "output" / f"{run_id}.build.json"
+            exported = invoke({"action": "export_workbook", "payload": {
+                "companies": "inputs/companies.csv", "scores": "inputs/scores.csv", "priority": "inputs/priority.csv",
+                "contacts": "inputs/contacts.csv", "sources": "inputs/sources.csv", "output": staged.relative_to(root).as_posix(),
+                "build_report": build_report.relative_to(root).as_posix(),
+            }}, root)
+            self.assertEqual(exported["workbook"]["sha256"], file_sha256(staged))
+            workbook = load_workbook(staged, read_only=True)
+            try:
+                self.assertEqual(workbook.sheetnames, ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"])
+            finally:
+                workbook.close()
             manifest["barriers"] = {key: True for key in manifest["barriers"]}
             manifest["outputs"] = {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": file_sha256(staged)}}
             atomic_write(manifest_path, manifest)
             checked = invoke({"action": "check_finalization", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "delivery_policy": "strict" if strict else "personal"}}, root)
             self.assertTrue(checked["eligible"])
-            invoke({"action": "publish_staged_output", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": f"output/{run_id}.xlsx", "status": "complete"}}, root)
+            invoke({"action": "finalize_run", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": f"output/{run_id}.xlsx", "status": "complete", "delivery_policy": "strict" if strict else "personal"}}, root)
             self.assertEqual(load(manifest_path)["status"], "complete")
         else:
             checked = invoke({"action": "check_finalization", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "delivery_policy": "personal"}}, root)
