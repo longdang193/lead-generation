@@ -4,7 +4,10 @@
   "oneOf": [
     { "$ref": "#/$defs/EvidenceClaim" },
     { "$ref": "#/$defs/VerifierDecision" },
-    { "$ref": "#/$defs/ResearchRun" }
+    { "$ref": "#/$defs/ResearchRun" },
+    { "$ref": "#/$defs/AccountIndicator" },
+    { "$ref": "#/$defs/SemanticReview" },
+    { "$ref": "#/$defs/CoverageManifest" }
   ],
   "$defs": {
     "EvidenceClaim": {
@@ -96,13 +99,74 @@
         "completed_at": { "type": ["string", "null"], "format": "date-time" },
         "result_count": { "type": "integer", "minimum": 0 },
         "truncated": { "type": "boolean" },
-        "provider_status": { "enum": ["Available", "Unavailable", "Unknown"] },
+        "provider_status": { "enum": ["Available", "Unavailable", "Invalid", "Unknown"] },
         "adapter_capability": { "type": "string", "minLength": 1 },
         "assurance_level": { "enum": ["replay", "structural", "source", "unknown"] },
         "error_code": { "type": ["string", "null"] },
+        "required_checks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "completed_checks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "stop_reason": { "type": ["string", "null"] },
+        "coverage_status": { "enum": ["complete", "partial", "unavailable", "unknown"] },
         "scope_version": { "type": "string", "minLength": 1 },
         "scope_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "attempts": { "type": "array", "items": { "$ref": "#/$defs/ResearchAttempt" } }
+      },
+      "additionalProperties": false
+    },
+    "AccountIndicator": {
+      "type": "object",
+      "required": ["record_type", "company_id", "offer_id", "offer_version", "indicator_type", "statement", "strength", "confidence", "supporting_claim_ids", "offer_criterion"],
+      "properties": {
+        "record_type": { "const": "AccountIndicator" },
+        "company_id": { "type": "string", "minLength": 1 },
+        "offer_id": { "type": "string", "minLength": 1 },
+        "offer_version": { "type": "string", "minLength": 1 },
+        "indicator_type": { "enum": ["direct_intent", "trigger", "need_indicator", "change_readiness"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "strength": { "type": "number", "minimum": 0, "maximum": 100 },
+        "recency": { "type": ["string", "null"], "format": "date" },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "supporting_claim_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "counterevidence_claim_ids": { "type": "array", "items": { "type": "string" } },
+        "offer_criterion": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "SemanticReview": {
+      "type": "object",
+      "required": ["record_type", "assertion_id", "company_id", "offer_id", "offer_version", "reviewed_claim_ids", "offer_criterion", "entailment", "offer_relevance", "temporal_relevance", "contradiction_result", "decision", "reason_codes", "reviewer_id"],
+      "properties": {
+        "record_type": { "const": "SemanticReview" },
+        "assertion_id": { "type": "string", "minLength": 1 },
+        "company_id": { "type": "string", "minLength": 1 },
+        "offer_id": { "type": "string", "minLength": 1 },
+        "offer_version": { "type": "string", "minLength": 1 },
+        "reviewed_claim_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "offer_criterion": { "type": "string", "minLength": 1 },
+        "entailment": { "enum": ["supported", "unsupported", "unclear"] },
+        "offer_relevance": { "enum": ["relevant", "irrelevant", "unclear"] },
+        "temporal_relevance": { "enum": ["current", "stale", "unknown"] },
+        "contradiction_result": { "enum": ["none", "present", "unclear"] },
+        "decision": { "enum": ["approved", "rejected", "needs_review"] },
+        "reason_codes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "reviewer_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "CoverageManifest": {
+      "type": "object",
+      "required": ["record_type", "company_id", "offer_id", "offer_version", "required_checks", "completed_checks", "provider_states", "truncated", "unresolved_candidates", "trigger_state"],
+      "properties": {
+        "record_type": { "const": "CoverageManifest" },
+        "company_id": { "type": "string", "minLength": 1 },
+        "offer_id": { "type": "string", "minLength": 1 },
+        "offer_version": { "type": "string", "minLength": 1 },
+        "required_checks": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "completed_checks": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "provider_states": { "type": "object", "additionalProperties": { "enum": ["available", "unavailable", "invalid", "unknown"] } },
+        "truncated": { "type": "boolean" },
+        "unresolved_candidates": { "type": "integer", "minimum": 0 },
+        "trigger_state": { "enum": ["Verified trigger", "No trigger found", "Research incomplete", "Unavailable"] }
       },
       "additionalProperties": false
     }

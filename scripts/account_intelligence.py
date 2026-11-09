@@ -9,7 +9,17 @@ from typing import Any, Iterable
 from urllib.parse import urlparse
 
 from score_leads import calculate_fit
-from typed_contracts import AccountHypothesis, AccountThesis, AssuranceLevel, EvidenceClaim, normalize_native_claim
+from typed_contracts import (
+    AccountHypothesis,
+    AccountIndicator,
+    AccountThesis,
+    AssuranceLevel,
+    CoverageManifest,
+    EvidenceClaim,
+    OfferProfile,
+    SemanticReview,
+    normalize_native_claim,
+)
 
 
 _ALLOWED_STATUSES = {"Candidate", "Rejected", "Unresolved", "Verified", "Supported"}
@@ -148,9 +158,53 @@ def validate_account_hypothesis(hypothesis: AccountHypothesis | dict[str, Any], 
     return validated
 
 
-def validate_account_thesis(thesis: AccountThesis | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, enforce_structural_fit: bool = False) -> AccountThesis:
+def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None) -> SemanticReview:
+    validated = review if isinstance(review, SemanticReview) else SemanticReview.model_validate(review)
+    by_id = {claim.claim_id: claim for claim in (_claim_model(item) for item in claims)}
+    missing = sorted(set(validated.reviewed_claim_ids) - set(by_id))
+    if missing:
+        raise ValueError(f"semantic review references missing claim IDs: {', '.join(missing)}")
+    if any(by_id[claim_id].company_id != validated.company_id for claim_id in validated.reviewed_claim_ids):
+        raise ValueError("semantic review references claims from another company")
+    if offer_profile is not None:
+        profile = offer_profile if isinstance(offer_profile, OfferProfile) else OfferProfile.model_validate(offer_profile)
+        if (validated.offer_id, validated.offer_version) != (profile.offer_id, profile.offer_version):
+            raise ValueError("semantic review offer context does not match offer profile")
+    return validated
+
+
+def validate_coverage_manifest(manifest: CoverageManifest | dict[str, Any]) -> CoverageManifest:
+    return manifest if isinstance(manifest, CoverageManifest) else CoverageManifest.model_validate(manifest)
+
+
+def account_signal_state(
+    matched_events: Iterable[dict[str, Any]],
+    manifest: CoverageManifest | dict[str, Any] | None,
+) -> str:
+    events = list(matched_events)
+    if events:
+        return "Verified trigger"
+    if manifest is None:
+        return "Research incomplete"
+    coverage = validate_coverage_manifest(manifest)
+    if all(state in {"unavailable", "invalid"} for state in coverage.provider_states.values()) and coverage.provider_states:
+        return "Unavailable"
+    return "No trigger found" if coverage.permits_no_trigger() else "Research incomplete"
+
+
+def validate_account_thesis(
+    thesis: AccountThesis | dict[str, Any],
+    claims: Iterable[EvidenceClaim | dict[str, Any]],
+    *,
+    enforce_structural_fit: bool = False,
+    semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
+    offer_profile: OfferProfile | dict[str, Any] | None = None,
+) -> AccountThesis:
     validated = thesis if isinstance(thesis, AccountThesis) else AccountThesis.model_validate(thesis)
     claim_list = [_claim_model(item) for item in claims]
+    profile = offer_profile if isinstance(offer_profile, OfferProfile) else OfferProfile.model_validate(offer_profile) if offer_profile is not None else None
+    if profile is not None and (validated.offer_id, validated.offer_version) != (profile.offer_id, profile.offer_version):
+        raise ValueError("thesis offer context does not match offer profile")
     foreign_claims = sorted({claim.company_id for claim in claim_list if claim.company_id != validated.company_id})
     if foreign_claims:
         raise ValueError("thesis claims include another company: " + ", ".join(foreign_claims))
@@ -158,7 +212,35 @@ def validate_account_thesis(thesis: AccountThesis | dict[str, Any], claims: Iter
     for hypothesis in validated.hypotheses:
         if hypothesis.company_id != validated.company_id:
             raise ValueError("thesis hypotheses must match the enclosing company")
+        if (hypothesis.offer_id, hypothesis.offer_version) != (validated.offer_id, validated.offer_version):
+            raise ValueError("hypothesis offer context does not match the enclosing thesis")
         hypotheses.append(validate_account_hypothesis(hypothesis, claim_list))
+    claim_ids = {claim.claim_id for claim in claim_list}
+    referenced = set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)
+    missing = sorted(referenced - claim_ids)
+    if missing:
+        raise ValueError(f"thesis references missing claim IDs: {', '.join(missing)}")
+    if any(claim.company_id != validated.company_id for claim in claim_list if claim.claim_id in referenced):
+        raise ValueError("thesis references claims from another company")
+    if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
+        raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
+    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile) for item in semantic_reviews]
+    reviews_by_criterion = {
+        review.offer_criterion: review
+        for review in reviews
+        if review.company_id == validated.company_id
+        and (review.offer_id, review.offer_version) == (validated.offer_id, validated.offer_version)
+        and review.decision == "approved"
+    }
+    for indicator in validated.indicators:
+        if indicator.company_id != validated.company_id or (indicator.offer_id, indicator.offer_version) != (validated.offer_id, validated.offer_version):
+            raise ValueError("indicator context does not match the enclosing thesis")
+        missing_indicator_claims = sorted(set(indicator.supporting_claim_ids) - claim_ids)
+        if missing_indicator_claims:
+            raise ValueError(f"indicator references missing claim IDs: {', '.join(missing_indicator_claims)}")
+        review = reviews_by_criterion.get(indicator.offer_criterion)
+        if review is None or not set(indicator.supporting_claim_ids).issubset(review.reviewed_claim_ids):
+            raise ValueError("indicator lacks an approved semantic review for its offer criterion")
     if enforce_structural_fit:
         deterministic_fit = calculate_structural_fit(claim_list)
         if abs(validated.structural_fit - deterministic_fit) > 0.01:
@@ -185,14 +267,32 @@ def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -
     return round(fit or 0.0, 2)
 
 
-def project_account_intelligence(claims: Iterable[EvidenceClaim | dict[str, Any]], thesis: AccountThesis | dict[str, Any], timeline_path: Path | None = None) -> dict[str, Any]:
+def project_account_intelligence(
+    claims: Iterable[EvidenceClaim | dict[str, Any]],
+    thesis: AccountThesis | dict[str, Any],
+    timeline_path: Path | None = None,
+    *,
+    semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
+    offer_profile: OfferProfile | dict[str, Any] | None = None,
+) -> dict[str, Any]:
     claim_list = list(claims)
-    validated_thesis = validate_account_thesis(thesis, claim_list, enforce_structural_fit=True)
+    review_list = list(semantic_reviews)
+    validated_thesis = validate_account_thesis(
+        thesis,
+        claim_list,
+        enforce_structural_fit=True,
+        semantic_reviews=review_list,
+        offer_profile=offer_profile,
+    )
+    validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile) for item in review_list]
     timeline = build_account_timeline(claim_list)
     result = {
         "company_id": validated_thesis.company_id,
+        "offer_id": validated_thesis.offer_id,
+        "offer_version": validated_thesis.offer_version,
         "timeline": timeline,
         "thesis": validated_thesis.model_dump(mode="json"),
+        "semantic_reviews": [review.model_dump(mode="json") for review in validated_reviews],
         "structural_fit_fact_score": calculate_structural_fit(claim_list),
     }
     if timeline_path is not None:

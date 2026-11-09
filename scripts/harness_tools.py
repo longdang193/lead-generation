@@ -29,13 +29,21 @@ from typed_contracts import (
 )
 
 
-def discover_profiles(root: Path) -> list[dict[str, str]]:
-    profiles: list[dict[str, str]] = []
+def discover_profiles(root: Path) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
     for path in sorted((root / "agents").glob("*.toml")):
         with path.open("rb") as handle:
             data = tomllib.load(handle)
         name = str(data.get("name") or path.stem)
-        profiles.append({"name": name, "path": path.relative_to(root).as_posix()})
+        skills = data.get("skills") or []
+        if not isinstance(skills, list) or not all(isinstance(skill, str) and skill for skill in skills):
+            raise ValueError(f"profile skills must be a list of non-empty strings: {path}")
+        profiles.append({
+            "name": name,
+            "path": path.relative_to(root).as_posix(),
+            "task_function": str(data.get("task_function") or ""),
+            "skills": list(skills),
+        })
     return profiles
 
 
@@ -178,14 +186,18 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         return {"artifact": _artifact(root, output, "verified_evidence"), "count": len(promoted)}
     if action == "validate_thesis":
         claims = payload.pop("claims", [])
-        value = validate_account_thesis(payload, claims)
+        offer_profile = payload.pop("offer_profile", None)
+        semantic_reviews = payload.pop("semantic_reviews", [])
+        value = validate_account_thesis(payload, claims, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
         return {"thesis": value.model_dump(mode="json"), "validated": True}
     if action == "project_account_intelligence":
         claims = payload.pop("claims", [])
         thesis = payload.pop("thesis", None)
+        offer_profile = payload.pop("offer_profile", None)
+        semantic_reviews = payload.pop("semantic_reviews", [])
         if not isinstance(thesis, dict):
             raise ValueError("thesis must be an object")
-        return project_account_intelligence(claims, thesis)
+        return project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
     if action == "calculate_fit":
         claims = payload.get("claims", [])
         return {"structural_fit": calculate_structural_fit(claims)}

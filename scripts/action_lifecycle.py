@@ -235,6 +235,15 @@ def admit_action(root: Path, request: NativeActionRequest | dict[str, object], m
         _validate_manifest_authorization(manifest, validated)
         events = _state_events(root, validated.run_id)
         admissions = [event for event in events if event.event_type == "admitted"]
+        if validated.parent_action_id is not None:
+            parent_settled = any(
+                event.event_type == "settled"
+                and event.action_id == validated.parent_action_id
+                and event.company_id == validated.company_id
+                for event in events
+            )
+            if not parent_settled:
+                raise ValueError("parent action must be a settled action for the same company")
         for event in admissions:
             if event.action_id == validated.action_id and event.attempt_id == validated.attempt_id:
                 expected = {
@@ -341,6 +350,9 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             contract_version=admission.contract_version,
             strategy_version=admission.strategy_version,
             profile_version=admission.profile_version,
+            profile_name=admission.profile_name,
+            skills=admission.skills,
+            parent_action_id=admission.parent_action_id,
             request_hash=admission.request_hash,
             budget_units=admission.budget_units,
             result_hash=validated.result_hash,
@@ -399,6 +411,8 @@ def reject_result(
             contract_version=admission.contract_version,
             strategy_version=admission.strategy_version,
             profile_version=admission.profile_version,
+            profile_name=admission.profile_name,
+            skills=admission.skills,
             request_hash=admission.request_hash,
             budget_units=admission.budget_units,
             result_hash=result_hash,
@@ -436,6 +450,8 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
             "contract_version": admission.contract_version,
             "strategy_version": admission.strategy_version,
             "profile_version": admission.profile_version,
+            "profile_name": admission.profile_name,
+            "skills": admission.skills,
         }
         for field, expected in identity_fields.items():
             if getattr(validated, field) != expected:
@@ -470,12 +486,16 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
             contract_version=admission.contract_version,
             strategy_version=admission.strategy_version,
             profile_version=admission.profile_version,
+            parent_action_id=admission.parent_action_id,
+            profile_name=admission.profile_name,
+            skills=admission.skills,
             request_hash=validated.request_hash,
             budget_units=validated.budget_requested,
             result_hash=validated.result_hash,
             terminal_status=validated.terminal_status,
             budget_settled=validated.budget_settled,
             coverage_delta=validated.coverage_delta,
+            stop_decision=validated.stop_decision.model_dump(mode="json") if validated.stop_decision else None,
             provenance=validated.provenance,
             created_at=validated.created_at,
         )
@@ -529,7 +549,19 @@ def replay_lifecycle(root: Path, run_id: str, *, prefer_snapshot: bool = False) 
             status = settlement.terminal_status
         else:
             status = result.terminal_status if result is not None else "Admitted"
-        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "action_type": admitted.action_type, "scope": admitted.scope, "status": status, "settled": settlement is not None})
+        actions.append({
+            "action_id": key[0],
+            "attempt_id": key[1],
+            "parent_action_id": admitted.parent_action_id,
+            "company_id": admitted.company_id,
+            "action_type": admitted.action_type,
+            "scope": admitted.scope,
+            "profile_name": admitted.profile_name,
+            "skills": admitted.skills,
+            "status": status,
+            "settled": settlement is not None,
+            "stop_decision": settlement.stop_decision if settlement is not None else None,
+        })
     return {
         "action_count": len(actions),
         "actions": actions,

@@ -84,6 +84,52 @@ class ActionLifecycleTests(unittest.TestCase):
         self.assertEqual(replay["coverage"], {"signals": 1})
         self.assertEqual(replay["actions"][0]["status"], "Completed")
 
+    def test_parent_selected_profile_and_stop_chain_replays_without_scheduler(self):
+        atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 2})
+        first = action(profile_name="account-intelligence-researcher", skills=["account-research", "lead-evidence"])
+        admit_action(self.root, first, self.manifest)
+        first_result = validate_result(self.root, result_for(first))
+        settle_action(self.root, {
+            **first,
+            "result_hash": first_result.result_hash,
+            "terminal_status": "Completed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "stop_decision": {"run_id": "run-1", "company_id": "C1", "decision": "continue", "reason": "Need contact evidence"},
+            "created_at": datetime.now(timezone.utc),
+        })
+        second = action(
+            action_id="action-2",
+            attempt_id="attempt-2",
+            idempotency_key="run-1/action-2/attempt-2",
+            parent_action_id="action-1",
+            profile_name="account-intelligence-researcher",
+            skills=["account-research", "contact-verification"],
+        )
+        admit_action(self.root, second, self.manifest)
+        second_result = validate_result(self.root, result_for(second))
+        settle_action(self.root, {
+            **second,
+            "result_hash": second_result.result_hash,
+            "terminal_status": "Completed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "stop_decision": {"run_id": "run-1", "company_id": "C1", "decision": "stop", "reason": "Thesis complete"},
+            "created_at": datetime.now(timezone.utc),
+        })
+        replay = replay_lifecycle(self.root, "run-1")
+        self.assertEqual(replay["action_count"], 2)
+        self.assertEqual(replay["actions"][1]["parent_action_id"], "action-1")
+        self.assertEqual(replay["actions"][0]["profile_name"], "account-intelligence-researcher")
+        self.assertEqual(replay["actions"][0]["skills"], ["account-research", "lead-evidence"])
+        self.assertEqual(replay["actions"][0]["stop_decision"]["decision"], "continue")
+        self.assertEqual(replay["actions"][1]["stop_decision"]["decision"], "stop")
+
+    def test_parent_action_must_be_settled_before_child_admission(self):
+        atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 2})
+        with self.assertRaisesRegex(ValueError, "parent action must be a settled"):
+            admit_action(self.root, action(action_id="action-2", attempt_id="attempt-2", idempotency_key="child", parent_action_id="action-1"), self.manifest)
+
     def test_result_requires_admission_and_canonical_hash(self):
         request = action()
         with self.assertRaisesRegex(ValueError, "not admitted"):

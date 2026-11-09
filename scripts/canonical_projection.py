@@ -186,7 +186,7 @@ def project_verified_evidence(
         if signal_claim and source_event_claim:
             signal_value = str(_claim_value(signal_claim))
         elif none_found_allowed(research_run, signal_claims):
-            signal_value = "None found"
+            signal_value = "No trigger found" if str(research_run.get("coverage_status") or "") == "complete" else "None found"
             research_status = "Completed"
         else:
             signal_value = "Unknown"
@@ -201,7 +201,7 @@ def project_verified_evidence(
         }.get(research_status, "Unknown")
         if research_status == "Completed" and str(research_run.get("adapter_capability") or "") != "live_research":
             search_status = "Unknown"
-        signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "verified_claim_count": len(signal_claims), "run_id": run_id})
+        signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "coverage_status": research_run.get("coverage_status") or "unknown", "verified_claim_count": len(signal_claims), "run_id": run_id})
         row["buying_signal"] = signal_value
         row["projection_run_id"] = run_id
 

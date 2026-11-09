@@ -23,10 +23,36 @@ class HarnessToolTests(unittest.TestCase):
     def test_profile_discovery_uses_existing_registry(self):
         profiles = discover_profiles(Path(__file__).resolve().parents[1])
         self.assertTrue({item["name"] for item in profiles} >= {"signal-researcher", "evidence-verifier"})
+        signal = next(item for item in profiles if item["name"] == "signal-researcher")
+        self.assertEqual(signal["task_function"], "account-scoped buying-signal evidence collection")
+        self.assertIn("buying-signal-research", signal["skills"])
 
     def test_json_boundary_validates_goal(self):
         result = invoke({"action": "validate_goal", "payload": {"goal_id": "g1", "objective": "find leads"}}, Path(__file__).resolve().parents[1])
         self.assertEqual(result["goal"]["goal_id"], "g1")
+
+    def test_parent_selected_native_trace_replays_profile_skills_and_stop(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            atomic_write(root / "manifest.json", {"run_id": "run-native", "budget_limit": 1})
+            request = {
+                "run_id": "run-native", "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1",
+                "action_type": "signals", "scope": "signals:C1", "contract_version": "1", "strategy_version": "1",
+                "profile_version": "signal-v1", "profile_name": "account-intelligence-researcher",
+                "skills": ["account-research", "lead-evidence"], "idempotency_key": "native/action-1",
+                "budget_units": 1, "provenance": {"source": "parent-codex"}, "request_hash": "0" * 64,
+            }
+            request["request_hash"] = canonical_request_hash(request)
+            invoke({"action": "admit_action", "payload": {**request, "manifest_path": "manifest.json"}}, root)
+            result = {"claims": 1}
+            result_hash = hashlib.sha256(canonical_json(result).encode("utf-8")).hexdigest()
+            invoke({"action": "validate_result", "payload": {"run_id": "run-native", "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1", "status": "Completed", "result": result, "result_hash": result_hash}}, root)
+            invoke({"action": "record_receipt", "payload": {**request, "result_hash": result_hash, "terminal_status": "Completed", "budget_requested": 1, "budget_settled": 1, "stop_decision": {"run_id": "run-native", "company_id": "C1", "decision": "stop", "reason": "complete"}, "created_at": datetime.now(timezone.utc).isoformat()}}, root)
+            replay = invoke({"action": "replay_lifecycle", "payload": {"run_id": "run-native"}}, root)
+            self.assertEqual(replay["action_count"], 1)
+            self.assertEqual(replay["actions"][0]["profile_name"], "account-intelligence-researcher")
+            self.assertEqual(replay["actions"][0]["skills"], ["account-research", "lead-evidence"])
+            self.assertEqual(replay["actions"][0]["stop_decision"]["decision"], "stop")
 
     def test_json_boundary_validates_evidence_and_thesis(self):
         claim = {
@@ -35,7 +61,7 @@ class HarnessToolTests(unittest.TestCase):
             "confidence": "high", "retrieved_at": "2026-11-09T00:00:00Z", "assurance_level": "source",
         }
         self.assertTrue(invoke({"action": "validate_evidence", "payload": claim}, Path.cwd())["validated"])
-        thesis = {"company_id": "C1", "structural_fit": 80, "confidence": "high", "recommended_action": "research", "claims": [claim], "hypotheses": [{"company_id": "C1", "hypothesis_type": "opportunity", "statement": "Likely", "supporting_claim_ids": ["c1"], "confidence": "medium"}]}
+        thesis = {"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 80, "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need", "strongest_claim_ids": ["c1"], "access_summary": "Contact path", "research_gap_impact": "Could change action", "recommended_action": "research", "claims": [claim], "hypotheses": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "hypothesis_type": "opportunity", "statement": "Likely", "supporting_claim_ids": ["c1"], "confidence": "medium"}]}
         self.assertTrue(invoke({"action": "validate_thesis", "payload": thesis}, Path.cwd())["validated"])
 
     def test_cli_rejects_malformed_request_with_structured_error(self):
