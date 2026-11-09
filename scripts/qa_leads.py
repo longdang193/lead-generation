@@ -329,7 +329,8 @@ def main() -> int:
             errors.append(f"Pursue row is not Ready: {row.get('company_id')}")
     for row in contacts:
         if row.get("contact_email") not in (None, "", "Unknown"):
-            if not valid_http_url(row.get("email_source")) or row.get("verification_status") in (None, "", "Unknown") or row.get("last_verified") in (None, "", "Unknown"):
+            replay_contact = row.get("assurance_level") == "replay"
+            if not valid_http_url(row.get("email_source")) or (row.get("verification_status") in (None, "", "Unknown") and not replay_contact) or row.get("last_verified") in (None, "", "Unknown"):
                 errors.append(f"contact email lacks provenance: {row.get('company_id')}")
             if row.get("verification_status") == "Verified" and is_generic_mailbox(row.get("contact_email")):
                 errors.append(f"generic mailbox marked Verified: {row.get('company_id')}")

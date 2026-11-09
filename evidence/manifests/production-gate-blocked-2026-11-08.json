@@ -2,7 +2,9 @@
   "record_type": "ProductionGateResult",
   "campaign_id": "berlin-hausverwaltung",
   "campaign_config": "config/campaigns/berlin-hausverwaltung.json",
+  "campaign_config_sha256": "2a13cfdfa9723aeab7bec1e0bf53c87f316e65966b4ecd83079fe3656e022fac",
   "evaluated_at": "2026-11-08T00:00:00+00:00",
+  "git_revision": "97d40274b2b2ff717696c85590aabeafd2cd122e",
   "status": "blocked",
   "shortlist": {
     "path": "data/processed/priority_leads_2026-11-08.csv",
@@ -49,10 +51,20 @@
     "required_for_production": "source_verification"
   },
   "blocking_reasons": [
-    "six admitted shortlist companies lack confirmed city evidence",
+    "ten admitted shortlist companies lack confirmed city evidence",
     "configured native worker replays repository artifacts rather than independently verifying sources",
     "configured native verifier performs structural validation rather than independent source verification"
   ],
+  "blocker_count": 3,
+  "input_hashes": {
+    "data/intermediate/companies_normalized_2026-11-07.csv": "ae44ce81adf314f84fa496223b913f6bc61a471f5d3249f1d189ba4f8c97cdb2"
+  },
+  "supporting_input_hashes": {
+    "config/campaigns/berlin-hausverwaltung.json": "2a13cfdfa9723aeab7bec1e0bf53c87f316e65966b4ecd83079fe3656e022fac"
+  },
+  "output_hashes": {
+    "data/processed/priority_leads_2026-11-08.csv": "be6312eeb457d755abfbd9738cabf382fc2a7efaf36cd20b0dfb37a90e535798"
+  },
   "production_command_not_run": true,
   "source_artifacts": [
     "data/processed/priority_leads_2026-11-08.csv",
@@ -63,5 +75,15 @@
     "tests/test_orchestration.py",
     "scripts/native_worker.py",
     "scripts/native_verifier.py"
-  ]
+  ],
+  "source_artifact_hashes": {
+    "data/processed/priority_leads_2026-11-08.csv": "be6312eeb457d755abfbd9738cabf382fc2a7efaf36cd20b0dfb37a90e535798",
+    "data/intermediate/companies_normalized_2026-11-07.csv": "ae44ce81adf314f84fa496223b913f6bc61a471f5d3249f1d189ba4f8c97cdb2",
+    "config/campaigns/berlin-hausverwaltung.json": "2a13cfdfa9723aeab7bec1e0bf53c87f316e65966b4ecd83079fe3656e022fac",
+    "scripts/campaign_spec.py": "6f40defd67afe18c8361f5d062cb2f9d75b2efa9e0b270d7b4473e82a7ee558a",
+    "scripts/orchestrate_enrichment.py": "d113777661fac638f25bb41a11e8d717e8e8958ebcc5fbfe082a4f0040cb55cb",
+    "tests/test_orchestration.py": "b9f7ac937a36da031fc84a00d9756814aeca1d922c0c3ddf3abb5595a381e000",
+    "scripts/native_worker.py": "995e347156732dd9ec383dd8d521169ca3e949c7bc7df0909b4e020d99978ab8",
+    "scripts/native_verifier.py": "475b4f264394c1106fabdb736fd849c6a23bec2f84f4229ceb4edd857591fdc9"
+  }
 }

@@ -161,7 +161,7 @@ def project_verified_evidence(
                     "deadline": event.get("deadline"),
                     "source_url": claim.get("source_url", ""),
                 })
-                event_links.append({"event_id": event_id, "company_id": company_id, "match_confidence": "Verified"})
+                event_links.append({"event_id": event_id, "company_id": company_id, "match_confidence": {"source": "Verified", "structural": "Supported", "replay": "Replay", "unknown": "Unknown"}.get(str(claim.get("assurance_level") or "unknown"), "Unknown")})
         if signal_claims:
             row["buying_signal_evidence_urls"] = " | ".join(sorted({str(claim.get("source_url")) for claim in signal_claims if claim.get("source_url")}))
         signal_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "buying_signal"), None)
@@ -202,14 +202,20 @@ def project_verified_evidence(
                 projected["contact_role"] = claim.get("role") or "Unknown"
                 projected["contact_email"] = claim.get("email") or "Unknown"
                 projected["email_source"] = claim.get("source_url") or "Unknown"
-                projected["verification_status"] = "Verified"
+                assurance_level = str(claim.get("assurance_level") or "unknown")
+                projected["verification_status"] = "Verified" if assurance_level == "source" else "Unverified" if assurance_level == "structural" else "Unknown"
+                projected["assurance_level"] = assurance_level
                 verified_at = str(claim.get("verified_at") or "Unknown")
                 projected["last_verified"] = verified_at[:10] if verified_at not in ("", "Unknown") else verified_at
                 projected["projection_run_id"] = run_id
                 projected_contacts.append(projected)
         else:
-            projected_contacts.extend(dict(base_row, projection_run_id=run_id) for base_row in base_rows)
+            projected_contacts.extend(dict(base_row) for base_row in base_rows)
     contacts = projected_contacts
+    contact_fields = ["company_id", "contact_name", "contact_role", "contact_email", "email_source", "verification_status", "assurance_level", "last_verified", "projection_run_id"]
+    for contact in contacts:
+        for field in contact_fields:
+            contact.setdefault(field, "unknown" if field == "assurance_level" else "Unknown")
 
     outputs = {
         "qualification": output_dir / "qualification.jsonl",
@@ -221,7 +227,7 @@ def project_verified_evidence(
     }
     _write_jsonl(outputs["qualification"], qualification)
     _write_csv(outputs["scores"], scores, ["company_id", "buying_signal"])
-    _write_csv(outputs["contacts"], contacts, ["company_id", "contact_name", "contact_email"])
+    _write_csv(outputs["contacts"], contacts, contact_fields)
     outputs["events"].parent.mkdir(parents=True, exist_ok=True)
     outputs["events"].write_text(json.dumps(sorted(events, key=lambda row: (str(row["company_id"]), str(row["event_id"]))), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _write_csv(outputs["event_links"], sorted(event_links, key=lambda row: (str(row["company_id"]), str(row["event_id"]))), ["event_id", "company_id", "match_confidence"])

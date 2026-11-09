@@ -124,6 +124,22 @@ class CanonicalProjectionTests(unittest.TestCase):
             contacts = list(csv.DictReader(outputs["contacts"].open(encoding="utf-8", newline="")))
             self.assertEqual([(row["contact_name"], row["contact_email"]) for row in contacts], [("Alice Smith", "alice@example.de"), ("Bob Jones", "Unknown")])
 
+    def test_projection_preserves_structural_assurance_in_contacts_and_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            contact = {"record_type": "EvidenceClaim", "candidate_claim_id": "contact-1", "company_id": "C1", "claim_type": "contact", "claim_value": "Alice Smith", "person_name": "Alice Smith", "role": "Owner", "email": "alice@example.de", "company_affiliation": "Example", "source_url": "https://example.de/contact", "source_kind": "official", "evidence_excerpt": "Alice Smith", "retrieved_at": "2026-11-08T10:00:00+00:00", "account_relationship": "direct", "confidence": "high", "research_run_id": "run-1:contacts:C1", "candidate_status": "Supported", "assurance_level": "structural", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+            event = {"record_type": "EvidenceClaim", "candidate_claim_id": "event-1", "company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1", "publication_date": "2026-11-01", "deadline": None}, "source_url": "https://ted.europa.eu/event", "source_kind": "procurement", "evidence_excerpt": "Event", "retrieved_at": "2026-11-08T10:00:00+00:00", "published_at": "2026-11-01", "account_relationship": "directory", "confidence": "high", "research_run_id": "run-1:signals:C1", "candidate_status": "Supported", "assurance_level": "structural", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00"}
+            (root / "promoted.jsonl").write_text(json.dumps(contact) + "\n" + json.dumps(event) + "\n", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name,contact_email\nC1,Unknown,Unknown\n", encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
+            contact_row = next(csv.DictReader(outputs["contacts"].open(encoding="utf-8", newline="")))
+            event_link = next(csv.DictReader(outputs["event_links"].open(encoding="utf-8", newline="")))
+            self.assertEqual(contact_row["verification_status"], "Unverified")
+            self.assertEqual(contact_row["assurance_level"], "structural")
+            self.assertEqual(event_link["match_confidence"], "Supported")
+
 
     def test_projection_preserves_base_contacts_once_without_promoted_contact_claims(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -131,9 +147,10 @@ class CanonicalProjectionTests(unittest.TestCase):
             (root / "promoted.jsonl").write_text("", encoding="utf-8")
             (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
             (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
-            (root / "contacts.csv").write_text("company_id,contact_name,contact_email\nC1,Alice,alice@example.de\nC1,Bob,bob@example.de\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name,contact_email,last_verified,projection_run_id\nC1,Alice,alice@example.de,2026-11-01,old-run\nC1,Bob,bob@example.de,2026-11-01,old-run\n", encoding="utf-8")
             outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
             contacts = list(csv.DictReader(outputs["contacts"].open(encoding="utf-8", newline="")))
             self.assertEqual([(row["contact_name"], row["contact_email"]) for row in contacts], [("Alice", "alice@example.de"), ("Bob", "bob@example.de")])
+            self.assertEqual({row["projection_run_id"] for row in contacts}, {"old-run"})
 if __name__ == "__main__":
     unittest.main()

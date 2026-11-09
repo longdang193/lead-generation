@@ -32,6 +32,8 @@ class RuntimeConfig:
     request_timeout_seconds: int = 15
     max_pages_per_company: int = 10
     max_fetch_retries: int = 2
+    run_deadline_seconds: int = 900
+    max_total_attempts: int = 100
     apify_max_spend_usd: float = 5.0
     max_priority_accounts: int = 30
 
@@ -62,13 +64,15 @@ class RuntimeConfig:
             request_timeout_seconds=number("REQUEST_TIMEOUT_SECONDS", cls.request_timeout_seconds),
             max_pages_per_company=number("MAX_PAGES_PER_COMPANY", cls.max_pages_per_company),
             max_fetch_retries=number("MAX_FETCH_RETRIES", cls.max_fetch_retries),
+            run_deadline_seconds=number("RUN_DEADLINE_SECONDS", cls.run_deadline_seconds),
+            max_total_attempts=number("MAX_TOTAL_ATTEMPTS", cls.max_total_attempts),
             apify_max_spend_usd=decimal("APIFY_MAX_SPEND_USD", cls.apify_max_spend_usd),
             max_priority_accounts=number("MAX_PRIORITY_ACCOUNTS", cls.max_priority_accounts),
         )
 
     def validate(self, provider: str | None = None, require_secrets: bool = False) -> list[str]:
         errors: list[str] = []
-        if self.request_timeout_seconds <= 0 or self.max_pages_per_company <= 0 or self.max_fetch_retries < 0:
+        if self.request_timeout_seconds <= 0 or self.max_pages_per_company <= 0 or self.max_fetch_retries < 0 or self.run_deadline_seconds <= 0 or self.max_total_attempts <= 0:
             errors.append("runtime bounds must be positive")
         if self.apify_max_spend_usd < 0 or self.max_priority_accounts <= 0:
             errors.append("spend and priority bounds are invalid")
@@ -87,6 +91,8 @@ class RuntimeConfig:
             "request_timeout_seconds": self.request_timeout_seconds,
             "max_pages_per_company": self.max_pages_per_company,
             "max_fetch_retries": self.max_fetch_retries,
+            "run_deadline_seconds": self.run_deadline_seconds,
+            "max_total_attempts": self.max_total_attempts,
             "apify_max_spend_usd": self.apify_max_spend_usd,
             "max_priority_accounts": self.max_priority_accounts,
         }
