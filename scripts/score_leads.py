@@ -85,8 +85,11 @@ def derive_account_signal(company_audit: dict[str, str], matched_events: list[di
         return "Unknown", search_status
     if company_audit.get("signal_state") == "None found":
         return "None found", search_status
-    if not matched_events and company_audit.get("signal_state") in {"Strong", "Medium", "Weak"}:
-        return "Unknown", search_status
+    if not matched_events and (
+        company_audit.get("signal_state") in {"Strong", "Medium", "Weak"}
+        or str(company_audit.get("verified_claim_count") or "0") not in {"", "0"}
+    ):
+        return "Unknown", "Unknown"
     return classify_signal(matched_events), search_status
 
 
