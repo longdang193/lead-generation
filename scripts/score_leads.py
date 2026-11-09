@@ -8,7 +8,7 @@ from pathlib import Path
 
 from campaign_spec import qualification_eligibility
 from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
-from typed_contracts import RankAudit, RankContribution
+from typed_contracts import RankAudit, RankContribution, SemanticReview
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
 COMMERCIAL_WEIGHTS = {
@@ -115,7 +115,7 @@ def _commercial_dimension_value(record: dict[str, object], dimension: str) -> fl
         "evidence_confidence": "evidence_confidence_score",
     }
     raw = record.get(aliases[dimension], 0)
-    if dimension == "direct_intent" and raw in (None, "", 0, "0"):
+    if dimension == "direct_intent" and raw in (None, ""):
         raw = {"Verified trigger": 100, "Strong": 80, "Medium": 60, "Weak": 30}.get(str(record.get("buying_signal") or ""), 0)
     try:
         return max(0.0, min(100.0, float(raw)))
@@ -130,14 +130,25 @@ def priority_reason(record: dict[str, object]) -> str:
     return f"{why_account}; {why_now}; supporting claims: {claims or 'none'}"
 
 
-def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: str) -> RankAudit:
-    if record.get("semantic_review_approved") is not True:
-        raise ValueError("semantic review approval is required before ranking")
+def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: str, *, semantic_reviews: list[dict[str, object]] | None = None) -> RankAudit:
+    if semantic_reviews is None:
+        raise ValueError("validated semantic reviews are required before ranking")
     if record.get("offer_id") != offer_id or record.get("offer_version") != offer_version:
         raise ValueError("rank record offer context does not match requested offer")
+    reviews = [item if isinstance(item, SemanticReview) else SemanticReview.model_validate(item) for item in semantic_reviews]
+    review_ids = {review.assertion_id for review in reviews if review.decision == "approved"}
+    declared_review_ids = {str(value) for value in record.get("semantic_review_ids", []) if value}
+    if not declared_review_ids or not declared_review_ids.issubset(review_ids):
+        raise ValueError("ranking requires approved semantic review IDs")
+    company_id = str(record.get("company_id") or "")
+    if any(review.company_id != company_id or (review.offer_id, review.offer_version) != (offer_id, offer_version) for review in reviews):
+        raise ValueError("rank reviews must match the company and offer context")
     claim_ids = [str(value) for value in record.get("strongest_claim_ids", []) if value]
     if not claim_ids:
         raise ValueError("rank record requires supporting claim IDs")
+    reviewed_claim_ids = {claim_id for review in reviews if review.assertion_id in declared_review_ids for claim_id in review.reviewed_claim_ids}
+    if not set(claim_ids).issubset(reviewed_claim_ids):
+        raise ValueError("rank claims must be covered by approved semantic reviews")
     dimensions = {
         name: _commercial_dimension_value(record, name)
         for name in COMMERCIAL_WEIGHTS
@@ -155,12 +166,12 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     ]
     signal = str(record.get("buying_signal") or "")
     fit = dimensions["fit"]
-    if signal == "Verified trigger":
+    if fit < 40:
+        state = "Disqualify"
+    elif signal == "Verified trigger":
         state = "Priority — verified trigger"
     elif fit >= 70 and signal == "No trigger found":
         state = "Priority — strong fit, no trigger"
-    elif fit < 40:
-        state = "Disqualify"
     elif signal in {"Research incomplete", "Unavailable", "Unknown"}:
         state = "Research required"
     else:
@@ -177,7 +188,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
 
 
 def rank_account(record: dict[str, object], offer_id: str, offer_version: str) -> RankAudit:
-    return build_rank_audit(record, offer_id, offer_version)
+    return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None)
 
 
 def derive_account_signal(company_audit: dict[str, str], matched_events: list[dict[str, object]], default_search_status: str) -> tuple[str, str]:

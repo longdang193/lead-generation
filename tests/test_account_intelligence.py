@@ -28,8 +28,18 @@ def thesis_fields() -> dict[str, object]:
         "why_now": "Current research supports a timely review",
         "problem_hypothesis": "Operations may be manual",
         "strongest_claim_ids": ["c1"],
+        "semantic_review_ids": ["a1"],
         "access_summary": "Official contact path available",
         "research_gap_impact": "Could change outreach timing",
+    }
+
+
+def semantic_review(claim_id: str = "c1", assertion_id: str = "a1") -> dict[str, object]:
+    return {
+        "assertion_id": assertion_id, "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+        "reviewed_claim_ids": [claim_id], "offer_criterion": "relevant_triggers", "entailment": "supported",
+        "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none",
+        "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "semantic-reviewer",
     }
 
 
@@ -54,8 +64,12 @@ class AccountIntelligenceTests(unittest.TestCase):
         review = {"assertion_id": "a1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c1"], "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "semantic-reviewer"}
         validated = validate_account_thesis(thesis, claims, semantic_reviews=[review])
         self.assertEqual(validated.indicators[0].offer_id, "offer-1")
-        with self.assertRaisesRegex(ValueError, "approved semantic review"):
+        with self.assertRaisesRegex(ValueError, "semantic review"):
             validate_account_thesis(thesis, claims)
+
+    def test_thesis_rejects_missing_material_semantic_review(self):
+        with self.assertRaisesRegex(ValueError, "missing semantic review IDs"):
+            validate_account_thesis({**thesis_fields(), "company_id": "C1", "structural_fit": 0, "confidence": "high", "recommended_action": "research"}, [claim("c1")])
     def test_timeline_uses_composite_identity_and_preserves_lineage(self):
         rows = build_account_timeline([claim("c1", "C1", "Candidate"), claim("c2", "C2", "Rejected")])
         self.assertEqual([row["event_identity"] for row in rows], ["C1:E1", "C2:E1"])
@@ -105,10 +119,10 @@ class AccountIntelligenceTests(unittest.TestCase):
             "verified_at": "2026-11-09T00:00:00Z", "verifier_run_id": "run-1:verifier",
         }
         validate_account_thesis({
-            **thesis_fields(), "company_id": "C1", "structural_fit": 50, "confidence": "medium", "recommended_action": "research",
+            **thesis_fields(), "company_id": "C1", "structural_fit": 50, "confidence": "medium", "recommended_action": "research", "semantic_review_ids": ["a3"],
             "strongest_claim_ids": ["c3"],
             "hypotheses": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "hypothesis_type": "need", "statement": "Contact is attributable", "supporting_claim_ids": ["c3"], "confidence": "medium"}],
-        }, [contact])
+        }, [contact], semantic_reviews=[semantic_review("c3", "a3")])
 
     def test_fact_fit_ignores_hypotheses(self):
         self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Confirmed")]), 35.0)
@@ -147,7 +161,7 @@ class AccountIntelligenceTests(unittest.TestCase):
             **thesis_fields(), "company_id": "C1", "structural_fit": 0, "confidence": "medium", "recommended_action": "research",
             "strongest_claim_ids": ["c1"],
             "hypotheses": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "hypothesis_type": "need", "statement": "Likely need", "confidence": "medium"}],
-        }, [claim("c1", "C1")])
+        }, [claim("c1", "C1")], semantic_reviews=[semantic_review()])
         self.assertTrue(thesis.hypotheses[0].speculative)
 
     def test_projection_rejects_agent_structural_fit_mismatch(self):
@@ -155,7 +169,7 @@ class AccountIntelligenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "deterministic fact score"):
             project_account_intelligence([claim("c1", claim_type="service_fit", value="Confirmed")], {
                 **thesis_fields(), "company_id": "C1", "structural_fit": 99, "confidence": "medium", "recommended_action": "research",
-            })
+            }, semantic_reviews=[semantic_review()])
 
 if __name__ == "__main__":
     unittest.main()

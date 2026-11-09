@@ -13,6 +13,14 @@ from extract_website_evidence import claim
 
 
 class ScoringTests(unittest.TestCase):
+    def review(self, company_id: str, claim_id: str, assertion_id: str) -> dict[str, object]:
+        return {
+            "assertion_id": assertion_id, "company_id": company_id, "offer_id": "offer-1", "offer_version": "2026-11-09",
+            "reviewed_claim_ids": [claim_id], "offer_criterion": "relevant_triggers", "entailment": "supported",
+            "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none",
+            "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+        }
+
     def test_rank_requires_offer_bound_semantic_thesis(self):
         with self.assertRaisesRegex(ValueError, "semantic"):
             rank_account({"company_id": "C1", "structural_lead_fit": 80}, "offer-1", "2026-11-09")
@@ -22,7 +30,7 @@ class ScoringTests(unittest.TestCase):
         offer_version = "2026-11-09"
         smaller = {
             "company_id": "C1", "offer_id": offer_id, "offer_version": offer_version,
-            "semantic_review_approved": True, "strongest_claim_ids": ["c1"],
+            "semantic_review_ids": ["r1"], "semantic_reviews": [self.review("C1", "c1", "r1")], "strongest_claim_ids": ["c1"],
             "structural_lead_fit": 70, "opportunity_score": 80, "need_score": 85,
             "change_score": 100, "direct_intent_score": 70, "access_score": 60,
             "evidence_confidence_score": 90, "buying_signal": "Verified trigger",
@@ -30,7 +38,7 @@ class ScoringTests(unittest.TestCase):
         }
         larger = {
             "company_id": "C2", "offer_id": offer_id, "offer_version": offer_version,
-            "semantic_review_approved": True, "strongest_claim_ids": ["c2"],
+            "semantic_review_ids": ["r2"], "semantic_reviews": [self.review("C2", "c2", "r2")], "strongest_claim_ids": ["c2"],
             "structural_lead_fit": 95, "opportunity_score": 40, "need_score": 30,
             "change_score": 0, "direct_intent_score": 0, "access_score": 60,
             "evidence_confidence_score": 80, "buying_signal": "No trigger found",
@@ -42,14 +50,27 @@ class ScoringTests(unittest.TestCase):
     def test_rank_audit_exposes_reproducible_dimension_contributions(self):
         row = {
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
-            "semantic_review_approved": True, "strongest_claim_ids": ["c1"],
+            "semantic_review_ids": ["r1"], "semantic_reviews": [self.review("C1", "c1", "r1")], "strongest_claim_ids": ["c1"],
             "structural_lead_fit": 80, "opportunity_score": 70, "need_score": 60,
             "change_score": 50, "direct_intent_score": 40, "access_score": 30,
             "evidence_confidence_score": 90, "buying_signal": "No trigger found",
         }
-        audit = build_rank_audit(row, "offer-1", "2026-11-09")
+        audit = build_rank_audit(row, "offer-1", "2026-11-09", semantic_reviews=row["semantic_reviews"])
         self.assertEqual(sum(item.contribution for item in audit.contributions), audit.total_score)
         self.assertEqual(audit.rationale_claim_ids, ["c1"])
+
+    def test_explicit_zero_direct_intent_is_not_replaced_by_signal_strength(self):
+        row = {"direct_intent_score": 0, "buying_signal": "Verified trigger"}
+        from score_leads import _commercial_dimension_value
+        self.assertEqual(_commercial_dimension_value(row, "direct_intent"), 0.0)
+
+    def test_verified_trigger_cannot_override_disqualifying_fit(self):
+        row = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+            "semantic_review_ids": ["r1"], "semantic_reviews": [self.review("C1", "c1", "r1")], "strongest_claim_ids": ["c1"],
+            "structural_lead_fit": 0, "buying_signal": "Verified trigger",
+        }
+        self.assertEqual(rank_account(row, "offer-1", "2026-11-09").priority_state, "Disqualify")
     def test_freshness_only_signal_does_not_become_commercially_strong(self):
         today = date.today()
         self.assertEqual(classify_signal([]), "None found")

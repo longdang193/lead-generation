@@ -560,7 +560,7 @@ class AccountThesis(ContractModel):
     access_summary: str = Field(min_length=1)
     research_gaps: list[str] = Field(default_factory=list)
     research_gap_impact: str = Field(min_length=1)
-    semantic_review_ids: list[str] = Field(default_factory=list)
+    semantic_review_ids: list[str] = Field(min_length=1)
     recommended_action: str = Field(min_length=1)
 
 

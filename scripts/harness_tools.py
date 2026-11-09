@@ -18,6 +18,7 @@ from normalize_dedupe import clean_name, company_id, explicit_berlin_evidence, t
 from promote_evidence import promote_verified_claims
 from run_manifest import file_sha256, finalization_eligibility, finalize_run, load, reconstruct_finalization_readiness
 from select_for_enrichment import select_accounts
+from score_leads import rank_account
 from typed_contracts import (
     ActionReceipt,
     ArtifactRef,
@@ -212,6 +213,26 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
             qualification = {str(item.get("company_id") or ""): item for item in _records(qualification_path)}
         if not isinstance(scores, list) or not isinstance(qualification, dict):
             raise ValueError("scores and qualification are required")
+        offer_id = str(payload.get("offer_id") or "")
+        offer_version = str(payload.get("offer_version") or "")
+        semantic_reviews = payload.get("semantic_reviews")
+        if offer_id and offer_version:
+            if not isinstance(semantic_reviews, list):
+                raise ValueError("semantic_reviews are required for commercial ranking")
+            reviews_by_company: dict[str, list[dict[str, object]]] = {}
+            for review in semantic_reviews:
+                if isinstance(review, dict):
+                    reviews_by_company.setdefault(str(review.get("company_id") or ""), []).append(review)
+            commercial_scores = []
+            for score in scores:
+                company_id = str(score.get("company_id") or "")
+                enriched = dict(score)
+                enriched["semantic_reviews"] = reviews_by_company.get(company_id, [])
+                audit = rank_account(enriched, offer_id, offer_version)
+                enriched["rank_audit"] = audit.model_dump(mode="json")
+                enriched["_commercial_score"] = audit.total_score
+                commercial_scores.append(enriched)
+            scores = commercial_scores
         accepted = payload.get("accepted_company_ids")
         accepted_ids = set(str(item) for item in accepted) if isinstance(accepted, list) else None
         ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"))

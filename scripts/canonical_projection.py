@@ -6,9 +6,11 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from account_intelligence import account_signal_state
 from campaign_spec import qualification_eligibility
-from lead_contract import none_found_allowed, run_scope_matches
+from lead_contract import run_scope_matches
 from run_manifest import load as load_manifest, portable_path, update as update_manifest
+from typed_contracts import CoverageManifest
 
 
 ASSURANCE_ORDER = {"unknown": 0, "replay": 1, "structural": 2, "source": 3}
@@ -44,6 +46,45 @@ def _write_csv(path: Path, rows: list[dict[str, object]], fallback: list[str]) -
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _coverage_manifest_from_research_run(research_run: dict[str, object], company_id: str) -> CoverageManifest | None:
+    raw = research_run.get("coverage_manifest")
+    source = raw if isinstance(raw, dict) else research_run
+    required_checks = source.get("required_checks")
+    offer_id = str(source.get("offer_id") or research_run.get("offer_id") or "")
+    offer_version = str(source.get("offer_version") or research_run.get("offer_version") or "")
+    if not isinstance(required_checks, list) or not required_checks or not offer_id or not offer_version:
+        return None
+    completed_checks = source.get("completed_checks") if isinstance(source.get("completed_checks"), list) else []
+    provider_states = source.get("provider_states") if isinstance(source.get("provider_states"), dict) else {}
+    if not provider_states:
+        provider_status = str(research_run.get("provider_status") or "").lower()
+        fallback_state = "available" if provider_status == "available" else "unavailable" if provider_status == "unavailable" else "unknown"
+        provider_states = {str(check): fallback_state for check in required_checks}
+    normalized_states = {
+        str(check): {"Available": "available", "Unavailable": "unavailable", "Invalid": "invalid", "Unknown": "unknown"}.get(str(state), str(state).lower())
+        for check, state in provider_states.items()
+    }
+    coverage_status = str(source.get("coverage_status") or "unknown")
+    permits_no_trigger = (
+        set(str(check) for check in completed_checks) == set(str(check) for check in required_checks)
+        and not bool(source.get("truncated", False))
+        and int(source.get("unresolved_candidates", 0) or 0) == 0
+        and set(normalized_states) >= set(str(check) for check in required_checks)
+        and all(normalized_states.get(str(check)) == "available" for check in required_checks)
+    )
+    return CoverageManifest(
+        company_id=company_id,
+        offer_id=offer_id,
+        offer_version=offer_version,
+        required_checks=[str(check) for check in required_checks],
+        completed_checks=[str(check) for check in completed_checks],
+        provider_states=normalized_states,
+        truncated=bool(source.get("truncated", False)),
+        unresolved_candidates=int(source.get("unresolved_candidates", 0) or 0),
+        trigger_state="No trigger found" if coverage_status == "complete" and permits_no_trigger else "Research incomplete",
+    )
 
 
 def _claim_value(claim: dict[str, object]) -> object:
@@ -183,13 +224,19 @@ def project_verified_evidence(
         signal_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "buying_signal" and str(claim.get("assurance_level") or "") == "source"), None)
         source_event_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "event" and str(claim.get("assurance_level") or "") == "source"), None)
         research_status = str(research_run.get("status") or "Needs review")
+        coverage_manifest = _coverage_manifest_from_research_run(research_run, company_id)
         if signal_claim and source_event_claim:
             signal_value = str(_claim_value(signal_claim))
-        elif none_found_allowed(research_run, signal_claims):
-            signal_value = "No trigger found" if str(research_run.get("coverage_status") or "") == "complete" else "None found"
-            research_status = "Completed"
+        elif coverage_manifest is not None:
+            signal_value = account_signal_state([], coverage_manifest)
+            if signal_value == "No trigger found":
+                research_status = "Completed"
+            elif signal_value == "Unavailable":
+                research_status = "Unavailable"
+            else:
+                research_status = "Partial"
         else:
-            signal_value = "Unknown"
+            signal_value = "Unknown" if research_status == "Unavailable" else "Research incomplete"
             if research_status not in {"Not searched", "Completed", "Partial", "Unavailable", "Needs review"}:
                 research_status = "Needs review"
         search_status = {
@@ -201,7 +248,7 @@ def project_verified_evidence(
         }.get(research_status, "Unknown")
         if research_status == "Completed" and str(research_run.get("adapter_capability") or "") != "live_research":
             search_status = "Unknown"
-        signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "coverage_status": research_run.get("coverage_status") or "unknown", "verified_claim_count": len(signal_claims), "run_id": run_id})
+        signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "coverage_status": "complete" if signal_value == "No trigger found" else "unavailable" if signal_value == "Unavailable" else "partial", "verified_claim_count": len(signal_claims), "run_id": run_id})
         row["buying_signal"] = signal_value
         row["projection_run_id"] = run_id
 

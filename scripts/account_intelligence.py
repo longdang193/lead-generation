@@ -225,6 +225,23 @@ def validate_account_thesis(
     if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
         raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
     reviews = [validate_semantic_review(item, claim_list, offer_profile=profile) for item in semantic_reviews]
+    reviews_by_id = {review.assertion_id: review for review in reviews}
+    missing_reviews = sorted(set(validated.semantic_review_ids) - set(reviews_by_id))
+    if missing_reviews:
+        raise ValueError(f"thesis references missing semantic review IDs: {', '.join(missing_reviews)}")
+    selected_reviews = [reviews_by_id[review_id] for review_id in validated.semantic_review_ids]
+    if any(review.decision != "approved" for review in selected_reviews):
+        raise ValueError("thesis requires approved semantic reviews for every material assertion")
+    if any(
+        review.company_id != validated.company_id
+        or (review.offer_id, review.offer_version) != (validated.offer_id, validated.offer_version)
+        for review in selected_reviews
+    ):
+        raise ValueError("thesis semantic reviews must match the enclosing company and offer")
+    reviewed_claim_ids = {claim_id for review in selected_reviews for claim_id in review.reviewed_claim_ids}
+    unsupported_claims = sorted((set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)) - reviewed_claim_ids)
+    if unsupported_claims:
+        raise ValueError("thesis material claims lack semantic review support: " + ", ".join(unsupported_claims))
     reviews_by_criterion = {
         review.offer_criterion: review
         for review in reviews
