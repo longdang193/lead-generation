@@ -7,6 +7,12 @@ description: Run the lead-generation harness to produce a traceable ranked short
 Use the existing repository utilities as the source of truth. Do not duplicate
 schemas, scoring rules, or export logic in prompts or ad-hoc scripts.
 
+The parent Codex agent owns strategy, account prioritization, native subagent
+dispatch, stopping decisions, and account-thesis wording. Use the repository's
+typed JSON tool boundary and receipt journal for admission, result validation,
+promotion, projection, ranking, and finalization. Python must not recreate a
+planner, scheduler, retry loop, or fixed lane sequence.
+
 ## Operating loop
 
 1. Read the campaign config and select `personal` or `strict` delivery policy.
@@ -39,6 +45,9 @@ schemas, scoring rules, or export logic in prompts or ad-hoc scripts.
     fail. Do not run provider-backed work without explicit authorization; the
     durable production gate remains blocked until a separate live probe proves
     source verification.
+11. Every native action must carry stable action/attempt identity, scope,
+    contract and profile versions, request/result hashes, and budget settlement;
+    append its terminal receipt before treating the handoff as complete.
 
 ## Delivery contract
 

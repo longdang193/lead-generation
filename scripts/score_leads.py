@@ -42,10 +42,10 @@ def parse_date(value: object) -> date | None:
         return None
 
 
-def classify_signal(event_rows: list[dict[str, object]]) -> str:
+def classify_signal(event_rows: list[dict[str, object]], as_of_date: date | None = None) -> str:
     if not event_rows:
         return "None found"
-    today = datetime.now(timezone.utc).date()
+    today = as_of_date or datetime.now(timezone.utc).date()
     ranks = []
     for event in event_rows:
         published = parse_date(event.get("publication_date"))
@@ -82,6 +82,8 @@ def derive_account_signal(company_audit: dict[str, str], matched_events: list[di
     research_status = company_audit.get("research_status", company_audit.get("search_status", ""))
     search_status = company_audit.get("search_status") or {"Completed": "Searched", "Partial": "Unknown", "Needs review": "Unknown"}.get(research_status, default_search_status)
     if research_status in {"Unavailable", "Not searched", "Partial", "Needs review"}:
+        if matched_events:
+            return classify_signal(matched_events), search_status
         return "Unknown", search_status
     if company_audit.get("signal_state") == "None found":
         return "None found", search_status
@@ -103,6 +105,7 @@ def main() -> int:
     parser.add_argument("--audit-output", type=Path, required=True)
     parser.add_argument("--signal-audit", type=Path)
     parser.add_argument("--delivery-policy", choices=("personal", "strict"), default="strict")
+    parser.add_argument("--as-of-date", type=date.fromisoformat)
     args = parser.parse_args()
     records = []
     for line in args.qualification.read_text(encoding="utf-8").splitlines():
@@ -152,6 +155,8 @@ def main() -> int:
         matched_events = links_by_company.get(record.get("company_id", ""), [])
         company_audit = signal_audit.get(str(record.get("company_id") or ""), {})
         signal, search_status = derive_account_signal(company_audit, matched_events, default_search_status)
+        if matched_events and signal not in {"Unknown", "None found"}:
+            signal = classify_signal(matched_events, args.as_of_date)
         actionability = actionability_for(tier, coverage, signal)
         sales_priority = sales_priority_for(actionability, tier)
         signal_urls = [str(event.get("source_url")) for event in matched_events if event.get("source_url") not in (None, "", "Unknown")]

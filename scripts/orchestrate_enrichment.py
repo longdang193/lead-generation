@@ -13,8 +13,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
+from dispatch_contracts import validate_lane_output
 from lead_contract import candidate_claim_id, candidate_sha256, run_scope_matches
-from run_manifest import atomic_write, entry, load as load_manifest, portable_path, publication_marker_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
+from run_manifest import entry, finalization_eligibility, load as load_manifest, portable_path, publish_staged_output, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
 from runtime_config import RuntimeConfig
 
 
@@ -188,6 +189,8 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
     manifest = {
         "run_id": run_id,
         "generated_at": stamp(),
+        "as_of_date": stamp()[:10],
+        "scoring_policy_version": "1",
         "head_sha": head_sha,
         "git_revision": head_sha,
         "git_ref": git_output(root, "branch", "--show-current"),
@@ -381,25 +384,6 @@ def _delivery_payload_is_complete(record: dict[str, object], lane: str, *, requi
         isinstance(attempt, dict) and attempt.get("status") == "Completed" and not attempt.get("truncated")
         for attempt in attempts
     )
-
-
-def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str) -> None:
-    allowed = {str(item["company_id"]) for item in queue}
-    seen: set[str] = set()
-    for record in records:
-        company_id = str(record.get("company_id") or "")
-        if record.get("run_id") != run_id or record.get("lane") != lane:
-            raise ValueError("lane output has mismatched run or lane")
-        if company_id not in allowed:
-            raise ValueError(f"lane output is out of scope: {company_id}")
-        if company_id in seen:
-            raise ValueError(f"duplicate lane output: {company_id}")
-        if str(record.get("status") or "") not in {"succeeded", "failed", "cancelled", "timed_out", "Completed", "Partial", "Unavailable", "Needs review"}:
-            raise ValueError(f"lane output has non-terminal status: {company_id}")
-        seen.add(company_id)
-    missing = sorted(allowed - seen)
-    if missing:
-        raise ValueError(f"lane output missing queued companies: {', '.join(missing)}")
 
 
 def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
@@ -620,6 +604,35 @@ def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepte
         return
     if len(priority_rows) != expected_count or len(set(priority_ids)) != expected_count or set(priority_ids) != accepted_ids:
         raise ValueError(f"final priority shortlist must contain exactly the admitted {expected_count} companies")
+
+
+def project_and_rank(*args: object, **kwargs: object) -> object:
+    """Expose projection as a callable kernel boundary for native callers."""
+
+    from canonical_projection import project_verified_evidence
+
+    return project_verified_evidence(*args, **kwargs)
+
+
+def finalize_run(
+    manifest_ref: Path,
+    root: Path,
+    staging: Path,
+    final: Path,
+    *,
+    status: str,
+    registries: dict[str, object] | None = None,
+    barriers: dict[str, object] | None = None,
+    delivery_policy: str | None = None,
+    enforce_policy: bool = False,
+) -> Path:
+    """Single controller-owned final-delivery barrier."""
+
+    if enforce_policy:
+        allowed, errors = finalization_eligibility(load_manifest(manifest_ref), delivery_policy or "")
+        if not allowed:
+            raise ValueError("finalization admission failed: " + "; ".join(errors))
+    return publish_staged_output(root, manifest_ref, staging, final, status=status, registries=registries, barriers=barriers)
 
 
 def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campaign_config: Path | None = None, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
@@ -881,7 +894,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root, delivery_policy=campaign.delivery_policy)
     scoring_audit = root / "evidence" / "reports" / run_id / "scoring_audit.csv"
     scripts_dir = Path(__file__).resolve().parent
-    score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit), "--delivery-policy", campaign.delivery_policy]
+    score_command = [sys.executable, str(scripts_dir / "score_leads.py"), "--qualification", str(canonical["qualification"]), "--events", str(canonical["events"]), "--event-links", str(canonical["event_links"]), "--signal-audit", str(canonical["signal_audit"]), "--output", str(canonical["scores"]), "--audit-output", str(scoring_audit), "--delivery-policy", campaign.delivery_policy, "--as-of-date", str(manifest.get("as_of_date") or stamp()[:10])]
     subprocess.run(score_command, cwd=root, check=True, capture_output=True, text=True)
     update_manifest_file(manifest_path, root, outputs={"scores": canonical["scores"], "scoring_audit": scoring_audit}, supporting_inputs={"website_evidence": promoted_website_evidence, "source_register": fixture_inputs.get("source_register", fixture_inputs["sources"]), "entity_resolution": fixture_inputs.get("entity_resolution", fixture_inputs["companies"]), "buying_signal_audit": canonical["signal_audit"], "buying_events": canonical["events"], "scoring_audit": scoring_audit, "contact_sources": fixture_inputs.get("contact_sources", fixture_inputs["contacts"])}, status="scored", barriers={"projection": True, "ranking": False})
     with canonical["scores"].open(encoding="utf-8-sig", newline="") as handle:
@@ -923,17 +936,15 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     if deliverable_check.returncode:
         raise RuntimeError(deliverable_check.stdout + deliverable_check.stderr)
     final_output.parent.mkdir(parents=True, exist_ok=True)
-    marker = publication_marker_path(root, run_id)
-    atomic_write(marker, {
-        "run_id": run_id,
-        "head_sha": str(manifest.get("head_sha") or ""),
-        "staging_path": staging.relative_to(root).as_posix(),
-        "final_path": final_output.relative_to(root).as_posix(),
-        "staging_sha256": file_digest(staging),
-    })
-    os.replace(staging, final_output)
-    update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, registries={"delivery": final_delivery}, status=str(final_delivery["status"]), barriers={"readiness": True, "published": True})
-    marker.unlink(missing_ok=True)
+    finalize_run(
+        manifest_path,
+        root,
+        staging,
+        final_output,
+        status=str(final_delivery["status"]),
+        registries={"delivery": final_delivery},
+        barriers={"readiness": True},
+    )
     return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report, "delivery": final_delivery}
 
 
@@ -966,6 +977,7 @@ def main() -> int:
     run.add_argument("--accepted-company-ids", type=Path)
     run.add_argument("--campaign-config", type=Path, default=_default_campaign_config(Path.cwd()))
     run.add_argument("--fixture", action="store_true")
+    run.add_argument("--legacy-live", action="store_true", help="explicitly opt into the legacy live worker path")
     run.add_argument("--worker-executable")
     run.add_argument("--worker-profile", default="default")
     run.add_argument("--verifier-executable")
@@ -979,6 +991,9 @@ def main() -> int:
         return 0
     if args.command == "run":
         root = args.root.resolve()
+        if not args.fixture and not args.legacy_live:
+            print("ERROR: live legacy execution is disabled; use the Codex-native tool boundary or pass --legacy-live explicitly")
+            return 2
         try:
             result = run_pipeline(root, args.manifest, args.shortlist, campaign_config=args.campaign_config, fixture=args.fixture, worker_executable=args.worker_executable, worker_profile=args.worker_profile, verifier_executable=args.verifier_executable, verifier_profile=args.verifier_profile)
         except (OSError, ValueError, RuntimeError) as exc:

@@ -172,6 +172,10 @@ def verifier_decision_valid(decision: dict[str, object], claim: dict[str, object
 
 
 def none_found_allowed(research_run: dict[str, object], verified_claims: list[dict[str, object]]) -> bool:
+    company_id = str(research_run.get("company_id") or "")
+    scope = str(research_run.get("scope") or "")
+    if not company_id or not scope or company_id not in scope:
+        return False
     if research_run.get("status") != "Completed":
         return False
     if research_run.get("provider_status") != "Available":
