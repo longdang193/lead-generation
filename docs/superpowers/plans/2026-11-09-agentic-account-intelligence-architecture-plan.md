@@ -11,7 +11,6 @@ targets:
   - scripts/typed_contracts.py
   - scripts/account_intelligence.py
   - scripts/harness_tools.py
-  - scripts/harness.py
   - scripts/run_manifest.py
   - scripts/worker_dispatch.py
   - scripts/promote_evidence.py
@@ -37,16 +36,20 @@ targets:
   - tests/test_scoring.py
   - tests/test_provider_clients.py
   - tests/test_native_adapters.py
-  - lead-generation-architecture.json
+  - agents/contact-researcher.toml
+  - agents/evidence-verifier.toml
+  - agents/portfolio-researcher.toml
+  - agents/signal-researcher.toml
 ---
 
 # Agentic Account Intelligence Architecture Plan
 
 ## Goal
 
-Evolve the lead-generation harness into an agent-directed, evidence-first
+Evolve the lead-generation harness into a Codex-native, evidence-first
 account-intelligence system without turning the E2E runner into a closed
-application. The parent agent must choose which accounts need more research,
+application or adding a repository-owned planner. The parent Codex agent must
+choose which accounts need more research,
 which bounded worker or tool to use, when evidence is sufficient, and what
 account thesis to form. Deterministic Python remains authoritative for
 admission, identity, budgets, evidence promotion, projections, scoring,
@@ -77,28 +80,31 @@ timeline and a separate account thesis containing structural fit, opportunity
 potential, indicators, hypotheses, counterevidence, research gaps, confidence,
 and a recommended next action.
 
-### Agentic harness with deterministic kernel
+### Codex-native orchestration with deterministic kernel
 
-The harness exposes thin callable tools for discovery, normalization,
-deduplication, identity validation, evidence capture and validation, fit
-calculation, ranking, and workbook export. A parent planner can select and
-sequence those tools or dispatch bounded workers without inheriting a fixed
-TED/portfolio/contact lane order. The reference example and E2E test exercise
-the harness; they do not become the production control plane.
+  The repository exposes thin callable tools for discovery, normalization,
+  deduplication, identity validation, evidence capture and validation, fit
+  calculation, ranking, finalization, and workbook export. The parent Codex
+  agent selects and sequences those tools, dispatches native subagents, decides
+  when evidence is sufficient, and forms the account thesis. Repository Python
+  does not implement a second planner, scheduler, retry loop, or production
+  agent runtime. The reference example and E2E test exercise the typed
+  boundaries; they do not become the production control plane.
 
 ### Coverage, trust, and replay safety
 
-Research runs record required checks, completed checks, coverage status, stop
-reason, strategy version, and shared-budget usage. Provider payloads are shape
-validated before success is counted. Manifest-bound `as_of_date` and scoring
-policy versions make ranking replayable. Self-declared agent or verifier
-assurance cannot promote structural or replay evidence to source-level
-`Verified`.
+  Research runs record required checks, completed checks, coverage status, stop
+  reason, strategy version, and shared-budget usage. Codex owns the continue /
+  stop decision; policy owns mandatory checks and coverage computation.
+  Provider payloads are shape validated before success is counted.
+  Manifest-bound `as_of_date` and scoring policy versions make ranking
+  replayable. Self-declared agent or verifier assurance cannot promote
+  structural or replay evidence to source-level `Verified`.
 
 ## Consolidated Review Basis
 
 Both sequential architecture reviews were compared against the checked-out
-source at commit `c0b3428ccd527dd8cb55a9a7067a40d8227f168e` on `main`. The
+source at commit `57cfbcc89eede14f7598f8e0553e8fdcaf2878a4` on `main`. The
 following findings are accepted into this plan:
 
 1. The parent agent owns strategy, prioritization, bounded next actions, and
@@ -124,9 +130,23 @@ following findings are accepted into this plan:
 9. The reference runner must stay thin, while the E2E test must mock only
    external providers and execute the real validation, promotion, projection,
    scoring, QA, staging, and atomic publication kernel.
-10. The existing `worker_dispatch.py` to `orchestrate_enrichment.py` import
-    boundary must be refactored so dispatch does not depend on the orchestrator
-    as its validation owner.
+  10. The existing `worker_dispatch.py` to `orchestrate_enrichment.py` import
+      boundary must be refactored so dispatch does not depend on the
+      orchestrator as its validation owner.
+  11. Native subagent scheduling, fan-out, retry choice, and concurrency remain
+      Codex runtime responsibilities. Python may admit work, validate results,
+      and settle receipts, but must not recreate the agent loop.
+  12. One controller-owned `finalize_run(manifest_ref)` barrier is the only
+      final-delivery path. Draft, ranking, and workbook staging are not final
+      publication.
+  13. Native handoff and action receipts must preserve parent/worker identity,
+      company scope, contract version, artifact hashes, provenance, budget
+      settlement, validation, and the stopping decision for replay and audit.
+  14. Existing `run_pipeline()` remains legacy/fixture compatibility only; the
+      Codex-native path must prove that it does not invoke the fixed
+      signals-to-portfolio-to-contacts sequence.
+  15. Existing agent profiles and skills are reconciled in place; no second
+      instruction hierarchy or duplicate role taxonomy is introduced.
 
 ## Execution Approach
 
@@ -181,7 +201,7 @@ following findings are accepted into this plan:
 **Specification Coverage:**
 - Pydantic validates process boundaries; JSON Schema and canonical hashes remain authoritative.
 - Self-declared assurance cannot promote replay or structural evidence to source-level `Verified`.
-- Shared contracts include evidence, verifier decisions, research attempts/runs, run context, admitted work, dispatch results, and artifact references.
+- Shared contracts include `Goal`, evidence, verifier decisions, research attempts/runs, run context, admitted work, native handoffs, worker results, action receipts, stop decisions, finalization requests, account hypotheses/theses, and artifact references.
 
 **Required Skills:**
 - `skill-backend-verification`
@@ -200,7 +220,7 @@ following findings are accepted into this plan:
 
 **Steps:**
 - [ ] Step 1: Map each proposed Pydantic model to its existing JSON record fields and identify fields that must remain hash- or manifest-derived.
-- [ ] Step 2: Add `requirements.txt` bounds `pydantic>=2.12,<3` and `jsonschema>=4.25,<5`, then implement `scripts/typed_contracts.py` with `EvidenceClaim`, `VerifierDecision`, `ResearchAttempt`, `ResearchRun`, `RunContext`, `AdmittedWorkItem`, `DispatchResult`, and `ArtifactRef`; use strict URL/date/datetime and bounded enum/score validation where existing records support it.
+- [ ] Step 2: Add `requirements.txt` bounds `pydantic>=2.12,<3` and `jsonschema>=4.25,<5`, then implement `scripts/typed_contracts.py` with `Goal`, `EvidenceClaim`, `VerifierDecision`, `ResearchAttempt`, `ResearchRun`, `RunContext`, `NativeActionRequest`, `WorkerResult`, `ActionReceipt`, `StopDecision`, `AccountHypothesis`, `AccountThesis`, `FinalizationRequest`, and `ArtifactRef`; use strict URL/date/datetime and bounded enum/score validation where existing records support it.
 - [ ] Step 3: Make `decision_assurance_level()` monotonic: only a verified source-capable verifier registry entry can yield source assurance; replay and structural paths remain lower assurance regardless of payload self-declarations.
 - [ ] Step 4: Add focused tests for valid serialization, rejection of malformed boundaries, canonical-hash preservation, and the assurance-escalation regression.
 
@@ -211,13 +231,13 @@ following findings are accepted into this plan:
 **Exit Criteria:**
 - Typed boundary models exist, serialize to compatible records, and cannot weaken evidence promotion or assurance semantics.
 
-### Task 2: Extract deterministic tools from the run state machine
+### Task 2: Extract deterministic boundaries without owning native scheduling
 
 **Purpose:**
-- Expose stable callable boundaries around the existing deterministic kernel and remove the dispatch-to-orchestrator validation dependency without changing `run_pipeline()` behavior.
+- Expose stable callable boundaries around the existing deterministic kernel and remove the dispatch-to-orchestrator validation dependency without moving native-agent orchestration into Python or changing `run_pipeline()` behavior.
 
 **Task Function:**
-- Separate admission, dispatch, verification/promotion, projection/ranking, and publication validation into reusable kernel entry points.
+- Separate admission, result validation/receipt settlement, verification/promotion, projection/ranking, and finalization into reusable kernel entry points. Native subagent scheduling remains outside the repository.
 
 **Template Profile:**
 - Controller-selected: `unresolved`
@@ -228,16 +248,17 @@ following findings are accepted into this plan:
 - Selection basis: independently validate import direction, manifest authority, atomic publication, and failure propagation.
 
 **Specification Coverage:**
-- Tools perform actions; agents decide strategy.
+- Tools perform actions; the parent Codex agent decides strategy and native subagent dispatch.
 - Manifest state/barriers, capability/live-replay admission, budgets, verifier assurance, projection/scoring/ranking, QA, and publication remain deterministic authorities.
-- No second workflow engine, scoring pipeline, or export pipeline is introduced.
+- No second planner, scheduler, workflow engine, scoring pipeline, or export pipeline is introduced.
+- `finalize_run(manifest_ref)` is the only final-delivery barrier; draft and staged outputs cannot be reported as final.
 
 **Required Skills:**
 - `skill-backend-verification`
 
 **Files And Symbols:**
 - Inspect: `scripts/orchestrate_enrichment.py:run_pipeline`, `scripts/worker_dispatch.py:DispatchBudget`, `scripts/worker_dispatch.py:dispatch_native_lane`, `scripts/promote_evidence.py:promote_verified_claims`, `scripts/canonical_projection.py`, `scripts/score_leads.py`, `scripts/build_workbook.py`
-- Modify: `scripts/run_manifest.py:prepare_run` (new boundary), `scripts/worker_dispatch.py:dispatch_research` (new boundary and validation ownership), `scripts/promote_evidence.py:verify_and_promote` (new boundary), `scripts/orchestrate_enrichment.py:project_and_rank` and `validate_and_publish` (new boundaries), plus imports and compatibility wrappers
+- Modify: `scripts/run_manifest.py:prepare_run` (new boundary), `scripts/worker_dispatch.py:admit_research_action`, `scripts/worker_dispatch.py:record_worker_result`, `scripts/worker_dispatch.py:settle_action_receipt` (new neutral boundaries), `scripts/promote_evidence.py:verify_and_promote` (new boundary), `scripts/orchestrate_enrichment.py:project_and_rank` and `finalize_run` (new boundaries), plus imports and compatibility wrappers
 - Verify: `tests/test_orchestration.py`, `tests/test_native_adapters.py`, `tests/test_end_to_end_enrichment.py`
 
 **Dependencies:**
@@ -249,17 +270,17 @@ following findings are accepted into this plan:
 - Stop for: deleting or renaming an existing CLI contract, introducing a second state machine, changing manifest authority, or changing publication behavior without a migration test and user approval
 
 **Steps:**
-- [ ] Step 1: Extract `prepare_run`, `dispatch_research`, `verify_and_promote`, `project_and_rank`, and `validate_and_publish` as thin functions over existing logic, with typed inputs/outputs at their boundaries.
-- [ ] Step 2: Move lane-output validation ownership out of `orchestrate_enrichment.py` so `worker_dispatch.py` depends on a neutral contract/validation module rather than importing its caller.
-- [ ] Step 3: Keep `run_pipeline()` as a compatibility composition of those boundaries and preserve atomic staging, manifest updates, and nonzero failure propagation.
-- [ ] Step 4: Add tests for direct callable use, invalid admission, budget exhaustion, promotion failure, projection failure, QA failure, and publication rollback/idempotency.
+- [ ] Step 1: Extract `prepare_run`, `admit_research_action`, `record_worker_result`, `settle_action_receipt`, `verify_and_promote`, `project_and_rank`, and `finalize_run` as thin functions over existing logic, with typed inputs/outputs at their boundaries.
+- [ ] Step 2: Move lane-output validation ownership out of `orchestrate_enrichment.py` so `worker_dispatch.py` depends on a neutral contract/validation module rather than importing its caller; retain `dispatch_native_lane` only as an explicitly legacy/fixture compatibility path.
+- [ ] Step 3: Keep `run_pipeline()` as a legacy/fixture compatibility composition and preserve atomic staging, manifest updates, nonzero failure propagation, and publication idempotency. The Codex-native path must not call it.
+- [ ] Step 4: Add tests for direct callable use, invalid admission, budget exhaustion, receipt settlement, promotion failure, projection failure, QA failure, publication rollback/idempotency, and the absence of a native-path call to `run_pipeline()`.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_orchestration tests.test_native_adapters tests.test_end_to_end_enrichment -v`
 - Expected: existing fixture pipeline behavior is unchanged; direct boundaries are callable; failures stop before publication and leave no partial final output.
 
 **Exit Criteria:**
-- The deterministic kernel is reusable through explicit boundaries, and the original pipeline remains a compatibility wrapper rather than the only control surface.
+- The deterministic kernel is reusable through explicit boundaries; native Codex orchestration owns scheduling, while the original pipeline remains a legacy compatibility wrapper rather than the control surface.
 
 ### Task 3: Add the account-event ledger and evidence-first thesis layer
 
@@ -281,7 +302,7 @@ following findings are accepted into this plan:
 - Account Intelligence covers select company, search environment, discover candidate events, verify events, and build account timeline.
 - Composite event identity is `(company_id, event_id)`.
 - Candidate, rejected, unresolved, and verified outcomes remain traceable.
-- Account hypotheses and theses contain supporting claims, counterevidence, confidence, gaps, and recommended action; they do not become verified facts by authorship alone.
+- Codex authors account hypotheses and theses; Python validates company scope, claim IDs, dates, confidence, provenance, counterevidence, gaps, and persistence. They do not become verified facts or deterministic fact-score inputs by authorship or persistence alone.
 
 **Required Skills:**
 - `skill-backend-verification`
@@ -300,9 +321,9 @@ following findings are accepted into this plan:
 - Stop for: treating an agent-authored hypothesis as a promoted claim, changing score weights without an explicit policy update, or dropping verified positives because another lane is partial
 
 **Steps:**
-- [ ] Step 1: Implement `scripts/account_intelligence.py` with typed `ObservedEvent`, `AccountEventAttribution`, `CandidateDecision`, `AccountHypothesis`, and `AccountThesis` records plus deterministic joins on `(company_id, event_id)`.
+- [ ] Step 1: Implement deterministic event-ledger and timeline helpers in `scripts/account_intelligence.py` using the Task 1 boundary models; accept Codex-authored `AccountHypothesis` and `AccountThesis` payloads only through validation functions, with deterministic joins on `(company_id, event_id)`.
 - [ ] Step 2: Record the search environment, candidate discovery result, verification decision, rejection or unresolved reason, supporting claim IDs, and event date/source scope for every event considered.
-- [ ] Step 3: Project an account timeline and thesis from verified claims plus explicitly labeled hypotheses; include counterevidence and research gaps, and keep direct intent nullable when no direct signal is verified.
+- [ ] Step 3: Project an account timeline from verified claims and validate/persist the Codex-authored thesis separately; include counterevidence and research gaps, and keep direct intent nullable when no direct signal is verified.
 - [ ] Step 4: Update signal derivation so verified positives survive partial or unavailable lanes and so hypotheses influence recommended action only through explicit, tested policy fields rather than fact score inputs.
 - [ ] Step 5: Add a canonical workbook sheet or linked account-ledger artifact with stable IDs and source references, preserving existing workbook consumers.
 
@@ -331,8 +352,9 @@ following findings are accepted into this plan:
 
 **Specification Coverage:**
 - `None found` is permitted only for completed account-scoped research with zero usable results.
-- Agent-selected work consumes the same `DispatchBudget` and cannot bypass capability or manifest admission.
+- Agent-selected work consumes the same `DispatchBudget` through admission and settlement receipts and cannot bypass capability or manifest admission; Python does not schedule or retry native subagents.
 - Required checks, completed checks, coverage status, stop reason, strategy version, `as_of_date`, and scoring policy version are persisted.
+- Research termination, coverage completeness, `None found` eligibility, and finalization eligibility are separate states. Agent-supplied `required_checks` cannot shrink policy-required checks.
 - Ranking is stable under worker completion order and does not use wall-clock time implicitly.
 
 **Required Skills:**
@@ -354,7 +376,7 @@ following findings are accepted into this plan:
 - [ ] Step 1: Extend research policy and manifest records with `strategy_version`, `required_checks`, `completed_checks`, `coverage_status`, `stop_reason`, `as_of_date`, and `scoring_policy_version`.
 - [ ] Step 2: Make `none_found_allowed()` inspect account scope, required/completed checks, provider status, truncation, and verified claims before allowing the negative state.
 - [ ] Step 3: Validate TED, Overpass, Apify, and Hunter response shapes before recording an attempt as successful; distinguish unavailable, partial, empty, and completed-zero outcomes.
-- [ ] Step 4: Make `DispatchBudget` the single settlement path for parent-selected tools and worker lanes, including retries and failed attempts, with deterministic receipts.
+- [ ] Step 4: Make `DispatchBudget` the single admission/settlement path for parent-selected tools and native-worker handoffs, including retries and failed attempts represented by receipts; do not add Python scheduling, fan-out, or retry policy.
 - [ ] Step 5: Replace implicit `date.today()` ranking inputs with manifest-bound `as_of_date` and persist the policy version used for classification and tie-breaking.
 - [ ] Step 6: Add tests for narrow-search false negatives, provider HTML/error payloads, budget exhaustion, retry accounting, partial research, and repeated replay with reordered worker completion.
 
@@ -363,15 +385,15 @@ following findings are accepted into this plan:
 - Expected: malformed providers cannot create successful research runs; partial/outage states cannot become `None found`; every admitted action settles against the shared budget; identical manifest inputs produce identical scores and ranks.
 
 **Exit Criteria:**
-- Research status, stopping, budget, provider, and date semantics are explicit and enforced before evidence or ranking can claim completeness.
+- Research status, stopping, budget, provider, coverage, and date semantics are explicit and enforced before evidence, ranking, or finalization can claim completeness; native handoffs are replay-auditable without rerunning LLM reasoning or live providers.
 
-### Task 5: Expose bounded harness tools and update skills
+### Task 5: Expose bounded tool contracts and reconcile skills/profiles
 
 **Purpose:**
-- Give the parent agent a small, typed tool surface while keeping procedure in skills and strategy in the agent.
+- Give the parent Codex agent a small, typed tool surface while keeping procedure in skills, strategy and native-subagent orchestration in Codex, and facts/publication in the deterministic kernel.
 
 **Task Function:**
-- Adapt existing deterministic functions into validated tool calls and document how the parent agent selects, dispatches, verifies, and stops work.
+- Adapt existing deterministic functions into validated tool calls and document how the parent agent selects, dispatches, verifies, and stops work without adding a repository planner or runtime.
 
 **Template Profile:**
 - Controller-selected: `unresolved`
@@ -383,44 +405,45 @@ following findings are accepted into this plan:
 
 **Specification Coverage:**
 - Skills decide procedure; agents decide strategy; tools perform actions; Pydantic enforces contracts; deterministic functions calculate facts.
-- The harness exposes `discover_companies`, `normalize_company`, `deduplicate`, `validate_identity`, `capture_evidence`, `validate_evidence`, `calculate_fit`, `rank_leads`, and `export_workbook`.
+- The tool facade exposes `discover_companies`, `normalize_company`, `deduplicate`, `validate_identity`, `capture_evidence`, `validate_evidence`, `calculate_fit`, and draft `rank_leads`; final workbook delivery is available only through `finalize_run`, which invokes `export_workbook` after every barrier passes.
 - Existing skills are extended rather than duplicated.
 
 **Required Skills:**
 - `skill-code-standards`
+- `skill-backend-verification`
 
 **Files And Symbols:**
-- Inspect: `.agents/skills/lead-generation/SKILL.md`, `.agents/skills/account-research/SKILL.md`, `.agents/skills/lead-evidence/SKILL.md`, `.agents/skills/contact-verification/SKILL.md`, `scripts/import_discovery.py`, `scripts/normalize_dedupe.py`, `scripts/extract_website_evidence.py`, `scripts/select_for_enrichment.py`, `scripts/build_workbook.py`
-- Modify: `scripts/harness_tools.py`, `scripts/harness.py`, the four existing skill files, and typed contracts from Task 1 where adapter payloads need explicit models
+- Inspect: `.agents/skills/lead-generation/SKILL.md`, `.agents/skills/account-research/SKILL.md`, `.agents/skills/lead-evidence/SKILL.md`, `.agents/skills/contact-verification/SKILL.md`, `agents/contact-researcher.toml`, `agents/evidence-verifier.toml`, `agents/portfolio-researcher.toml`, `agents/signal-researcher.toml`, `scripts/import_discovery.py`, `scripts/normalize_dedupe.py`, `scripts/extract_website_evidence.py`, `scripts/select_for_enrichment.py`, `scripts/build_workbook.py`
+- Modify: `scripts/harness_tools.py`, the four existing skill files, the four existing agent profiles, and typed contracts from Task 1 where adapter payloads need explicit models
 - Verify: `tests/test_harness_tools.py`
 
 **Dependencies:**
 - Tasks 1–4 typed contracts, deterministic boundaries, account-intelligence outputs, and coverage/budget semantics.
 
 **Authority:**
-- Preauthorized local actions: add thin adapters over existing functions, update existing skill instructions, and test planner action validation with mocked deterministic tool calls
+- Preauthorized local actions: add thin adapters over existing functions, update existing skill/profile instructions, and test typed action validation with mocked deterministic tool calls
 - Stop for: adding a second workflow engine, embedding fixed TED/portfolio/contact order, bypassing manifest or budget checks, or creating duplicate skill hierarchies
 
 **Steps:**
 - [ ] Step 1: Implement `scripts/harness_tools.py` as thin adapters that accept typed inputs, call existing deterministic functions, validate typed outputs, and return artifact/evidence references rather than raw unbounded provider payloads.
-- [ ] Step 2: Implement `scripts/harness.py:run_agent_harness(goal, planner, tools)` so the planner can request bounded actions, dispatch optional workers, inspect typed results, choose to stop, and produce an account thesis; reject unknown actions, invalid arguments, budget violations, and out-of-scope company IDs.
-- [ ] Step 3: Update the existing skills to describe account selection, environment search, event discovery, verification, timeline/thesis formation, research stopping, and evidence-backed assumptions without prescribing a fixed lane sequence.
-- [ ] Step 4: Add adapter tests that verify contract validation, deterministic delegation, budget use, stop decisions, and preservation of source/evidence references.
+- [ ] Step 2: Do not implement `run_agent_harness`, a planner loop, a scheduler, or subprocess/native-agent execution in Python. Define only the tool-call contracts the parent Codex agent can invoke, including action admission, worker-result recording, receipt settlement, thesis validation, draft ranking, and a `finalize_run` handoff; prevent direct export from being treated as final.
+- [ ] Step 3: Update the existing skills and four agent profiles to describe account selection, environment search, event discovery, verification, timeline/thesis formation, research stopping, and evidence-backed assumptions without prescribing a fixed lane sequence; add drift checks between role contracts and skill instructions.
+- [ ] Step 4: Add adapter tests that verify contract validation, deterministic delegation, budget use, stop-decision recording, preservation of source/evidence references, and rejection of fixed-sequence orchestration.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_harness_tools -v`
-- Expected: planner actions are validated and bounded; adapters reuse existing kernel functions; no adapter implements a second score, export, or orchestration path.
+- Expected: tool actions are validated and bounded; adapters reuse existing kernel functions; no adapter implements a second planner, score, export, or orchestration path.
 
 **Exit Criteria:**
-- A parent agent can use the harness through a small typed tool surface and can decide research strategy without taking ownership of deterministic facts or publication.
+- A parent Codex agent can use a small typed tool surface and native subagents can return auditable results, while Python owns deterministic facts, validation, projection, ranking, and publication barriers without a duplicate runtime.
 
-### Task 6: Add a thin reference runner and real-kernel E2E proof
+### Task 6: Add a thin reference example and native-handoff E2E proof
 
 **Purpose:**
-- Demonstrate and test the architecture end to end while keeping orchestration out of the example script.
+- Demonstrate and test the architecture end to end while keeping parent-agent orchestration and native subagent scheduling out of repository Python.
 
 **Task Function:**
-- Exercise goal intake, parent planning, bounded worker dispatch, typed evidence, hypothesis/thesis generation, deterministic ranking, and export through the real kernel.
+- Exercise goal intake, recorded native handoffs, typed evidence, Codex-authored hypothesis/thesis validation, deterministic ranking, finalization, and export through the real kernel.
 
 **Template Profile:**
 - Controller-selected: `unresolved`
@@ -431,16 +454,17 @@ following findings are accepted into this plan:
 - Selection basis: independently validate that the test mocks only external providers and proves final state, side effects, and failure propagation.
 
 **Specification Coverage:**
-- `examples/berlin_hausverwaltung.py` is a thin reference runner, not a hard-coded workflow.
-- `tests/test_harness_e2e.py` validates Goal → parent agent → worker dispatch → typed evidence → hypothesis → ranking → export.
+- `examples/berlin_hausverwaltung.py` is a thin reference example that loads a goal and describes/invokes the approved typed tool surface; it is not a hard-coded workflow or production runner.
+- `tests/test_harness_e2e.py` replays recorded native-agent handoffs and validates Goal → typed handoff → typed evidence → thesis validation → ranking → finalization → export.
 - The real deterministic validation, promotion, projection, scoring, QA, staging, and atomic publication kernel runs in the test.
+- At least two valid action traces and an early-stop trace are covered; no trace is required to use TED → portfolio → contacts order.
 
 **Required Skills:**
 - `skill-backend-verification`, `skill-verification-before-completion`
 
 **Files And Symbols:**
-- Inspect: `scripts/orchestrate_enrichment.py:run_pipeline`, `tests/test_end_to_end_enrichment.py`, `scripts/validate_workbook.py`, `scripts/qa_leads.py`, `scripts/validate_deliverables.py`
-- Modify: `examples/berlin_hausverwaltung.py`, `tests/test_harness_e2e.py`, `tests/test_end_to_end_enrichment.py` only for compatibility coverage, and `lead-generation-architecture.json` only when final callable boundaries or authority labels changed
+- Inspect: `scripts/orchestrate_enrichment.py:run_pipeline`, `scripts/orchestrate_enrichment.py:finalize_run`, `tests/test_end_to_end_enrichment.py`, `scripts/validate_workbook.py`, `scripts/qa_leads.py`, `scripts/validate_deliverables.py`
+- Modify: `examples/berlin_hausverwaltung.py`, `tests/test_harness_e2e.py`, `tests/test_end_to_end_enrichment.py` only for compatibility coverage, and typed handoff fixtures under `tests/fixtures/` if needed; do not add an untracked architecture registry as a second source of truth
 - Verify: `tests/test_harness_e2e.py`, `tests/test_end_to_end_enrichment.py`, `scripts/validate_workbook.py`, the full test suite, and the final manifest
 
 **Dependencies:**
@@ -452,10 +476,10 @@ following findings are accepted into this plan:
 - Stop for: live provider calls, external writes, publication, email sending, broad fixture changes that hide kernel failures, or marking the plan complete without fresh final verification
 
 **Steps:**
-- [ ] Step 1: Implement `examples/berlin_hausverwaltung.py` as `goal = load_goal(...)`, `result = run_agent_harness(goal, planner, tools)`, and `export(result)` with no hard-coded TED → portfolio → contacts → verify → score → export sequence.
-- [ ] Step 2: Build `tests/test_harness_e2e.py` with a planner that chooses bounded work based on typed results and mocked provider responses; run real identity validation, evidence promotion, account ledger/thesis projection, scoring, QA, staging, and atomic publication.
-- [ ] Step 3: Assert final workbook rows, timeline/thesis lineage, manifest hashes, ranking determinism, and no final publication after a forced provider, verifier, QA, or workbook-validation failure.
-- [ ] Step 4: Run the existing E2E suite and update `lead-generation-architecture.json` only if its canonical architecture facts no longer match the implemented boundaries.
+- [ ] Step 1: Implement `examples/berlin_hausverwaltung.py` as a thin goal loader plus typed handoff/finalization example; it must not import or call `run_agent_harness`, `run_pipeline()`, a planner loop, or a fixed lane sequence.
+- [ ] Step 2: Build `tests/test_harness_e2e.py` from recorded typed native-agent handoff fixtures and mocked provider responses; run real identity validation, evidence promotion, account ledger/timeline projection, thesis validation, scoring, QA, staging, and atomic finalization.
+- [ ] Step 3: Replay at least two different valid action traces plus early stop; assert final workbook rows, timeline/thesis lineage, manifest hashes, receipt settlement, ranking determinism, and no final publication after forced provider, verifier, QA, or workbook-validation failure.
+- [ ] Step 4: Run the existing E2E suite and add a regression proving the Codex-native path does not invoke `run_pipeline()` or automatically execute signals → portfolio → contacts.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_harness_e2e tests.test_end_to_end_enrichment -v`
@@ -465,7 +489,7 @@ following findings are accepted into this plan:
 - Expected: the harness E2E passes through the real deterministic kernel; external providers are mocked; workbook and manifest are valid; all existing tests pass; failure paths leave no partially published final artifact.
 
 **Exit Criteria:**
-- The architecture is demonstrated by a thin reference runner and regression-tested by a real-kernel E2E flow, with no production dependence on a fixed E2E sequence.
+- The architecture is demonstrated by a thin reference example and regression-tested by real-kernel native-handoff E2E flows, with no Python planner/runtime and no production dependence on a fixed E2E sequence.
 
 ## Verification
 
@@ -510,21 +534,26 @@ The plan is ready for completion verification when:
    hypotheses are not promoted facts.
 7. All agent-selected work consumes the shared dispatch budget, provider
    response shapes are validated, and ranking is replay-stable under a
-   manifest-bound `as_of_date` and scoring policy version.
-8. The thin reference runner and real-kernel E2E test prove the typed path
-   without encoding a closed lane sequence or duplicating scoring/export.
+   manifest-bound `as_of_date` and scoring policy version; stopping, coverage,
+   `None found`, and finalization eligibility remain distinct.
+8. The thin reference example and native-handoff E2E tests prove the typed path
+   without encoding a closed lane sequence, Python planner/runtime, or
+   duplicated scoring/export.
 9. Existing fixture behavior, workbook validation, QA, manifest hashes, and
    atomic publication remain green.
-10. No live provider spend, external publication, email sending, credential
+10. Every final workbook is produced through `finalize_run(manifest_ref)`;
+    draft ranking or direct export cannot bypass coverage, evidence, budget,
+    QA, manifest, or atomic-publication barriers.
+11. No live provider spend, external publication, email sending, credential
     exposure, or unapproved dependency installation occurs.
-11. `skill-verification-before-completion` returns `verified` before the plan
+12. `skill-verification-before-completion` returns `verified` before the plan
     status changes from `proposed` to `completed`.
 
 ## Plan Self-Review
 
 - Spec coverage: the account-intelligence focus is covered by Tasks 3 and 4;
-  the tools/subagents/Pydantic architecture is covered by Tasks 1, 2, and 5;
-  thin example and E2E validation are covered by Task 6.
+  the tools/native-subagents/Pydantic architecture is covered by Tasks 1, 2,
+  and 5; thin example and native-handoff E2E validation are covered by Task 6.
 - Completeness scan: no unresolved owner or template token is used. The
   workbook validation command resolves its runtime path from
   `active_run.json` instead of guessing a filename.
@@ -532,23 +561,37 @@ The plan is ready for completion verification when:
   `research_run_id`, `coverage_status`, `stop_reason`, `as_of_date`, and
   `scoring_policy_version` are used consistently across contracts, ledger,
   manifest, scoring, tests, and export.
-- Ownership: agents and external providers write only bounded candidate
-  results; verifier boundaries decide promotion; deterministic Python writes
-  canonical projections and outputs; the lead controller owns coordination
-  state and accepts proof.
+- Ownership: Codex owns strategy, native subagent dispatch, continue/stop
+  decisions, and thesis authorship; agents and external providers write only
+  bounded candidate results; verifier boundaries decide promotion;
+  deterministic Python validates handoffs, writes canonical projections and
+  outputs, and owns finalization; the lead controller owns coordination state
+  and accepts proof.
+- Architecture gate: no `run_agent_harness`, Python planner loop, Python native
+  scheduler, or fixed signal/portfolio/contact sequence remains in the
+  Codex-native path; `run_pipeline()` is legacy/fixture compatibility only.
+- Finalization gate: `finalize_run(manifest_ref)` is the sole final-delivery
+  path and rejects incomplete coverage, unsettled receipts, invalid lineage,
+  QA failures, manifest drift, or partial publication.
 - Task sizing: contract/trust, callable kernel, account intelligence,
   coverage/replay, harness adapters, and E2E proof are separate vertical
   outcomes with ordered dependencies.
 
 ## Execution Record
 
-- 2026-11-09: completed sequential GPT-5.6-Sol High and GPT-6 High reviews in
-  one authenticated dedicated GitHub-review context; both agreed on the
-  deterministic-kernel boundary, typed process contracts, evidence-first
-  account intelligence, and thin-runner architecture.
-- 2026-11-09: reviewed revision `c0b3428ccd527dd8cb55a9a7067a40d8227f168e`
-  from `origin/main`; publication was `no publication required` because no
-  source changes were made for the review.
+- 2026-11-09: completed sequential `GPT-5.6-Sol` High and `GPT-6` High reviews
+  in one authenticated, repository-bound GitHub-review context. Both returned
+  `FAIL` with actionable architectural changes; no retry, resubmission, model
+  switch, or effort downgrade occurred.
+- 2026-11-09: reviewed revision `57cfbcc89eede14f7598f8e0553e8fdcaf2878a4`
+  on `origin/main`; publication was `no publication required` for the reviewed
+  source revision, and the full SHA was reachable from GitHub.
+- 2026-11-09: `GPT-5.6-Sol` High — run `run-J185eH`, chat
+  `https://chatgpt.com/c/6af1c953-de2c-83eb-999f-ebd1e02d461b`, response
+  `C:\tmp\github-review-longdang193-lead-generation-57cfbcc-codex-native-direction-review-20261109\run-J185eH\response.md`, bounded result `completed`, visible response final/actionable and pinned to the reviewed SHA.
+- 2026-11-09: `GPT-6` High — run `run-ObS9mB`, chat
+  `https://chatgpt.com/c/6af1c9da-e3f8-83eb-ba0c-d4d2d63ccd8d`, response
+  `C:\tmp\github-review-longdang193-lead-generation-57cfbcc-codex-native-direction-review-20261109\run-ObS9mB\response.md`, bounded result `completed`, visible response final/actionable and pinned to the reviewed SHA.
 - 2026-11-09: saved this proposed plan only; no implementation code, runtime
   artifacts, provider calls, or external publication were performed.
 
