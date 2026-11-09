@@ -100,6 +100,17 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 | Task 5 | `pending` | current | `unresolved` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint |
 | Task 6 | `pending` | current | `unresolved` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint |
 
+## Review Consolidation (2026-11-09)
+
+The bounded `GPT-5.6-Sol` / `High` review completed against commit `69d4660172d269c12be20b60c7a9ad59bbf0c155` and the visible response was verified in the repository-bound profile. The reviewer confirmed the plan heading `Task 2: Integrate native dispatch, retries, and settlement with one budget ledger`, `action_lifecycle.validate_result`, and `ActionLifecycleTests.test_rejected_result_cannot_become_validated_or_settled` before returning findings. The review verdict was not implementation-ready: no P0, four verified P1 findings, and two verified P2 findings.
+
+- **P1 lifecycle rejection ownership:** `WorkerResult` excludes `Rejected`; `validate_result` rejects `validation_errors` before emitting a durable validation event; and `settle_action` requires that event. Task 2 therefore must own `typed_contracts.py`, `validate_result`, `settle_action`, and the rejection regression instead of only dispatch/orchestration. Add a durable `result_rejected` transition with validation errors and artifact/hash provenance, settle it as terminal `Rejected` with zero coverage, and prove replay/idempotency.
+- **P1 retry authorization and budget identity:** `create_run_manifest` runs before queues and runtime policy exist, while `dispatch_native_lane` consumes private retry units but returns one aggregate record. Add an execution-authorization sealing phase after queue materialization; give every subprocess attempt a unique lifecycle `attempt_id` under one logical action; admit and settle each actual attempt; and reduce `DispatchBudget` to deadline/concurrency enforcement or a derived view.
+- **P1 false durable coverage:** `coverage_delta` is an unrestricted dictionary copied into settlement and summed during replay without terminal-status, company, action-type, or scope validation. Reconstruct authoritative coverage from authorized successful terminal records; retain `coverage_delta` only as validated diagnostics or replace it with a typed, settlement-checked structure.
+- **P1 row-level assurance leakage:** projection mutates retained qualification values and stores only the maximum claim assurance, while scoring consumes scalar fields without field-level provenance. Use per-field assurance or a source-only canonical fact map; never score retained structural/base values unless their source assurance is explicitly bound; add mixed-provenance regressions.
+- **P2 stale derived lifecycle state:** Task 5 needs an append-first, atomic snapshot protocol with a schema/versioned journal watermark (byte offset or event count plus last-event digest). Snapshot loads must fall back to replay on watermark mismatch, corruption, or truncation; add crash-window fault injection tests.
+- **P2 non-hermetic production proof:** Task 6 must run in a disposable temporary Git repository/worktree with the minimal committed fixture tree, `require_clean=True`, deterministic local worker/verifier stubs at the adapter boundary, and assertions that no writes escape the temporary root. Do not use `require_clean=False` or the implementation checkout for this readiness proof.
+
 ## Task Breakdown
 
 ### Task 1: Establish the manifest-bound run context and admission contract
@@ -181,8 +192,12 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 **Files And Symbols:**
 - Inspect: `scripts/worker_dispatch.py:DispatchBudget`, `scripts/worker_dispatch.py:admit_research_action`, `scripts/worker_dispatch.py:dispatch_native_lane`
 - Inspect: `scripts/orchestrate_enrichment.py:run_pipeline`
+- Inspect: `scripts/action_lifecycle.py:validate_result`, `scripts/action_lifecycle.py:settle_action`
+- Inspect: `scripts/typed_contracts.py:WorkerResult`, `scripts/typed_contracts.py:LifecycleEvent`, `scripts/typed_contracts.py:ActionReceipt`
 - Modify: `scripts/worker_dispatch.py:DispatchBudget`, `scripts/worker_dispatch.py:admit_research_action`, `scripts/worker_dispatch.py:dispatch_native_lane`
 - Modify: `scripts/orchestrate_enrichment.py:run_pipeline`
+- Modify: `scripts/action_lifecycle.py:validate_result`, `scripts/action_lifecycle.py:settle_action`
+- Modify: `scripts/typed_contracts.py:WorkerResult`, `scripts/typed_contracts.py:LifecycleEvent`, `scripts/typed_contracts.py:ActionReceipt`
 - Verify: `tests/test_native_adapters.py`, `tests/test_action_lifecycle.py`, `tests/test_harness_e2e.py`
 
 **Dependencies:**
@@ -193,14 +208,14 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Stop for: live provider/CRM I/O, a new scheduler, unbounded concurrency, destructive process cleanup, or changes to external adapter protocols not covered by the repository contracts.
 
 **Steps:**
-- [ ] Step 1: Route every production queue item through the shared lifecycle adapter. Admission must happen before worker execution, worker output must pass `validate_result`, and every terminal path must emit `settle_action` with the recorded result/artifact hashes and coverage delta.
-- [ ] Step 2: Make runtime reservation and durable admission use one bounded reservation helper. If runtime capacity is reserved before durable admission, release exactly that reservation when admission fails; if durable admission succeeds, a later scheduler failure must settle a terminal failed/unavailable action rather than leave an unsettled admission.
-- [ ] Step 3: Account budget in `budget_units` consistently for first attempts, retries, verifier actions, and reserve-company actions. Preserve the existing terminal failure classes and cache reuse, but make retry/backfill headroom explicit in the run budget.
+- [ ] Step 1: Route every production queue item through the shared lifecycle adapter. Add an explicit durable rejection transition for schema/validation failures that records validation errors plus canonical/raw-artifact hash provenance, settles terminal `Rejected` with zero coverage, and remains replayable and idempotent; do not weaken `WorkerResult` validation to accept malformed results.
+- [ ] Step 2: Seal execution authorization after queues and runtime policy are materialized but before the first subprocess. Make runtime reservation and durable admission use one bounded helper; release a reservation when admission fails, and settle a terminal failed/unavailable/rejected action when post-admission launch or scheduling fails.
+- [ ] Step 3: Give each actual subprocess invocation a unique lifecycle `attempt_id` under one logical `action_id`, admit immediately before launch, and settle every attempt. Account first attempts, retries, verifier actions, and reserve-company actions in the same durable budget; reduce `DispatchBudget` to deadline/concurrency enforcement or a derived cache rather than an independent attempt ledger.
 - [ ] Step 4: Keep worker wrappers responsible for subprocess deadline, cancellation, descendant cleanup, and output receipts; keep lifecycle responsible for authorization, settlement, and finalization eligibility.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_native_adapters tests.test_action_lifecycle -v`
-- Expected: every production-shaped dispatch result has a matching admitted, validated, and settled lifecycle trace; reservation failure leaves no orphan admission; retries consume declared capacity; terminal failures remain replayable and idempotent.
+- Expected: every production-shaped dispatch result has a matching admitted, validated, and settled lifecycle trace; rejection is terminal and settled with zero coverage; reservation failure leaves no orphan admission; a failure-to-timeout-to-success sequence has three identifiable admissions/settlements and exactly three consumed units; terminal failures remain replayable and idempotent.
 - [ ] Run a mocked representative operation trace through `run_pipeline` and inspect the generated journal under `evidence/action_lifecycle/` for one settled event per admitted action.
 
 **Exit Criteria:**
@@ -247,7 +262,7 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 **Steps:**
 - [ ] Step 1: Parse `qa_sample` with `csv.DictReader`, require `company_id`, validate row IDs against admitted scope and the expected priority/qualification relationship, and retain the existing zero-error report requirement.
 - [ ] Step 2: Bind promoted evidence to candidate hashes, verifier decisions, verifier run IDs, source policy, and admitted company IDs. Keep standalone compatibility behavior separate from production-authorized output so it cannot be mistaken for verified production evidence.
-- [ ] Step 3: Reconstruct required lane coverage from settled lifecycle statuses and `coverage_delta`; require promoted evidence and ranked rows to be supported by the corresponding durable records; compare delivered IDs and counts with ranked IDs and campaign policy.
+- [ ] Step 3: Reconstruct authoritative required-lane coverage from authorized company/action/scope records and defined successful terminal statuses. Treat `coverage_delta` as diagnostic unless it is a typed structure validated by `settle_action`; require promoted evidence and ranked rows to be supported by corresponding durable records; compare delivered IDs and counts with ranked IDs and campaign policy.
 - [ ] Step 4: Treat manifest barrier, coverage, and delivery fields as cached summaries that must agree with reconstructed facts. Reject empty or partial evidence when the selected policy requires complete coverage.
 
 **Verification:**
@@ -298,8 +313,8 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 **Steps:**
 - [ ] Step 1: Select the native candidate/verifier record shape as the inter-process contract and implement one compatibility boundary that maps it to in-process typed models. Support the actual `candidate_claim_id`, `claim_value`, `candidate_sha256`, `procurement`, `Not searched`, and `Unavailable` values through one maintained owner.
 - [ ] Step 2: Add round-trip tests that feed an actual `native_worker.py` claim and `native_verifier.py` decision through the facade and back without loss of identity, hash, status, assurance, or provenance.
-- [ ] Step 3: In projection, allow structural claims to remain in evidence/audit output but require `assurance_level == source` before writing `service_fit`, `residential_weg`, `berlin_relevance`, `management_type`, or `portfolio_size` values used by scoring.
-- [ ] Step 4: Keep `calculate_fit` deterministic and explicit about missing/source-only inputs; add ranking regressions proving an unsupported structural claim cannot promote a lead into a higher tier.
+- [ ] Step 3: In projection, allow structural claims to remain in evidence/audit output but build a per-field assurance map or separate source-only canonical fact map. Write score-bearing `service_fit`, `residential_weg`, `berlin_relevance`, `management_type`, or `portfolio_size` values only when that specific field is source-assured; retained base/structural values remain audit context unless their source assurance is explicitly bound.
+- [ ] Step 4: Keep `calculate_fit` deterministic and explicit about missing/source-only inputs; add mixed-provenance ranking regressions proving an unrelated source claim or an unsupported structural claim cannot make another field score or promote a lead into a higher tier.
 - [ ] Step 5: Separate event freshness from buying intent using the existing signal taxonomy. Preserve publication age as one input, but require event category/relevance, buyer/opportunity evidence, deadline state, and verification status before classifying a signal as commercially strong.
 - [ ] Step 6: In account-intelligence projection, retain rejected/unresolved lineage but compute `corroboration_count` only from independently verified supporting claims; expose rejected, unresolved, and contradictory counts separately.
 
@@ -349,9 +364,9 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Stop for: deleting or rewriting the append-only journal, changing retention or cleanup policy, adding a distributed scheduler, or claiming a performance improvement without before/after evidence.
 
 **Steps:**
-- [ ] Step 1: Add a versioned per-run derived state file or equivalent indexed state updated under the existing run lock. Rebuild it from the append-only journal on missing/stale state, but use it for normal admission, validation, and settlement reads.
-- [ ] Step 2: Preserve `replay_lifecycle` as the recovery/audit path and assert that snapshot state and journal replay produce identical reserved, settled, terminal, coverage, and idempotency results.
-- [ ] Step 3: Instrument the synthetic trace to prove transition operations do not parse the full journal on every event; verify output equivalence for at least 1,000 admissions/results/settlements.
+- [ ] Step 1: Add a versioned per-run derived state file or equivalent indexed state updated under the existing run lock. Append and fsync the journal event first, then atomically replace the snapshot with a watermark containing schema version, journal byte offset or event count, and last-event digest. Rebuild from the append-only journal whenever the snapshot is missing, corrupt, truncated, or its watermark does not match the journal.
+- [ ] Step 2: Preserve `replay_lifecycle` as the recovery/audit path and assert that snapshot state and journal replay produce identical reserved, settled, terminal, coverage, and idempotency results, including a crash window between journal fsync and snapshot replacement.
+- [ ] Step 3: Instrument the synthetic trace to prove transition operations do not parse the full journal on every event; verify output equivalence for at least 1,000 admissions/results/settlements and fault-inject stale, truncated, and corrupt snapshots.
 - [ ] Step 4: Expose attempted, retried, timed-out, verifier-reserved, reserve-backfill, reused, and remaining capacity in dispatch reconciliation so a 30-company/three-lane campaign cannot silently promise retries it cannot fund.
 
 **Verification:**
@@ -402,7 +417,7 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Stop for: live external provider or CRM writes, publication, unrelated documentation rewrites, or accepting a green fixture-only trace as production proof.
 
 **Steps:**
-- [ ] Step 1: Keep `_trace` as a fixture/replay smoke test, but add a production-mode integration test that calls the actual manifest factory and `run_pipeline` with provider subprocesses mocked at the adapter boundary.
+- [ ] Step 1: Keep `_trace` as a fixture/replay smoke test, but add a production-mode integration test inside a disposable temporary Git repository/worktree. Populate and commit the minimal campaign/input fixture tree, call the actual manifest factory with `require_clean=True`, run `run_pipeline` with deterministic local worker/verifier stubs at the adapter boundary, and assert no writes escape the temporary root.
 - [ ] Step 2: Assert the real output artifacts: lifecycle journal, candidate/verifier records, promoted evidence, scores, priority rows, QA CSV/report, workbook hash, finalization proof, publication marker, and replay after a simulated restart.
 - [ ] Step 3: Add failure-path assertions for QA format mismatch, failed/unavailable worker result, rejected evidence, forged admission, stale artifact hash, incomplete coverage, and ranked/delivery mismatch.
 - [ ] Step 4: Update the prior remediation plan's proof ledger and deferred-capability notes so documentation distinguishes fixture proof, mocked provider proof, and unperformed live provider/CRM proof.
