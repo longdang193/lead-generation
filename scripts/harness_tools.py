@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
 from typing import Any
 
-from action_receipts import append_receipt, replay_run
+from action_lifecycle import admit_action as admit_lifecycle_action, replay_lifecycle, settle_action, validate_result as validate_lifecycle_result
+from action_receipts import replay_run
 from account_intelligence import calculate_structural_fit, project_account_intelligence, validate_account_thesis
-from run_manifest import finalization_eligibility, load, publish_staged_output
+from import_discovery import read_rows
+from lead_contract import is_plausible_company_name
+from normalize_dedupe import clean_name, company_id, explicit_berlin_evidence, trusted_company_domain
+from promote_evidence import promote_verified_claims
+from run_manifest import file_sha256, finalization_eligibility, finalize_run, load, reconstruct_finalization_readiness
+from select_for_enrichment import select_accounts
 from typed_contracts import (
     ActionReceipt,
+    ArtifactRef,
+    EvidenceClaim,
     FinalizationRequest,
     Goal,
     NativeActionRequest,
@@ -37,26 +46,131 @@ def _payload(request: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+def _resolve_path(root: Path, raw: object, *, required: bool = True) -> Path:
+    value = str(raw or "")
+    if not value:
+        if required:
+            raise ValueError("path is required")
+        return root.resolve()
+    path = Path(value)
+    resolved = (path if path.is_absolute() else root / path).resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError as exc:
+        raise ValueError("path must remain under repository root") from exc
+    return resolved
+
+
+def _artifact(root: Path, path: Path, kind: str) -> dict[str, object]:
+    if not path.exists() or not path.is_file():
+        raise FileNotFoundError(path)
+    return ArtifactRef(path=path.relative_to(root.resolve()).as_posix(), sha256=file_sha256(path), kind=kind).model_dump(mode="json")
+
+
+def _records(path: Path) -> list[dict[str, object]]:
+    if path.suffix.lower() == ".csv":
+        import csv
+        with path.open(encoding="utf-8-sig", newline="") as handle:
+            return [dict(row) for row in csv.DictReader(handle)]
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if path.suffix.lower() == ".jsonl":
+        return [value for value in (json.loads(line) for line in lines if line.strip()) if isinstance(value, dict)]
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    if isinstance(value, dict):
+        return [value]
+    return []
+
+
+def _normalize_company(row: dict[str, object]) -> dict[str, object]:
+    company_name = str(row.get("company_name") or row.get("legal_name") or "").strip()
+    normalized_name = clean_name(company_name)
+    trusted_domain = trusted_company_domain({key: str(value or "") for key, value in row.items()})
+    postal_code = str(row.get("postal_code") or "").strip()
+    normalized = dict(row)
+    normalized.update({
+        "company_name": company_name,
+        "normalized_name": normalized_name,
+        "trusted_domain": trusted_domain,
+        "company_id": str(row.get("company_id") or company_id(normalized_name, trusted_domain, postal_code)),
+        "berlin_evidence": str(row.get("berlin_evidence") or explicit_berlin_evidence({key: str(value or "") for key, value in row.items()})),
+    })
+    return normalized
+
+
 def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
     if not isinstance(request, dict):
         raise ValueError("request must be an object")
     action = str(request.get("action") or "")
-    payload = _payload(request)
+    payload = dict(_payload(request))
     if action == "discover_profiles":
         return {"profiles": discover_profiles(root)}
+    if action == "discover_companies":
+        source = str(payload.get("source") or "approved_input")
+        rows = read_rows(_resolve_path(root, payload.get("path")), source)
+        limit = int(payload.get("limit", 1000))
+        if limit < 0:
+            raise ValueError("limit must be nonnegative")
+        return {"companies": rows[:limit], "count": len(rows), "truncated": len(rows) > limit, "source": source}
+    if action == "normalize_company":
+        row = payload.get("company") or payload.get("row")
+        if not isinstance(row, dict):
+            raise ValueError("company must be an object")
+        return {"company": _normalize_company(row)}
+    if action in {"deduplicate", "deduplicate_companies"}:
+        rows = payload.get("companies")
+        if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+            raise ValueError("companies must be a list of objects")
+        unique: list[dict[str, object]] = []
+        seen: set[tuple[object, ...]] = set()
+        for raw in rows:
+            row = _normalize_company(raw)
+            key = (row.get("company_id"), row.get("trusted_domain"), row.get("normalized_name"), str(row.get("postal_code") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(row)
+        return {"companies": unique, "input_count": len(rows), "output_count": len(unique), "duplicates_removed": len(rows) - len(unique)}
+    if action == "validate_identity":
+        row = payload.get("company") or payload.get("row")
+        if not isinstance(row, dict):
+            raise ValueError("company must be an object")
+        normalized = _normalize_company(row)
+        errors: list[str] = []
+        if not is_plausible_company_name(normalized.get("company_name")):
+            errors.append("company_name is not plausible")
+        if not normalized.get("trusted_domain"):
+            errors.append("trusted_company_domain is missing or blocked")
+        return {"valid": not errors, "errors": errors, "company": normalized}
     if action == "validate_goal":
         return {"goal": Goal.model_validate(payload).model_dump(mode="json")}
     if action == "admit_action":
-        value = NativeActionRequest.model_validate(payload)
+        manifest_raw = str(payload.pop("manifest_path", "manifest.json"))
+        manifest_path = Path(manifest_raw)
+        if not manifest_path.is_absolute():
+            manifest_path = root / manifest_path
+        manifest_path = manifest_path.resolve()
+        if root.resolve() not in manifest_path.parents:
+            raise ValueError("manifest_path must remain under repository root")
+        value = admit_lifecycle_action(root, payload, manifest_path)
         return {"action": value.model_dump(mode="json"), "admitted": True}
     if action == "validate_result":
-        value = WorkerResult.model_validate(payload)
+        value = validate_lifecycle_result(root, payload)
         return {"result": value.model_dump(mode="json"), "validated": not bool(value.validation_errors)}
     if action == "validate_evidence":
-        from typed_contracts import EvidenceClaim
-
         value = EvidenceClaim.model_validate(payload)
         return {"claim": value.model_dump(mode="json"), "validated": True}
+    if action == "capture_evidence":
+        value = EvidenceClaim.model_validate(payload)
+        return {"claim": value.model_dump(mode="json"), "validated": True}
+    if action in {"promote_evidence", "promote_verified_claims"}:
+        candidates = _resolve_path(root, payload.get("candidates_path"))
+        decisions = _resolve_path(root, payload.get("decisions_path"))
+        output = _resolve_path(root, payload.get("output_path"))
+        manifest = _resolve_path(root, payload.get("manifest_path"), required=False) if payload.get("manifest_path") else None
+        promoted = promote_verified_claims(candidates, decisions, output, manifest)
+        return {"artifact": _artifact(root, output, "verified_evidence"), "count": len(promoted)}
     if action == "validate_thesis":
         claims = payload.pop("claims", [])
         value = validate_account_thesis(payload, claims)
@@ -70,9 +184,65 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
     if action == "calculate_fit":
         claims = payload.get("claims", [])
         return {"structural_fit": calculate_structural_fit(claims)}
+    if action == "rank_leads":
+        scores = payload.get("scores")
+        qualification = payload.get("qualification")
+        if isinstance(scores, str):
+            score_path = _resolve_path(root, scores)
+            scores = _records(score_path)
+        if isinstance(qualification, str):
+            qualification_path = _resolve_path(root, qualification)
+            qualification = {str(item.get("company_id") or ""): item for item in _records(qualification_path)}
+        if not isinstance(scores, list) or not isinstance(qualification, dict):
+            raise ValueError("scores and qualification are required")
+        accepted = payload.get("accepted_company_ids")
+        accepted_ids = set(str(item) for item in accepted) if isinstance(accepted, list) else None
+        ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"))
+        return {"leads": ranked, "count": len(ranked)}
+    if action == "export_workbook":
+        output = _resolve_path(root, payload.get("output"))
+        build_report = _resolve_path(root, payload.get("build_report"))
+        command = [
+            sys.executable, str(root / "scripts" / "build_workbook.py"),
+            "--companies", str(_resolve_path(root, payload.get("companies"))),
+            "--scores", str(_resolve_path(root, payload.get("scores"))),
+            "--priority", str(_resolve_path(root, payload.get("priority"))),
+            "--contacts", str(_resolve_path(root, payload.get("contacts"))),
+            "--sources", str(_resolve_path(root, payload.get("sources"))),
+            "--output", str(output), "--build-report", str(build_report),
+        ]
+        if payload.get("run_manifest"):
+            command.extend(["--run-manifest", str(_resolve_path(root, payload.get("run_manifest")))])
+        completed = subprocess.run(command, cwd=root, check=False, capture_output=True, text=True)
+        if completed.returncode:
+            raise RuntimeError((completed.stdout + completed.stderr).strip() or "workbook export failed")
+        return {"workbook": _artifact(root, output, "workbook"), "build_report": _artifact(root, build_report, "build_report")}
+    if action == "qa_workbook":
+        workbook = _resolve_path(root, payload.get("workbook"))
+        report = _resolve_path(root, payload.get("report"))
+        sample_output = _resolve_path(root, payload.get("sample_output"))
+        command = [
+            sys.executable, str(root / "scripts" / "qa_leads.py"),
+            "--workbook", str(workbook), "--schema", str(_resolve_path(root, payload.get("schema"))),
+            "--evidence-dir", str(_resolve_path(root, payload.get("evidence_dir"))),
+            "--report", str(report), "--sample-output", str(sample_output),
+        ]
+        if payload.get("website_evidence"):
+            command.extend(["--website-evidence", str(_resolve_path(root, payload.get("website_evidence")))])
+        if payload.get("run_manifest"):
+            command.extend(["--run-manifest", str(_resolve_path(root, payload.get("run_manifest")))])
+        completed = subprocess.run(command, cwd=root, check=False, capture_output=True, text=True)
+        if completed.returncode:
+            raise RuntimeError((completed.stdout + completed.stderr).strip() or "workbook QA failed")
+        return {"report": _artifact(root, report, "qa_report"), "sample_output": _artifact(root, sample_output, "qa_sample")}
     if action == "record_receipt":
-        value = append_receipt(root, ActionReceipt.model_validate(payload))
+        value = settle_action(root, payload)
         return {"receipt": value.model_dump(mode="json"), "journal": str((root / "evidence" / "action_receipts" / f"{value.run_id}.jsonl").relative_to(root))}
+    if action == "replay_lifecycle":
+        run_id = str(payload.get("run_id") or "")
+        if not run_id:
+            raise ValueError("run_id is required")
+        return replay_lifecycle(root, run_id)
     if action == "replay_receipts":
         run_id = str(payload.get("run_id") or "")
         if not run_id:
@@ -86,33 +256,21 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         manifest_path = manifest_path.resolve()
         if root.resolve() not in manifest_path.parents:
             raise ValueError("manifest_path must remain under repository root")
-        allowed, errors = finalization_eligibility(load(manifest_path), value.delivery_policy.value)
-        return {"eligible": allowed, "errors": errors, "manifest_path": manifest_path.relative_to(root.resolve()).as_posix()}
-    if action == "publish_staged_output":
+        proof = reconstruct_finalization_readiness(root, manifest_path, value.delivery_policy.value)
+        return {"eligible": bool(proof["ready"]), "errors": proof["errors"], "manifest_path": manifest_path.relative_to(root.resolve()).as_posix(), "proof": proof}
+    if action == "finalize_run":
         run_id = str(payload.get("run_id") or "")
-        staging_raw = str(payload.get("staging_path") or "")
-        final_raw = str(payload.get("final_path") or "")
-        manifest_raw = str(payload.get("manifest_path") or "")
-        status = str(payload.get("status") or "")
-        if not all((run_id, status, staging_raw, final_raw, manifest_raw)):
+        staging = root / str(payload.get("staging_path") or "")
+        final = root / str(payload.get("final_path") or "")
+        manifest_path = root / str(payload.get("manifest_path") or "")
+        if not all((run_id, str(payload.get("status") or ""), str(payload.get("staging_path") or ""), str(payload.get("final_path") or ""), str(payload.get("manifest_path") or ""))):
             raise ValueError("run_id, status, staging_path, final_path, and manifest_path are required")
-        staging = root / staging_raw
-        final = root / final_raw
-        manifest_path = root / manifest_raw
-        manifest = load(manifest_path)
-        if str(manifest.get("run_id") or "") != run_id:
+        if load(manifest_path).get("run_id") != run_id:
             raise ValueError("run_id does not match manifest")
-        campaign = manifest.get("campaign")
-        campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
-        published = publish_staged_output(
-            root,
-            manifest_path,
-            staging,
-            final,
-            status=status,
-            delivery_policy=str(payload.get("delivery_policy") or manifest.get("delivery_policy") or campaign_policy or "strict"),
-        )
+        published = finalize_run(root, manifest_path, staging, final, status=str(payload["status"]), delivery_policy=payload.get("delivery_policy"))
         return {"published": True, "path": published.relative_to(root.resolve()).as_posix()}
+    if action == "publish_staged_output":
+        raise ValueError("direct publish_staged_output is not available through the native facade; use finalize_run")
     raise ValueError(f"unknown harness action: {action}")
 
 

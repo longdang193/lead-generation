@@ -1,6 +1,7 @@
 """Neutral validation contracts shared by dispatch and orchestration callers."""
 
 from __future__ import annotations
+from typed_contracts import normalize_terminal_status
 
 
 def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str) -> None:
@@ -14,7 +15,7 @@ def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str,
             raise ValueError(f"lane output is out of scope: {company_id}")
         if company_id in seen:
             raise ValueError(f"duplicate lane output: {company_id}")
-        if str(record.get("status") or "") not in {"succeeded", "failed", "cancelled", "timed_out", "Completed", "Partial", "Unavailable", "Needs review"}:
+        if normalize_terminal_status(record.get("status")) is None and str(record.get("status") or "") != "Needs review":
             raise ValueError(f"lane output has non-terminal status: {company_id}")
         seen.add(company_id)
     missing = sorted(allowed - seen)

@@ -213,6 +213,7 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         if decisions[claim_id]["decision"] != "Verified":
             continue
         claim = dict(claims[claim_id])
+        claim.setdefault("candidate_status", "Unresolved")
         assurance_level = decision_assurance_level(decisions[claim_id], verifier_registry)
         if assurance_level == "unknown":
             if delivery_policy == "personal":

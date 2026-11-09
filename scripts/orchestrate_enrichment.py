@@ -15,7 +15,7 @@ from pathlib import Path
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
 from dispatch_contracts import validate_lane_output
 from lead_contract import candidate_claim_id, candidate_sha256, run_scope_matches
-from run_manifest import entry, finalization_eligibility, load as load_manifest, portable_path, publish_staged_output, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
+from run_manifest import entry, finalization_eligibility, finalize_run as finalize_manifest_run, load as load_manifest, portable_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
 from runtime_config import RuntimeConfig
 
 
@@ -305,7 +305,7 @@ def build_verifier_queue(
     claims_by_company: dict[str, list[dict[str, object]]],
     claims_dir: Path,
     run_id: str,
-    delivery_policy: str,
+    delivery_policy: str | None = None,
 ) -> tuple[list[dict[str, object]], set[str]]:
     dispatched_ids = {str(item["company_id"]) for item in admitted_items}
     if delivery_policy == "strict" and dispatched_ids != accepted_ids:
@@ -621,23 +621,21 @@ def finalize_run(
     final: Path,
     *,
     status: str,
+    delivery_policy: str | None = None,
     registries: dict[str, object] | None = None,
     barriers: dict[str, object] | None = None,
-    delivery_policy: str | None = None,
 ) -> Path:
     """Single controller-owned final-delivery barrier."""
-
-    return publish_staged_output(
+    return finalize_manifest_run(
         root,
         manifest_ref,
         staging,
         final,
         status=status,
+        delivery_policy=delivery_policy,
         registries=registries,
         barriers=barriers,
-        delivery_policy=delivery_policy,
     )
-
 
 def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campaign_config: Path | None = None, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
     recover_publication(root, manifest_path)

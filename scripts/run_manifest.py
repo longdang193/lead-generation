@@ -191,7 +191,7 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
     marker_head_sha = str(marker.get("head_sha") or "")
     if marker_head_sha and marker_head_sha != str(manifest.get("head_sha") or ""):
         raise ValueError("publication recovery marker head_sha mismatch")
-    revision_errors = validate_manifest_revision(root, manifest)
+    revision_errors = validate_manifest_revision(root, manifest, require_current=False)
     if revision_errors:
         raise ValueError("publication recovery revision validation failed: " + "; ".join(revision_errors))
     staging, final = _marker_paths(root, marker)
@@ -238,6 +238,7 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
         registries=registries,
         status=status,
         barriers=candidate_barriers,
+        require_current_revision=False,
     )
     marker_path.unlink()
     return
@@ -312,6 +313,85 @@ def publish_staged_output(
     _complete_publication(root, manifest_path, marker_path, load(marker_path))
     return final
 
+
+def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery_policy: str, *, overlay: Mapping[str, object] | None = None) -> dict[str, object]:
+    """Reconstruct finalization prerequisites from durable evidence, not flags alone."""
+
+    manifest = load(manifest_path)
+    existing_barriers = manifest.get("barriers")
+    if overlay:
+        manifest = {**manifest, **overlay}
+        if isinstance(overlay.get("barriers"), Mapping):
+            manifest["barriers"] = {
+                **(existing_barriers if isinstance(existing_barriers, Mapping) else {}),
+                **overlay["barriers"],
+            }
+    errors: list[str] = []
+    run_id = str(manifest.get("run_id") or "")
+    lifecycle: dict[str, object] = {}
+    if not run_id:
+        errors.append("manifest run_id is missing")
+    elif str(manifest.get("execution_mode") or "production") == "fixture":
+        lifecycle = {"action_count": 0, "actions": [], "budget_reserved": 0, "budget_settled": 0, "coverage": {}, "fixture_replay": True}
+    else:
+        from action_lifecycle import replay_lifecycle
+        try:
+            lifecycle = replay_lifecycle(root, run_id)
+        except (OSError, ValueError) as exc:
+            errors.append(f"lifecycle replay failed: {exc}")
+        if not lifecycle.get("action_count"):
+            errors.append("finalization requires durable action lifecycle evidence")
+        else:
+            unsettled = [item for item in lifecycle.get("actions", []) if item.get("status") == "Admitted"]
+            if unsettled:
+                errors.append("finalization requires all admitted actions to settle")
+    allowed, policy_errors = finalization_eligibility(manifest, delivery_policy)
+    if not allowed:
+        errors.extend(policy_errors)
+    outputs = manifest.get("outputs")
+    workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
+    if not isinstance(workbook, dict):
+        errors.append("finalization requires a recorded workbook artifact")
+    else:
+        recorded_path = Path(str(workbook.get("path") or ""))
+        recorded_path = recorded_path if recorded_path.is_absolute() else root / recorded_path
+        recorded_path = recorded_path.resolve()
+        recorded_hash = str(workbook.get("sha256") or "")
+        if not recorded_path.exists():
+            errors.append("recorded workbook artifact is missing")
+        elif not re.fullmatch(r"[0-9a-f]{64}", recorded_hash) or file_sha256(recorded_path) != recorded_hash:
+            errors.append("recorded workbook artifact hash is invalid or stale")
+    return {
+        "ready": not errors,
+        "errors": errors,
+        "run_id": run_id,
+        "lifecycle": lifecycle,
+        "manifest": manifest,
+    }
+
+
+def finalize_run(
+    root: Path,
+    manifest_path: Path,
+    staging: Path,
+    final: Path,
+    *,
+    status: str,
+    delivery_policy: str | None = None,
+    registries: Mapping[str, object] | None = None,
+    barriers: Mapping[str, object] | None = None,
+) -> Path:
+    manifest = load(manifest_path)
+    campaign = manifest.get("campaign")
+    campaign_policy = campaign.get("delivery_policy") if isinstance(campaign, dict) else None
+    policy = delivery_policy or str(manifest.get("delivery_policy") or campaign_policy or "strict")
+    pending_manifest = dict(registries or {})
+    if barriers:
+        pending_manifest["barriers"] = dict(barriers)
+    proof = reconstruct_finalization_readiness(root, manifest_path, policy, overlay=pending_manifest)
+    if not proof["ready"]:
+        raise ValueError("finalization readiness proof failed: " + "; ".join(str(item) for item in proof["errors"]))
+    return publish_staged_output(root, manifest_path, staging, final, status=status, delivery_policy=policy, registries=registries, barriers=barriers)
 
 def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: str) -> tuple[bool, list[str]]:
     """Check finalization policy without inferring facts from agent claims."""
@@ -388,12 +468,13 @@ def update(
     registries: Mapping[str, object] | None = None,
     status: str | None = None,
     barriers: Mapping[str, object] | None = None,
+    require_current_revision: bool = True,
 ) -> dict[str, object]:
     manifest = load(path)
     if not manifest.get("run_id") or not manifest.get("head_sha"):
         raise ValueError("manifest identity is incomplete")
     manifest.setdefault("git_revision", manifest["head_sha"])
-    revision_errors = validate_manifest_revision(root, manifest)
+    revision_errors = validate_manifest_revision(root, manifest, require_current=require_current_revision)
     if revision_errors:
         raise ValueError("manifest revision validation failed: " + "; ".join(revision_errors))
     for section, values in (

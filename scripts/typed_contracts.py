@@ -48,6 +48,25 @@ class SourceKind(str, Enum):
     other = "other"
 
 
+TERMINAL_STATUS_ALIASES = {
+    "succeeded": "Completed",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Failed",
+    "canceled": "Failed",
+    "timed_out": "Unavailable",
+    "partial": "Partial",
+    "unavailable": "Unavailable",
+    "rejected": "Rejected",
+}
+
+
+def normalize_terminal_status(value: object) -> str | None:
+    text = str(value or "")
+    if text in {"Completed", "Partial", "Unavailable", "Failed", "Rejected"}:
+        return text
+    return TERMINAL_STATUS_ALIASES.get(text.lower())
+
 class ResearchStatus(str, Enum):
     completed = "Completed"
     partial = "Partial"
@@ -95,7 +114,7 @@ class EvidenceClaim(ContractModel):
     source_kind: SourceKind
     confidence: Confidence
     retrieved_at: datetime
-    assurance_level: AssuranceLevel = AssuranceLevel.source
+    assurance_level: AssuranceLevel = AssuranceLevel.unknown
     scope: str = Field(default="account", min_length=1)
     published_at: date | None = None
     artifact: ArtifactRef | None = None
@@ -219,6 +238,36 @@ class WorkerResult(ContractModel):
         return value
 
 
+class LifecycleEvent(ContractModel):
+    run_id: str = Field(min_length=1)
+    action_id: str = Field(min_length=1)
+    attempt_id: str = Field(min_length=1)
+    parent_action_id: str | None = None
+    event_type: Literal["admitted", "result_validated", "settled"]
+    company_id: str = Field(min_length=1)
+    action_type: str = Field(min_length=1)
+    scope: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    contract_version: str = Field(min_length=1)
+    strategy_version: str = Field(min_length=1)
+    profile_version: str = Field(min_length=1)
+    request_hash: str
+    budget_units: int = Field(default=0, ge=0)
+    result_hash: str | None = None
+    terminal_status: Literal["Completed", "Partial", "Unavailable", "Failed", "Rejected"] | None = None
+    budget_settled: int = Field(default=0, ge=0)
+    coverage_delta: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, str] = Field(default_factory=dict)
+    created_at: datetime
+
+    @field_validator("request_hash", "result_hash")
+    @classmethod
+    def validate_hash(cls, value: str | None) -> str | None:
+        if value is not None and not HASH64.fullmatch(value):
+            raise ValueError("hashes must be lowercase 64-character hexadecimal digests")
+        return value
+
+
 class StopDecision(ContractModel):
     run_id: str = Field(min_length=1)
     company_id: str = Field(min_length=1)
@@ -279,6 +328,7 @@ class AccountHypothesis(ContractModel):
     supporting_claim_ids: list[str] = Field(default_factory=list)
     counterevidence_claim_ids: list[str] = Field(default_factory=list)
     confidence: Confidence
+    speculative: bool = False
 
 
 class AccountThesis(ContractModel):
