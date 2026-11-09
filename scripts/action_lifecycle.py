@@ -29,6 +29,10 @@ def lifecycle_path(root: Path, run_id: str) -> Path:
     return root / "evidence" / "action_lifecycle" / f"{_safe_run_id(run_id)}.jsonl"
 
 
+def lifecycle_snapshot_path(root: Path, run_id: str) -> Path:
+    return lifecycle_path(root, run_id).with_suffix(".snapshot.json")
+
+
 def _lock_path(root: Path, run_id: str) -> Path:
     return lifecycle_path(root, run_id).with_suffix(".lock")
 
@@ -83,17 +87,77 @@ def _read(path: Path) -> list[LifecycleEvent]:
     return events
 
 
+def _last_event_digest(path: Path) -> str | None:
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+    with path.open("rb") as handle:
+        handle.seek(max(0, path.stat().st_size - 8192))
+        lines = handle.read().splitlines()
+    if not lines:
+        return None
+    return hashlib.sha256(lines[-1]).hexdigest()
+
+
+def _load_snapshot(root: Path, run_id: str) -> list[LifecycleEvent] | None:
+    journal = lifecycle_path(root, run_id)
+    snapshot_path = lifecycle_snapshot_path(root, run_id)
+    try:
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        if not isinstance(snapshot, dict) or snapshot.get("schema_version") != 1:
+            return None
+        if snapshot.get("journal_byte_offset") != journal.stat().st_size:
+            return None
+        events = snapshot.get("events")
+        if not isinstance(events, list) or snapshot.get("event_count") != len(events):
+            return None
+        if snapshot.get("last_event_digest") != _last_event_digest(journal):
+            return None
+        return [LifecycleEvent.model_validate(value) for value in events]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _write_snapshot(root: Path, run_id: str, events: list[LifecycleEvent]) -> None:
+    journal = lifecycle_path(root, run_id)
+    snapshot_path = lifecycle_snapshot_path(root, run_id)
+    payload = {
+        "schema_version": 1,
+        "journal_byte_offset": journal.stat().st_size,
+        "event_count": len(events),
+        "last_event_digest": _last_event_digest(journal),
+        "events": [_dump(event) for event in events],
+    }
+    temporary = snapshot_path.with_name(snapshot_path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(canonical_json(payload))
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, snapshot_path)
+
+
+def _state_events(root: Path, run_id: str) -> list[LifecycleEvent]:
+    snapshot = _load_snapshot(root, run_id)
+    return snapshot if snapshot is not None else _read(lifecycle_path(root, run_id))
+
+
 def read_lifecycle(root: Path, run_id: str) -> list[LifecycleEvent]:
     return _read(lifecycle_path(root, run_id))
 
 
 def _append_locked(root: Path, event: LifecycleEvent) -> None:
+    events = _state_events(root, event.run_id)
     path = lifecycle_path(root, event.run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(canonical_json(_dump(event)) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+    events.append(event)
+    try:
+        _write_snapshot(root, event.run_id, events)
+    except OSError:
+        pass
 
 
 def _request_event(request: NativeActionRequest) -> LifecycleEvent:
@@ -108,16 +172,68 @@ def _manifest_budget(manifest_path: Path, run_id: str) -> int:
     manifest = load(manifest_path)
     if str(manifest.get("run_id") or "") != run_id:
         raise ValueError("run_id does not match manifest")
-    raw = manifest.get("budget_limit")
+    sealed = manifest.get("execution_authorization")
+    raw = sealed.get("budget_limit") if isinstance(sealed, dict) else manifest.get("budget_limit")
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 0:
         raise ValueError("manifest budget_limit must be a nonnegative integer")
     return raw
 
 
+def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeActionRequest) -> None:
+    authorization = manifest.get("authorization")
+    if not isinstance(authorization, dict):
+        return
+    accepted_company_ids = authorization.get("accepted_company_ids")
+    if isinstance(accepted_company_ids, list) and request.company_id not in {str(value) for value in accepted_company_ids}:
+        raise ValueError("company is outside the accepted company scope")
+    allowed_action_types = authorization.get("allowed_action_types")
+    if isinstance(allowed_action_types, list) and allowed_action_types and request.action_type not in {str(value) for value in allowed_action_types}:
+        raise ValueError("action type is outside the admitted scope")
+    scope_prefixes = authorization.get("scope_prefixes")
+    if isinstance(scope_prefixes, dict):
+        expected_prefix = scope_prefixes.get(request.action_type)
+        if expected_prefix is not None:
+            expected_scope = f"{expected_prefix}{request.company_id}"
+            if request.scope != expected_scope:
+                raise ValueError("request scope does not match manifest authorization")
+    for request_key in ("contract_version", "strategy_version"):
+        expected = authorization.get(request_key)
+        if expected is not None and getattr(request, request_key) != str(expected):
+            raise ValueError(f"request {request_key} does not match manifest authorization")
+    profile_versions = authorization.get("profile_versions")
+    if isinstance(profile_versions, dict):
+        expected = profile_versions.get(request.action_type)
+        if expected is not None and request.profile_version != str(expected):
+            raise ValueError("request profile_version does not match manifest authorization")
+    provenance = request.provenance
+    for request_key, manifest_key in (("campaign_id", "campaign_id"), ("campaign_version", "campaign_version"), ("scope_version", "scope_version")):
+        expected = authorization.get(manifest_key)
+        if expected is not None and provenance.get(request_key) != str(expected):
+            raise ValueError(f"request {request_key} does not match manifest authorization")
+
+
+def canonical_request_hash(request: NativeActionRequest | dict[str, object]) -> str:
+    if isinstance(request, NativeActionRequest):
+        validated = request
+    else:
+        payload = dict(request)
+        payload.pop("request_hash", None)
+        payload["request_hash"] = "0" * 64
+        validated = NativeActionRequest.model_validate(payload)
+    payload = validated.model_dump(exclude={"request_hash"}, exclude_none=True)
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
 def admit_action(root: Path, request: NativeActionRequest | dict[str, object], manifest_path: Path) -> NativeActionRequest:
     validated = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
+    if validated.request_hash != canonical_request_hash(validated):
+        raise ValueError("request hash mismatch")
     with _run_lock(root, validated.run_id):
-        events = _read(lifecycle_path(root, validated.run_id))
+        manifest = load(manifest_path)
+        if str(manifest.get("run_id") or "") != validated.run_id:
+            raise ValueError("run_id does not match manifest")
+        _validate_manifest_authorization(manifest, validated)
+        events = _state_events(root, validated.run_id)
         admissions = [event for event in events if event.event_type == "admitted"]
         for event in admissions:
             if event.action_id == validated.action_id and event.attempt_id == validated.attempt_id:
@@ -171,6 +287,20 @@ def _canonical_result_hash(result: WorkerResult) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _raw_result_hash(raw_result: object) -> str:
+    return hashlib.sha256(canonical_json(raw_result).encode("utf-8")).hexdigest()
+
+
+def _validate_coverage_delta(admission: LifecycleEvent, terminal_status: str, coverage_delta: dict[str, Any]) -> None:
+    if terminal_status not in {"Completed", "Partial"} and coverage_delta:
+        raise ValueError("non-successful action cannot report coverage")
+    if any(name != admission.action_type for name in coverage_delta):
+        raise ValueError("coverage key does not match admitted action type")
+    for name, value in coverage_delta.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError(f"coverage value is invalid: {name}")
+
+
 def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> WorkerResult:
     validated = result if isinstance(result, WorkerResult) else WorkerResult.model_validate(result)
     if validated.validation_errors:
@@ -179,7 +309,7 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
         raise ValueError("result hash mismatch")
     artifact = _artifact_path(root, validated)
     with _run_lock(root, validated.run_id):
-        events = _read(lifecycle_path(root, validated.run_id))
+        events = _state_events(root, validated.run_id)
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
         if admission is None:
             raise ValueError("action is not admitted")
@@ -197,6 +327,8 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             )):
                 raise ValueError("conflicting duplicate result validation")
             return validated
+        if any(prior.event_type == "result_rejected" and prior.action_id == validated.action_id and prior.attempt_id == validated.attempt_id for prior in events):
+            raise ValueError("conflicting result rejection")
         event = LifecycleEvent(
             run_id=validated.run_id,
             action_id=validated.action_id,
@@ -222,6 +354,65 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
     return validated
 
 
+def reject_result(
+    root: Path,
+    request: NativeActionRequest | dict[str, object],
+    validation_errors: list[str],
+    *,
+    raw_result: object = None,
+    artifact_hash: str | None = None,
+    provenance: dict[str, str] | None = None,
+) -> LifecycleEvent:
+    admitted = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
+    errors = [str(error) for error in validation_errors if str(error)]
+    if not errors:
+        raise ValueError("rejected result requires validation errors")
+    result_hash = _raw_result_hash(raw_result if raw_result is not None else {"validation_errors": errors})
+    event_provenance = dict(provenance or {})
+    with _run_lock(root, admitted.run_id):
+        events = _state_events(root, admitted.run_id)
+        admission = next((event for event in events if event.event_type == "admitted" and event.action_id == admitted.action_id and event.attempt_id == admitted.attempt_id), None)
+        if admission is None:
+            raise ValueError("action is not admitted")
+        if any(prior.event_type == "result_validated" and prior.action_id == admitted.action_id and prior.attempt_id == admitted.attempt_id for prior in events):
+            raise ValueError("conflicting result validation")
+        existing = next((prior for prior in events if prior.event_type == "result_rejected" and prior.action_id == admitted.action_id and prior.attempt_id == admitted.attempt_id), None)
+        if existing is not None:
+            if any((
+                existing.result_hash != result_hash,
+                existing.artifact_hash != artifact_hash,
+                existing.validation_errors != errors,
+                existing.provenance != event_provenance,
+            )):
+                raise ValueError("conflicting duplicate result rejection")
+            return existing
+        event = LifecycleEvent(
+            run_id=admitted.run_id,
+            action_id=admitted.action_id,
+            attempt_id=admitted.attempt_id,
+            parent_action_id=admitted.parent_action_id,
+            event_type="result_rejected",
+            company_id=admission.company_id,
+            action_type=admission.action_type,
+            scope=admission.scope,
+            idempotency_key=admission.idempotency_key,
+            contract_version=admission.contract_version,
+            strategy_version=admission.strategy_version,
+            profile_version=admission.profile_version,
+            request_hash=admission.request_hash,
+            budget_units=admission.budget_units,
+            result_hash=result_hash,
+            artifact_hash=artifact_hash,
+            terminal_status="Rejected",
+            coverage_delta={},
+            validation_errors=errors,
+            provenance=event_provenance,
+            created_at=datetime.now(timezone.utc),
+        )
+        _append_locked(root, event)
+        return event
+
+
 def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> ActionReceipt:
     if isinstance(receipt, dict) and "budget_units" in receipt:
         budget_units = receipt["budget_units"]
@@ -229,9 +420,9 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
         receipt.setdefault("budget_requested", budget_units)
     validated = receipt if isinstance(receipt, ActionReceipt) else ActionReceipt.model_validate(receipt)
     with _run_lock(root, validated.run_id):
-        events = _read(lifecycle_path(root, validated.run_id))
+        events = _state_events(root, validated.run_id)
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
-        result = next((event for event in events if event.event_type == "result_validated" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
+        result = next((event for event in events if event.event_type in {"result_validated", "result_rejected"} and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
         if admission is None:
             raise ValueError("action is not admitted")
         if result is None:
@@ -255,6 +446,14 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
             raise ValueError("receipt artifact hash does not match validated result")
         if validated.terminal_status != result.terminal_status:
             raise ValueError("receipt terminal status does not match validated result")
+        if validated.terminal_status == "Rejected":
+            if result.event_type != "result_rejected":
+                raise ValueError("rejected receipt requires a durable result rejection")
+            if validated.validation_errors != result.validation_errors:
+                raise ValueError("receipt validation errors do not match rejected result")
+            if validated.coverage_delta:
+                raise ValueError("rejected receipt cannot report coverage")
+        _validate_coverage_delta(admission, validated.terminal_status, validated.coverage_delta)
         if validated.budget_requested != admission.budget_units:
             raise ValueError("receipt budget does not match admission")
         if validated.budget_settled > validated.budget_requested:
@@ -291,8 +490,8 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
     return validated
 
 
-def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
-    events = read_lifecycle(root, run_id)
+def replay_lifecycle(root: Path, run_id: str, *, prefer_snapshot: bool = False) -> dict[str, Any]:
+    events = _state_events(root, run_id) if prefer_snapshot else read_lifecycle(root, run_id)
     if not events:
         legacy = replay_run(root, run_id)
         if legacy["action_count"]:
@@ -309,24 +508,28 @@ def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
     coverage: dict[str, int] = {}
     for key, states in sorted(by_action.items()):
         admitted = states.get("admitted")
-        result = states.get("result_validated")
+        result = states.get("result_validated") or states.get("result_rejected")
         settlement = states.get("settled")
         if admitted is None:
             raise ValueError(f"lifecycle transition missing admission: {key[0]}/{key[1]}")
         reserved += admitted.budget_units
         if settlement is not None:
             if result is None:
-                raise ValueError(f"settlement missing validated result: {key[0]}/{key[1]}")
+                raise ValueError(f"settlement missing result validation or rejection: {key[0]}/{key[1]}")
             settled += settlement.budget_settled
-            for name, value in settlement.coverage_delta.items():
-                if isinstance(value, bool):
-                    coverage[name] = coverage.get(name, 0) + int(value)
-                elif isinstance(value, (int, float)) and not isinstance(value, bool):
-                    coverage[name] = coverage.get(name, 0) + value
+            if settlement.terminal_status not in {"Completed", "Partial"}:
+                if settlement.coverage_delta:
+                    raise ValueError(f"non-successful settlement reports coverage: {key[0]}/{key[1]}")
+            else:
+                for name, value in settlement.coverage_delta.items():
+                    if isinstance(value, bool):
+                        coverage[name] = coverage.get(name, 0) + int(value)
+                    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                        coverage[name] = coverage.get(name, 0) + value
             status = settlement.terminal_status
         else:
             status = result.terminal_status if result is not None else "Admitted"
-        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "status": status, "settled": settlement is not None})
+        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "action_type": admitted.action_type, "scope": admitted.scope, "status": status, "settled": settlement is not None})
     return {
         "action_count": len(actions),
         "actions": actions,

@@ -11,6 +11,10 @@ from lead_contract import none_found_allowed, run_scope_matches
 from run_manifest import load as load_manifest, portable_path, update as update_manifest
 
 
+ASSURANCE_ORDER = {"unknown": 0, "replay": 1, "structural": 2, "source": 3}
+SCORE_FIELDS = {"service_fit", "residential_weg", "berlin_relevance", "management_type", "portfolio_size"}
+
+
 def load_records(path: Path) -> list[dict[str, object]]:
     if not path.exists():
         raise FileNotFoundError(path)
@@ -91,16 +95,23 @@ def project_verified_evidence(
     for row in qualification:
         company_id = str(row.get("company_id") or "")
         row_claims = by_company.get(company_id, [])
+        field_assurance = row.get("field_assurance") if isinstance(row.get("field_assurance"), dict) else {}
+        field_assurance = {str(key): str(value) for key, value in field_assurance.items()}
         urls = [str(row.get("evidence_urls") or "")] if row.get("evidence_urls") else []
         for claim in row_claims:
             claim_type = str(claim["claim_type"])
             value = _claim_value(claim)
-            if claim_type in {"service_fit", "residential_weg", "berlin_relevance", "management_type"}:
-                row[claim_type] = value
-            elif claim_type == "portfolio_size":
-                row["portfolio_size"] = value
+            assurance = str(claim.get("assurance_level") or "unknown")
+            if claim_type in SCORE_FIELDS:
+                current = field_assurance.get(claim_type, "unknown")
+                if ASSURANCE_ORDER.get(assurance, 0) >= ASSURANCE_ORDER.get(current, 0):
+                    row[claim_type] = value
+                    if assurance != "replay":
+                        field_assurance[claim_type] = assurance
             if claim.get("source_url"):
                 urls.append(str(claim["source_url"]))
+        if field_assurance:
+            row["field_assurance"] = field_assurance
         if urls:
             row["evidence_urls"] = " | ".join(sorted(set(url for url in urls if url)))
         row["eligible"] = qualification_eligibility(row, delivery_policy, recompute=True)
@@ -157,16 +168,22 @@ def project_verified_evidence(
                 events.append({
                     "event_id": event_id,
                     "company_id": company_id,
+                    "event_type": event.get("event_type") or event.get("type") or "Unknown",
+                    "buyer": event.get("buyer") or "Unknown",
+                    "title": event.get("title") or claim.get("evidence_excerpt") or "Unknown",
                     "publication_date": event.get("publication_date") or claim.get("published_at"),
                     "deadline": event.get("deadline"),
                     "source_url": claim.get("source_url", ""),
+                    "assurance_level": str(claim.get("assurance_level") or "unknown"),
+                    "verification_status": "Verified" if str(claim.get("assurance_level") or "") == "source" else "Supported" if str(claim.get("assurance_level") or "") == "structural" else "Unknown",
                 })
                 event_links.append({"event_id": event_id, "company_id": company_id, "match_confidence": {"source": "Verified", "structural": "Supported", "replay": "Replay", "unknown": "Unknown"}.get(str(claim.get("assurance_level") or "unknown"), "Unknown")})
         if signal_claims:
             row["buying_signal_evidence_urls"] = " | ".join(sorted({str(claim.get("source_url")) for claim in signal_claims if claim.get("source_url")}))
-        signal_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "buying_signal"), None)
+        signal_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "buying_signal" and str(claim.get("assurance_level") or "") == "source"), None)
+        source_event_claim = next((claim for claim in signal_claims if claim.get("claim_type") == "event" and str(claim.get("assurance_level") or "") == "source"), None)
         research_status = str(research_run.get("status") or "Needs review")
-        if signal_claim:
+        if signal_claim and source_event_claim:
             signal_value = str(_claim_value(signal_claim))
         elif none_found_allowed(research_run, signal_claims):
             signal_value = "None found"

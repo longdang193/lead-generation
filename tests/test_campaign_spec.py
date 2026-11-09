@@ -75,6 +75,26 @@ class CampaignSpecTests(unittest.TestCase):
             path.write_text(json.dumps({**self.valid_spec(), "target_count": 6}), encoding="utf-8")
             self.assertTrue(any("campaign hash mismatch" in error for error in verify_manifest(manifest_path, root)))
 
+    def test_manifest_records_budget_and_authorization_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = self.write_spec(root, self.valid_spec())
+            manifest_path = root / "evidence" / "manifests" / "run.json"
+            with patch("orchestrate_enrichment.git_output", side_effect=["a" * 40, "", "main"]):
+                manifest = create_run_manifest(root, manifest_path, "run-1", [], [], accepted_company_ids={"C1", "C2"}, campaign_config=path, require_clean=True)
+            self.assertEqual(manifest["budget_limit"], 4)
+            self.assertEqual(manifest["authorization"], {
+                "accepted_company_ids": ["C1", "C2"],
+                "campaign_id": "test-campaign",
+                "campaign_version": "2026-11-08",
+                "scope_version": "admitted-work-item-v1",
+                "allowed_action_types": ["signals", "portfolio", "verifier"],
+                "scope_prefixes": {"signals": "signals:", "portfolio": "portfolio:", "verifier": "verifier:"},
+                "contract_version": "1",
+                "strategy_version": "1",
+                "profile_versions": {"signals": "signals-v1", "portfolio": "portfolio-v1", "verifier": "verifier-v1"},
+            })
+
     def test_manifest_binds_inputs_by_campaign_alias(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

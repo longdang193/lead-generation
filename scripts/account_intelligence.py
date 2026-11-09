@@ -9,7 +9,7 @@ from typing import Any, Iterable
 from urllib.parse import urlparse
 
 from score_leads import calculate_fit
-from typed_contracts import AccountHypothesis, AccountThesis, AssuranceLevel, EvidenceClaim, SourceKind
+from typed_contracts import AccountHypothesis, AccountThesis, AssuranceLevel, EvidenceClaim, normalize_native_claim
 
 
 _ALLOWED_STATUSES = {"Candidate", "Rejected", "Unresolved", "Verified", "Supported"}
@@ -18,24 +18,7 @@ _ALLOWED_STATUSES = {"Candidate", "Rejected", "Unresolved", "Verified", "Support
 def _claim_model(value: EvidenceClaim | dict[str, Any]) -> EvidenceClaim:
     if isinstance(value, EvidenceClaim):
         return value
-    normalized = dict(value)
-    normalized["claim_id"] = normalized.get("claim_id") or normalized.get("candidate_claim_id")
-    claim_value = normalized.get("value", normalized.get("claim_value"))
-    if isinstance(claim_value, dict):
-        claim_value = claim_value.get("value", claim_value.get("name", claim_value))
-    normalized["value"] = claim_value
-    normalized.setdefault("scope", normalized.get("account_relationship", "account"))
-    source_kind = str(normalized.get("source_kind") or "other")
-    if source_kind not in {item.value for item in SourceKind}:
-        source_kind = "other"
-    normalized["source_kind"] = source_kind
-    normalized.setdefault("assurance_level", "unknown")
-    normalized.setdefault("candidate_status", "Unresolved")
-    normalized.setdefault("confidence", "medium")
-    normalized.setdefault("retrieved_at", normalized.get("verified_at"))
-    for legacy_key in ("candidate_claim_id", "claim_value", "account_relationship"):
-        normalized.pop(legacy_key, None)
-    return EvidenceClaim.model_validate(normalized)
+    return normalize_native_claim(value)
 
 
 def event_identity(company_id: str, event_id: str) -> str:
@@ -81,6 +64,10 @@ def _derived_event_status(statuses: set[str]) -> str:
     return "Unresolved"
 
 
+def _is_verified_support(status: str, claim: EvidenceClaim) -> bool:
+    return status in {"Verified", "Supported"} and claim.assurance_level == AssuranceLevel.source
+
+
 def build_account_timeline(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> list[dict[str, Any]]:
     """Project event claims while retaining every corroborating lineage record."""
 
@@ -97,6 +84,8 @@ def build_account_timeline(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> 
         source_url = str(claim.source_url)
         source_family = _source_family(claim)
         fingerprint = _evidence_fingerprint(claim, event_id, event_type)
+        verified_support = _is_verified_support(status, claim)
+        value_dict = value if isinstance(value, dict) else {}
         record = {
             "event_identity": key,
             "event_id": event_id,
@@ -114,7 +103,12 @@ def build_account_timeline(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> 
             "statuses": [status],
             "source_families": [source_family],
             "evidence_fingerprints": [fingerprint],
-            "corroboration_count": 1,
+            "corroborating_source_families": [source_family] if verified_support else [],
+            "corroborating_fingerprints": [fingerprint] if verified_support else [],
+            "corroboration_count": 1 if verified_support else 0,
+            "rejected_count": 1 if status == "Rejected" else 0,
+            "unresolved_count": 1 if status == "Unresolved" else 0,
+            "contradictory_count": 1 if value_dict.get("contradictory") is True else 0,
         }
         if key not in timeline:
             timeline[key] = record
@@ -123,8 +117,16 @@ def build_account_timeline(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> 
         for field, value_to_add in (("claim_ids", claim.claim_id), ("source_urls", source_url), ("statuses", status), ("assurance_levels", claim.assurance_level.value), ("source_families", source_family), ("evidence_fingerprints", fingerprint)):
             if value_to_add not in prior[field]:
                 prior[field].append(value_to_add)
+        if verified_support:
+            if source_family not in prior["corroborating_source_families"]:
+                prior["corroborating_source_families"].append(source_family)
+            if fingerprint not in prior["corroborating_fingerprints"]:
+                prior["corroborating_fingerprints"].append(fingerprint)
+        prior["rejected_count"] += int(status == "Rejected")
+        prior["unresolved_count"] += int(status == "Unresolved")
+        prior["contradictory_count"] += int(value_dict.get("contradictory") is True)
         prior["status"] = _derived_event_status(set(prior["statuses"]))
-        prior["corroboration_count"] = min(len(set(prior["source_families"])), len(set(prior["evidence_fingerprints"])))
+        prior["corroboration_count"] = min(len(set(prior["corroborating_source_families"])), len(set(prior["corroborating_fingerprints"])))
     return sorted(timeline.values(), key=lambda row: (row["company_id"], str(row.get("event_date") or ""), row["event_id"]))
 
 
@@ -174,9 +176,11 @@ def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -
         if claim.assurance_level != AssuranceLevel.source or status not in {"Verified", "Supported"}:
             continue
         if claim.claim_type in {"service_fit", "residential_weg", "berlin_relevance"}:
-            record[claim.claim_type] = claim.value
+            value = claim.value.get("value") if isinstance(claim.value, dict) and "value" in claim.value else claim.value
+            record[claim.claim_type] = value
         elif claim.claim_type == "portfolio_size":
-            record["portfolio_size"] = claim.value
+            value = claim.value.get("value") if isinstance(claim.value, dict) and "value" in claim.value else claim.value
+            record["portfolio_size"] = value
     fit, _ = calculate_fit(record)
     return round(fit or 0.0, 2)
 

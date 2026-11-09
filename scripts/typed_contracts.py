@@ -14,7 +14,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-
 HASH64 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -40,8 +39,11 @@ class AssuranceLevel(str, Enum):
 
 
 class SourceKind(str, Enum):
+    official = "official"
     official_site = "official_site"
     permitted_directory = "permitted_directory"
+    procurement = "procurement"
+    public_news = "public_news"
     ted = "ted"
     public_professional_profile = "public_professional_profile"
     fixture = "fixture"
@@ -68,11 +70,13 @@ def normalize_terminal_status(value: object) -> str | None:
     return TERMINAL_STATUS_ALIASES.get(text.lower())
 
 class ResearchStatus(str, Enum):
+    not_searched = "Not searched"
     completed = "Completed"
     partial = "Partial"
     unavailable = "Unavailable"
     failed = "Failed"
     stopped = "Stopped"
+    needs_review = "Needs review"
 
 
 class DeliveryPolicy(str, Enum):
@@ -140,19 +144,56 @@ class EvidenceClaim(ContractModel):
         return value
 
 
+def normalize_native_claim(record: dict[str, Any]) -> EvidenceClaim:
+    """Convert the native worker wire record into the typed claim contract."""
+
+    normalized = dict(record)
+    normalized["claim_id"] = normalized.get("claim_id") or normalized.get("candidate_claim_id")
+    normalized["value"] = normalized.get("value", normalized.get("claim_value"))
+    if not normalized.get("scope"):
+        normalized["scope"] = normalized.get("account_relationship") or "account"
+    normalized.setdefault("assurance_level", "unknown")
+    normalized.setdefault("candidate_status", "Candidate")
+    normalized.setdefault("confidence", "medium")
+    if not normalized.get("retrieved_at"):
+        normalized["retrieved_at"] = normalized.get("verified_at")
+    for key in ("record_type", "candidate_claim_id", "claim_value", "account_relationship"):
+        normalized.pop(key, None)
+    return EvidenceClaim.model_validate(normalized)
+
+
 class VerifierDecision(ContractModel):
     claim_id: str = Field(min_length=1)
+    candidate_sha256: str | None = None
     decision: Literal["Verified", "Rejected", "Needs review"]
     reason_codes: list[str] = Field(min_length=1)
     verifier_id: str = Field(min_length=1)
+    verifier_run_id: str | None = None
     verified_at: datetime
     assurance_level: AssuranceLevel = AssuranceLevel.source
+
+    @field_validator("candidate_sha256")
+    @classmethod
+    def validate_candidate_hash(cls, value: str | None) -> str | None:
+        if value is not None and not HASH64.fullmatch(value):
+            raise ValueError("candidate_sha256 must be a lowercase 64-character hexadecimal digest")
+        return value
+
+
+def normalize_native_verifier_decision(record: dict[str, Any]) -> VerifierDecision:
+    """Convert the native verifier wire record without losing candidate identity."""
+
+    normalized = dict(record)
+    normalized["claim_id"] = normalized.get("candidate_claim_id")
+    for key in ("record_type", "candidate_claim_id"):
+        normalized.pop(key, None)
+    return VerifierDecision.model_validate(normalized)
 
 
 class ResearchAttempt(ContractModel):
     attempt_id: str = Field(min_length=1)
     query_or_source: str = Field(min_length=1)
-    status: Literal["Completed", "Failed", "Timed out", "Cancelled"]
+    status: Literal["Completed", "Partial", "Unavailable", "Needs review", "Failed", "Timed out", "Cancelled"]
     truncated: bool = False
     provider_status: Literal["Available", "Unavailable", "Invalid", "Unknown"] = "Available"
 
@@ -181,6 +222,21 @@ class ResearchRun(ContractModel):
         if value is not None and started is not None and value < started:
             raise ValueError("completed_at must not precede started_at")
         return value
+
+
+def normalize_native_research_run(record: dict[str, Any]) -> ResearchRun:
+    """Normalize native adapter status/attempt envelopes into the typed run model."""
+
+    normalized = dict(record)
+    attempts = []
+    for raw_attempt in normalized.get("attempts") or []:
+        if not isinstance(raw_attempt, dict):
+            continue
+        attempts.append({key: raw_attempt[key] for key in ("attempt_id", "query_or_source", "status", "truncated", "provider_status") if key in raw_attempt})
+    normalized["attempts"] = attempts
+    for key in ("record_type", "campaign_id", "company_name", "trusted_domain", "location", "source", "adapter_capability", "assurance_level", "scope_version", "scope_hash"):
+        normalized.pop(key, None)
+    return ResearchRun.model_validate(normalized)
 
 
 class RunContext(ContractModel):
@@ -243,7 +299,7 @@ class LifecycleEvent(ContractModel):
     action_id: str = Field(min_length=1)
     attempt_id: str = Field(min_length=1)
     parent_action_id: str | None = None
-    event_type: Literal["admitted", "result_validated", "settled"]
+    event_type: Literal["admitted", "result_validated", "result_rejected", "settled"]
     company_id: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     scope: str = Field(min_length=1)
@@ -259,6 +315,7 @@ class LifecycleEvent(ContractModel):
     terminal_status: Literal["Completed", "Partial", "Unavailable", "Failed", "Rejected"] | None = None
     budget_settled: int = Field(default=0, ge=0)
     coverage_delta: dict[str, Any] = Field(default_factory=dict)
+    validation_errors: list[str] = Field(default_factory=list)
     provenance: dict[str, str] = Field(default_factory=dict)
     created_at: datetime
 

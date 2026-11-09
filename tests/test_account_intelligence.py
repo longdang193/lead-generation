@@ -94,6 +94,17 @@ class AccountIntelligenceTests(unittest.TestCase):
         rows = build_account_timeline([first, second])
         self.assertEqual(rows[0]["corroboration_count"], 1)
 
+    def test_rejected_and_structural_claims_do_not_count_as_verified_corroboration(self):
+        rows = build_account_timeline([
+            claim("c1", "C1", status="Rejected"),
+            {**claim("c2", "C1", status="Supported"), "assurance_level": "structural"},
+            {**claim("c3", "C1", status="Unresolved"), "source_url": "https://other.example/event"},
+        ])
+        self.assertEqual(rows[0]["corroboration_count"], 0)
+        self.assertEqual(rows[0]["rejected_count"], 1)
+        self.assertEqual(rows[0]["unresolved_count"], 1)
+        self.assertEqual(rows[0]["contradictory_count"], 0)
+
     def test_unsupported_hypothesis_is_marked_speculative(self):
         thesis = validate_account_thesis({
             "company_id": "C1", "structural_fit": 0, "confidence": "medium", "recommended_action": "research",

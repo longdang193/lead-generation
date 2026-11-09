@@ -13,16 +13,36 @@ from extract_website_evidence import claim
 
 
 class ScoringTests(unittest.TestCase):
-    def test_signal_classification_is_freshness_based(self):
+    def test_freshness_only_signal_does_not_become_commercially_strong(self):
         today = date.today()
         self.assertEqual(classify_signal([]), "None found")
-        self.assertEqual(classify_signal([{"publication_date": today.isoformat(), "deadline": "Unknown"}]), "Strong")
+        self.assertEqual(classify_signal([{"publication_date": today.isoformat(), "deadline": "Unknown"}]), "Medium")
         self.assertEqual(classify_signal([{"publication_date": (today - timedelta(days=240)).isoformat(), "deadline": "Unknown"}]), "Medium")
         self.assertEqual(classify_signal([{"publication_date": (today - timedelta(days=500)).isoformat(), "deadline": "Unknown"}]), "Weak")
         self.assertEqual(classify_signal([{"publication_date": "Unknown", "deadline": "Unknown"}]), "Unknown")
 
     def test_signal_classification_accepts_manifest_bound_as_of_date(self):
         self.assertEqual(classify_signal([{"publication_date": "2026-01-01", "deadline": "Unknown"}], date(2026, 11, 9)), "Medium")
+
+    def test_structural_portfolio_size_does_not_inflate_fit(self):
+        fit, coverage = calculate_fit({
+            "service_fit": "Confirmed",
+            "residential_weg": "Confirmed",
+            "portfolio_size": 500,
+            "berlin_relevance": "Confirmed",
+            "field_assurance": {"portfolio_size": "structural"},
+        })
+        self.assertEqual(coverage, 75)
+        self.assertEqual(fit, 75.0)
+
+    def test_recent_incomplete_event_does_not_borrow_strength_from_expired_event(self):
+        self.assertEqual(
+            classify_signal([
+                {"publication_date": "2026-11-01", "deadline": "Unknown", "assurance_level": "source", "verification_status": "Verified", "event_type": "tender", "buyer": "C1", "title": "Open tender", "source_url": "https://example.de/open"},
+                {"publication_date": "2026-01-01", "deadline": "2026-11-08", "assurance_level": "source", "verification_status": "Verified", "event_type": "tender", "buyer": "C1", "title": "Expired tender", "source_url": "https://example.de/expired"},
+            ],
+            date(2026, 11, 9),
+        ), "Medium")
 
     def test_ordinary_weg_word_is_not_condominium_evidence(self):
         value, _, _ = claim("Wir weisen den Weg zu guter Verwaltung.", [r"wohnungseigent[üu]mergemeinschaft", r"\bweg[- ]verwaltung\b", r"eigent[üu]mergemeinschaft"])
@@ -50,7 +70,7 @@ class ScoringTests(unittest.TestCase):
     def test_verified_event_survives_partial_signal_research(self):
         signal, status = derive_account_signal(
             {"research_status": "Partial", "signal_state": "Unknown"},
-            [{"publication_date": date.today().isoformat(), "deadline": "Unknown"}],
+            [{"publication_date": date.today().isoformat(), "deadline": "2026-12-01", "event_type": "tender", "buyer": "C1", "title": "Current tender", "source_url": "https://example.de/tender", "assurance_level": "source", "verification_status": "Verified"}],
             "Searched",
         )
         self.assertEqual(signal, "Strong")
