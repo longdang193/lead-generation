@@ -68,8 +68,14 @@ class DispatchBudget:
         if reserved_attempts < 0 or reserved_attempts > max_attempts:
             raise ValueError("reserved dispatch attempts must be between zero and the total budget")
         self.deadline = time.monotonic() + deadline_seconds
+        self.max_attempts = max_attempts
         self.remaining_attempts = max_attempts
         self.reserved_attempts = reserved_attempts
+        self.attempted_attempts = 0
+        self.retried_attempts = 0
+        self.timed_out_attempts = 0
+        self.reused_terminal_outputs = 0
+        self.reserve_backfill_attempts = 0
         self._lock = threading.Lock()
 
     def remaining_seconds(self) -> float:
@@ -80,15 +86,43 @@ class DispatchBudget:
             if self.remaining_attempts <= self.reserved_attempts or self.remaining_seconds() <= 0:
                 return False
             self.remaining_attempts -= 1
+            self.attempted_attempts += 1
             return True
 
     def release_attempt(self) -> None:
         with self._lock:
             self.remaining_attempts += 1
+            self.attempted_attempts = max(0, self.attempted_attempts - 1)
+
+    def record_retry(self) -> None:
+        with self._lock:
+            self.retried_attempts += 1
+
+    def record_timeout(self) -> None:
+        with self._lock:
+            self.timed_out_attempts += 1
+
+    def record_reuse(self) -> None:
+        with self._lock:
+            self.reused_terminal_outputs += 1
 
     def release_reserved_attempts(self) -> None:
         with self._lock:
+            self.reserve_backfill_attempts += self.reserved_attempts
             self.reserved_attempts = 0
+
+    def reconciliation(self) -> dict[str, object]:
+        with self._lock:
+            return {
+                "attempted": self.attempted_attempts,
+                "retried": self.retried_attempts,
+                "timed_out": self.timed_out_attempts,
+                "verifier_reserved": self.reserved_attempts,
+                "reserve_backfill": self.reserve_backfill_attempts,
+                "reused": self.reused_terminal_outputs,
+                "remaining": max(0, self.remaining_attempts - self.reserved_attempts),
+                "remaining_seconds": self.remaining_seconds(),
+            }
 
 
 def admit_research_action(request: NativeActionRequest | dict[str, object], budget: DispatchBudget | None = None, root: Path | None = None, manifest_path: Path | None = None) -> NativeActionRequest:
@@ -339,6 +373,8 @@ def dispatch_native_lane(
         cache_item = dict(item)
         cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
         if item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane):
+            if budget is not None:
+                budget.record_reuse()
             if lifecycle_root is not None and manifest_path is not None:
                 request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, 1)
                 admit_research_action(request, root=lifecycle_root, manifest_path=manifest_path)
@@ -356,6 +392,7 @@ def dispatch_native_lane(
                 "duration_seconds": 0,
                 "output_path": item_output.as_posix(),
                 "output_sha256": hashlib.sha256(item_output.read_bytes()).hexdigest(),
+                "capacity": budget.reconciliation() if budget is not None else None,
             }
         if item_output.exists():
             item_output.unlink()
@@ -379,6 +416,8 @@ def dispatch_native_lane(
                 terminal_failure_class = "budget_exhausted"
                 attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted", "error": str(exc)})
                 break
+            if budget is not None and attempts > 1:
+                budget.record_retry()
             attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
             if attempt_output.exists():
                 attempt_output.unlink()
@@ -421,6 +460,8 @@ def dispatch_native_lane(
                 continue
             except subprocess.TimeoutExpired:
                 status = "timed_out"
+                if budget is not None:
+                    budget.record_timeout()
                 if lifecycle_request is not None:
                     _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Unavailable", result_payload={"attempt": attempts, "failure_class": "timeout"})
                 attempt_history.append({"attempt": attempts, "status": status})
@@ -453,6 +494,8 @@ def dispatch_native_lane(
         }
         if item_output.exists():
             record["output_sha256"] = hashlib.sha256(item_output.read_bytes()).hexdigest()
+        if budget is not None:
+            record["capacity"] = budget.reconciliation()
         return record
 
     items = list(queue)

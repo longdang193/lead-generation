@@ -88,7 +88,7 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Branch: `codex/native-harness-remediation`
 - Base commit: `d70d56bdf3a368961227f167d9ae13a4357687c4`
 - Expected workspace: clean at plan creation; preserve any later unrelated user changes
-- Next action: implement Task 5 lifecycle snapshot and capacity observability
+- Next action: implement Task 6 hermetic production-mode E2E trace
 - Blockers: none
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
@@ -97,8 +97,8 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 | Task 2 | `completed` | current | `codex` | Task 1 | production dispatch settlement and budget tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_native_adapters -v` — 39 tests passed; lifecycle retry trace settled 2 attempts; `git diff --check` passed |
 | Task 3 | `completed` | current | `codex` | Tasks 1-2 | QA/finalization boundary tests | `py -3 -m unittest tests.test_harness_tools tests.test_artifact_manifest_side_effects -v` — 40 tests passed; `git diff --check` passed |
 | Task 4 | `completed` | current | `codex` | Task 3 | typed round trip and assurance/ranking tests | `py -3 -m unittest tests.test_typed_contracts tests.test_canonical_projection tests.test_account_intelligence tests.test_scoring tests.test_harness_tools -v` — 49 tests passed; native worker/verifier subprocess round trip passed; `git diff --check` passed |
-| Task 5 | `active` | current | `codex` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint accepted; lifecycle snapshot implementation in progress |
-| Task 6 | `pending` | current | `unresolved` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint |
+| Task 5 | `completed` | current | `codex` | Tasks 1-4 | scaling and signal/corroboration tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_native_adapters -v` — 36 tests passed; 1,000-admission snapshot/journal equivalence and capacity reconciliation passed; `git diff --check` passed |
+| Task 6 | `active` | current | `codex` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint accepted; hermetic integration trace in progress |
 
 ## Review Consolidation (2026-11-09)
 
@@ -372,10 +372,10 @@ Task 4 evidence: `typed_contracts.py` now owns native claim, verifier-decision, 
 - Stop for: deleting or rewriting the append-only journal, changing retention or cleanup policy, adding a distributed scheduler, or claiming a performance improvement without before/after evidence.
 
 **Steps:**
-- [ ] Step 1: Add a versioned per-run derived state file or equivalent indexed state updated under the existing run lock. Append and fsync the journal event first, then atomically replace the snapshot with a watermark containing schema version, journal byte offset or event count, and last-event digest. Rebuild from the append-only journal whenever the snapshot is missing, corrupt, truncated, or its watermark does not match the journal.
-- [ ] Step 2: Preserve `replay_lifecycle` as the recovery/audit path and assert that snapshot state and journal replay produce identical reserved, settled, terminal, coverage, and idempotency results, including a crash window between journal fsync and snapshot replacement.
-- [ ] Step 3: Instrument the synthetic trace to prove transition operations do not parse the full journal on every event; verify output equivalence for at least 1,000 admissions/results/settlements and fault-inject stale, truncated, and corrupt snapshots.
-- [ ] Step 4: Expose attempted, retried, timed-out, verifier-reserved, reserve-backfill, reused, and remaining capacity in dispatch reconciliation so a 30-company/three-lane campaign cannot silently promise retries it cannot fund.
+- [x] Step 1: Add a versioned per-run derived state file or equivalent indexed state updated under the existing run lock. Append and fsync the journal event first, then atomically replace the snapshot with a watermark containing schema version, journal byte offset or event count, and last-event digest. Rebuild from the append-only journal whenever the snapshot is missing, corrupt, truncated, or its watermark does not match the journal.
+- [x] Step 2: Preserve `replay_lifecycle` as the recovery/audit path and assert that snapshot state and journal replay produce identical reserved, settled, terminal, coverage, and idempotency results, including a crash window between journal fsync and snapshot replacement.
+- [x] Step 3: Instrument the synthetic trace to prove transition operations do not parse the full journal on every event; verify output equivalence for at least 1,000 admissions/results/settlements and fault-inject stale, truncated, and corrupt snapshots.
+- [x] Step 4: Expose attempted, retried, timed-out, verifier-reserved, reserve-backfill, reused, and remaining capacity in dispatch reconciliation so a 30-company/three-lane campaign cannot silently promise retries it cannot fund.
 
 **Verification:**
 - [ ] Run the synthetic 1,000-transition lifecycle trace and compare snapshot-backed state with a clean full replay.
@@ -384,6 +384,8 @@ Task 4 evidence: `typed_contracts.py` now owns native claim, verifier-decision, 
 
 **Exit Criteria:**
 - Lifecycle audit fidelity is preserved without mandatory full-journal parsing on every transition, and dispatch capacity claims are derived from actual configured work and observable in receipts/reconciliation.
+
+Task 5 evidence: lifecycle transitions now append and fsync the journal before atomically replacing a versioned snapshot carrying byte-offset, event-count, and last-event digest watermarks. Normal transitions use the snapshot; missing, corrupt, stale, or mismatched snapshots fall back to full journal replay, while `replay_lifecycle` remains the audit path. `DispatchBudget.reconciliation()` exposes attempted, retried, timed-out, verifier-reserved, reserve-backfill, reused, remaining capacity, and deadline seconds. Fresh proof passed 36 lifecycle/native-adapter tests, including a synthetic 1,000-admission equivalence trace and no-full-journal transition assertion; `git diff --check` passed.
 
 ### Task 6: Add a real production-mode integration trace and reconcile documentation
 

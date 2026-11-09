@@ -114,11 +114,12 @@ class NativeAdapterTests(unittest.TestCase):
                 return [sys.executable, "-c", "from pathlib import Path; Path(__import__('sys').argv[1]).write_text('{}')", str(output_path)]
 
             item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "admitted-work-item-v1", "scope_hash": "0" * 64}
+            budget = DispatchBudget(60, 3)
             records = dispatch_native_lane(
                 [item], "run-1", "signals", output_dir,
                 NativeExecutorConfig(sys.executable, "default", max_retries=1, max_workers=1),
                 command_builder=command_builder,
-                budget=DispatchBudget(60, 3),
+                budget=budget,
                 lifecycle_root=root,
                 manifest_path=manifest_path,
             )
@@ -129,6 +130,9 @@ class NativeAdapterTests(unittest.TestCase):
             self.assertEqual(replay["budget_reserved"], 2)
             self.assertEqual(replay["budget_settled"], 2)
             self.assertTrue(all(action["settled"] for action in replay["actions"]))
+            self.assertEqual(records[0]["capacity"]["attempted"], 2)
+            self.assertEqual(records[0]["capacity"]["retried"], 1)
+            self.assertEqual(records[0]["capacity"]["remaining"], 1)
 
     def test_shared_budget_reserves_verifier_capacity_until_released(self):
         budget = DispatchBudget(60, 120, reserved_attempts=30)
@@ -137,6 +141,10 @@ class NativeAdapterTests(unittest.TestCase):
         budget.release_reserved_attempts()
         self.assertTrue(all(budget.reserve_attempt() for _ in range(30)))
         self.assertFalse(budget.reserve_attempt())
+        reconciliation = budget.reconciliation()
+        self.assertEqual(reconciliation["verifier_reserved"], 0)
+        self.assertEqual(reconciliation["reserve_backfill"], 30)
+        self.assertEqual(reconciliation["remaining"], 0)
 
     def test_material_gap_queue_omits_only_valid_terminal_output(self):
         with tempfile.TemporaryDirectory() as directory:

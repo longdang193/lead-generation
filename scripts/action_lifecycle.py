@@ -29,6 +29,10 @@ def lifecycle_path(root: Path, run_id: str) -> Path:
     return root / "evidence" / "action_lifecycle" / f"{_safe_run_id(run_id)}.jsonl"
 
 
+def lifecycle_snapshot_path(root: Path, run_id: str) -> Path:
+    return lifecycle_path(root, run_id).with_suffix(".snapshot.json")
+
+
 def _lock_path(root: Path, run_id: str) -> Path:
     return lifecycle_path(root, run_id).with_suffix(".lock")
 
@@ -83,17 +87,77 @@ def _read(path: Path) -> list[LifecycleEvent]:
     return events
 
 
+def _last_event_digest(path: Path) -> str | None:
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+    with path.open("rb") as handle:
+        handle.seek(max(0, path.stat().st_size - 8192))
+        lines = handle.read().splitlines()
+    if not lines:
+        return None
+    return hashlib.sha256(lines[-1]).hexdigest()
+
+
+def _load_snapshot(root: Path, run_id: str) -> list[LifecycleEvent] | None:
+    journal = lifecycle_path(root, run_id)
+    snapshot_path = lifecycle_snapshot_path(root, run_id)
+    try:
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        if not isinstance(snapshot, dict) or snapshot.get("schema_version") != 1:
+            return None
+        if snapshot.get("journal_byte_offset") != journal.stat().st_size:
+            return None
+        events = snapshot.get("events")
+        if not isinstance(events, list) or snapshot.get("event_count") != len(events):
+            return None
+        if snapshot.get("last_event_digest") != _last_event_digest(journal):
+            return None
+        return [LifecycleEvent.model_validate(value) for value in events]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _write_snapshot(root: Path, run_id: str, events: list[LifecycleEvent]) -> None:
+    journal = lifecycle_path(root, run_id)
+    snapshot_path = lifecycle_snapshot_path(root, run_id)
+    payload = {
+        "schema_version": 1,
+        "journal_byte_offset": journal.stat().st_size,
+        "event_count": len(events),
+        "last_event_digest": _last_event_digest(journal),
+        "events": [_dump(event) for event in events],
+    }
+    temporary = snapshot_path.with_name(snapshot_path.name + ".tmp")
+    with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(canonical_json(payload))
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, snapshot_path)
+
+
+def _state_events(root: Path, run_id: str) -> list[LifecycleEvent]:
+    snapshot = _load_snapshot(root, run_id)
+    return snapshot if snapshot is not None else _read(lifecycle_path(root, run_id))
+
+
 def read_lifecycle(root: Path, run_id: str) -> list[LifecycleEvent]:
     return _read(lifecycle_path(root, run_id))
 
 
 def _append_locked(root: Path, event: LifecycleEvent) -> None:
+    events = _state_events(root, event.run_id)
     path = lifecycle_path(root, event.run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8", newline="\n") as handle:
         handle.write(canonical_json(_dump(event)) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
+    events.append(event)
+    try:
+        _write_snapshot(root, event.run_id, events)
+    except OSError:
+        pass
 
 
 def _request_event(request: NativeActionRequest) -> LifecycleEvent:
@@ -167,7 +231,7 @@ def admit_action(root: Path, request: NativeActionRequest | dict[str, object], m
         if str(manifest.get("run_id") or "") != validated.run_id:
             raise ValueError("run_id does not match manifest")
         _validate_manifest_authorization(manifest, validated)
-        events = _read(lifecycle_path(root, validated.run_id))
+        events = _state_events(root, validated.run_id)
         admissions = [event for event in events if event.event_type == "admitted"]
         for event in admissions:
             if event.action_id == validated.action_id and event.attempt_id == validated.attempt_id:
@@ -243,7 +307,7 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
         raise ValueError("result hash mismatch")
     artifact = _artifact_path(root, validated)
     with _run_lock(root, validated.run_id):
-        events = _read(lifecycle_path(root, validated.run_id))
+        events = _state_events(root, validated.run_id)
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
         if admission is None:
             raise ValueError("action is not admitted")
@@ -302,7 +366,7 @@ def reject_result(
     result_hash = _raw_result_hash(raw_result if raw_result is not None else {"validation_errors": errors})
     event_provenance = dict(provenance or {})
     with _run_lock(root, admitted.run_id):
-        events = _read(lifecycle_path(root, admitted.run_id))
+        events = _state_events(root, admitted.run_id)
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == admitted.action_id and event.attempt_id == admitted.attempt_id), None)
         if admission is None:
             raise ValueError("action is not admitted")
@@ -350,7 +414,7 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
         receipt.setdefault("budget_requested", budget_units)
     validated = receipt if isinstance(receipt, ActionReceipt) else ActionReceipt.model_validate(receipt)
     with _run_lock(root, validated.run_id):
-        events = _read(lifecycle_path(root, validated.run_id))
+        events = _state_events(root, validated.run_id)
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
         result = next((event for event in events if event.event_type in {"result_validated", "result_rejected"} and event.action_id == validated.action_id and event.attempt_id == validated.attempt_id), None)
         if admission is None:
@@ -420,8 +484,8 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
     return validated
 
 
-def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
-    events = read_lifecycle(root, run_id)
+def replay_lifecycle(root: Path, run_id: str, *, prefer_snapshot: bool = False) -> dict[str, Any]:
+    events = _state_events(root, run_id) if prefer_snapshot else read_lifecycle(root, run_id)
     if not events:
         legacy = replay_run(root, run_id)
         if legacy["action_count"]:

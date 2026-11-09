@@ -4,13 +4,15 @@ import hashlib
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from action_lifecycle import admit_action, canonical_request_hash, reject_result, replay_lifecycle, settle_action, validate_result
+import action_lifecycle
+from action_lifecycle import admit_action, canonical_request_hash, lifecycle_snapshot_path, reject_result, replay_lifecycle, settle_action, validate_result
 from action_receipts import canonical_json
 from run_manifest import atomic_write
 
@@ -271,6 +273,41 @@ class ActionLifecycleTests(unittest.TestCase):
         validate_result(self.root, result_for(request))
         replay = replay_lifecycle(self.root, "run-1")
         self.assertFalse(replay["actions"][0]["settled"])
+
+    def test_snapshot_replay_matches_journal_and_falls_back_when_corrupt(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        validated = validate_result(self.root, result_for(request))
+        settle_action(self.root, {
+            **request,
+            "result_hash": validated.result_hash,
+            "terminal_status": "Completed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "coverage_delta": {"signals": 1},
+            "created_at": datetime.now(timezone.utc),
+        })
+        journal = replay_lifecycle(self.root, "run-1")
+        self.assertEqual(replay_lifecycle(self.root, "run-1", prefer_snapshot=True), journal)
+        lifecycle_snapshot_path(self.root, "run-1").write_text("not-json\n", encoding="utf-8")
+        self.assertEqual(replay_lifecycle(self.root, "run-1", prefer_snapshot=True), journal)
+
+    def test_snapshot_backed_transition_does_not_read_full_journal(self):
+        first = action()
+        admit_action(self.root, first, self.manifest)
+        atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 2})
+        with patch.object(action_lifecycle, "_read", side_effect=AssertionError("full journal replay was used")):
+            second = action(action_id="action-2", attempt_id="attempt-2", idempotency_key="run-1/action-2/attempt-2")
+            admit_action(self.root, second, self.manifest)
+
+    def test_one_thousand_admissions_have_equivalent_snapshot_and_journal_state(self):
+        atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 1000})
+        for index in range(1000):
+            admit_action(self.root, action(action_id=f"action-{index}", attempt_id=f"attempt-{index}", idempotency_key=f"run-1/action-{index}/attempt-{index}"), self.manifest)
+        journal = replay_lifecycle(self.root, "run-1")
+        snapshot = replay_lifecycle(self.root, "run-1", prefer_snapshot=True)
+        self.assertEqual(snapshot, journal)
+        self.assertEqual(snapshot["action_count"], 1000)
 
 
 if __name__ == "__main__":
