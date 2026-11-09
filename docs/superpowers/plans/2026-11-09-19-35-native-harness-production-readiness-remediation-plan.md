@@ -88,16 +88,16 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Branch: `codex/native-harness-remediation`
 - Base commit: `d70d56bdf3a368961227f167d9ae13a4357687c4`
 - Expected workspace: clean at plan creation; preserve any later unrelated user changes
-- Next action: implement Task 3 after accepting the Task 2 checkpoint
+- Next action: implement Task 5 lifecycle snapshot and capacity observability
 - Blockers: none
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | Task 1 | `completed` | current | `codex` | none | manifest/lifecycle contract tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_campaign_spec tests.test_orchestration -v` — 44 tests passed; `git diff --check` passed |
 | Task 2 | `completed` | current | `codex` | Task 1 | production dispatch settlement and budget tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_native_adapters -v` — 39 tests passed; lifecycle retry trace settled 2 attempts; `git diff --check` passed |
-| Task 3 | `active` | current | `codex` | Tasks 1-2 | QA/finalization boundary tests | Task 2 checkpoint `pending` |
-| Task 4 | `pending` | current | `unresolved` | Task 3 | typed round trip and assurance/ranking tests | Task 3 checkpoint |
-| Task 5 | `pending` | current | `unresolved` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint |
+| Task 3 | `completed` | current | `codex` | Tasks 1-2 | QA/finalization boundary tests | `py -3 -m unittest tests.test_harness_tools tests.test_artifact_manifest_side_effects -v` — 40 tests passed; `git diff --check` passed |
+| Task 4 | `completed` | current | `codex` | Task 3 | typed round trip and assurance/ranking tests | `py -3 -m unittest tests.test_typed_contracts tests.test_canonical_projection tests.test_account_intelligence tests.test_scoring tests.test_harness_tools -v` — 49 tests passed; native worker/verifier subprocess round trip passed; `git diff --check` passed |
+| Task 5 | `active` | current | `codex` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint accepted; lifecycle snapshot implementation in progress |
 | Task 6 | `pending` | current | `unresolved` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint |
 
 ## Review Consolidation (2026-11-09)
@@ -276,6 +276,8 @@ Task 2 evidence: `WorkerResult` remains strict; malformed/invalid outcomes can b
 **Exit Criteria:**
 - A production-shaped run cannot finalize unless its actual QA, evidence, ranking, coverage, delivery, lifecycle, and workbook artifacts agree under the selected policy.
 
+Task 3 evidence: QA finalization now parses the canonical CSV bytes, requires `company_id` and `lead_tier`, validates admitted scope and qualification linkage, and reconstructs coverage only from successful authorized lifecycle records. Promoted evidence and ranked/delivered IDs are checked against durable records and policy counts. Fresh focused proof passed 40 tests across harness tools and artifact-manifest side effects; `git diff --check` passed.
+
 ### Task 4: Converge native wire contracts and gate score-bearing facts by assurance
 
 **Purpose:**
@@ -315,12 +317,12 @@ Task 2 evidence: `WorkerResult` remains strict; malformed/invalid outcomes can b
 - Stop for: silently accepting unknown fields, weakening Pydantic validation, changing score weights without explicit evidence, or changing public source-policy semantics without a documented decision.
 
 **Steps:**
-- [ ] Step 1: Select the native candidate/verifier record shape as the inter-process contract and implement one compatibility boundary that maps it to in-process typed models. Support the actual `candidate_claim_id`, `claim_value`, `candidate_sha256`, `procurement`, `Not searched`, and `Unavailable` values through one maintained owner.
-- [ ] Step 2: Add round-trip tests that feed an actual `native_worker.py` claim and `native_verifier.py` decision through the facade and back without loss of identity, hash, status, assurance, or provenance.
-- [ ] Step 3: In projection, allow structural claims to remain in evidence/audit output but build a per-field assurance map or separate source-only canonical fact map. Write score-bearing `service_fit`, `residential_weg`, `berlin_relevance`, `management_type`, or `portfolio_size` values only when that specific field is source-assured; retained base/structural values remain audit context unless their source assurance is explicitly bound.
-- [ ] Step 4: Keep `calculate_fit` deterministic and explicit about missing/source-only inputs; add mixed-provenance ranking regressions proving an unrelated source claim or an unsupported structural claim cannot make another field score or promote a lead into a higher tier.
-- [ ] Step 5: Separate event freshness from buying intent using the existing signal taxonomy. Preserve publication age as one input, but require event category/relevance, buyer/opportunity evidence, deadline state, and verification status before classifying a signal as commercially strong.
-- [ ] Step 6: In account-intelligence projection, retain rejected/unresolved lineage but compute `corroboration_count` only from independently verified supporting claims; expose rejected, unresolved, and contradictory counts separately.
+- [x] Step 1: Select the native candidate/verifier record shape as the inter-process contract and implement one compatibility boundary that maps it to in-process typed models. Support the actual `candidate_claim_id`, `claim_value`, `candidate_sha256`, `procurement`, `Not searched`, and `Unavailable` values through one maintained owner.
+- [x] Step 2: Add round-trip tests that feed an actual `native_worker.py` claim and `native_verifier.py` decision through the facade and back without loss of identity, hash, status, assurance, or provenance.
+- [x] Step 3: In projection, allow structural claims to remain in evidence/audit output but build a per-field assurance map or separate source-only canonical fact map. Write score-bearing `service_fit`, `residential_weg`, `berlin_relevance`, `management_type`, or `portfolio_size` values only when that specific field is source-assured; retained base/structural values remain audit context unless their source assurance is explicitly bound.
+- [x] Step 4: Keep `calculate_fit` deterministic and explicit about missing/source-only inputs; add mixed-provenance ranking regressions proving an unrelated source claim or an unsupported structural claim cannot make another field score or promote a lead into a higher tier.
+- [x] Step 5: Separate event freshness from buying intent using the existing signal taxonomy. Preserve publication age as one input, but require event category/relevance, buyer/opportunity evidence, deadline state, and verification status before classifying a signal as commercially strong.
+- [x] Step 6: In account-intelligence projection, retain rejected/unresolved lineage but compute `corroboration_count` only from independently verified supporting claims; expose rejected, unresolved, and contradictory counts separately.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_typed_contracts tests.test_canonical_projection tests.test_account_intelligence tests.test_scoring -v`
@@ -328,6 +330,8 @@ Task 2 evidence: `WorkerResult` remains strict; malformed/invalid outcomes can b
 
 **Exit Criteria:**
 - Typed consumers and native workers share one tested wire contract, and the ranking pipeline cannot treat structural or unresolved evidence as source-proven demand or fit.
+
+Task 4 evidence: `typed_contracts.py` now owns native claim, verifier-decision, and research-run normalization, including candidate identity/hash fields, procurement/official source kinds, and native unavailable/not-searched statuses. Projection retains field-level assurance and excludes non-source score inputs. Signal freshness no longer upgrades a fresh event to `Strong` without source verification, category, buyer, opportunity/title, deadline, and source evidence. Account timelines preserve rejected/unresolved/contradictory lineage while counting corroboration only for source-assured support. Fresh proof passed 49 focused tests, including actual native worker/verifier subprocess round-trip; `git diff --check` passed.
 
 ### Task 5: Bound lifecycle replay cost and make retry/backfill capacity observable
 

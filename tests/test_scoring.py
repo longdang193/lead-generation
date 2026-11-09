@@ -13,10 +13,10 @@ from extract_website_evidence import claim
 
 
 class ScoringTests(unittest.TestCase):
-    def test_signal_classification_is_freshness_based(self):
+    def test_freshness_only_signal_does_not_become_commercially_strong(self):
         today = date.today()
         self.assertEqual(classify_signal([]), "None found")
-        self.assertEqual(classify_signal([{"publication_date": today.isoformat(), "deadline": "Unknown"}]), "Strong")
+        self.assertEqual(classify_signal([{"publication_date": today.isoformat(), "deadline": "Unknown"}]), "Medium")
         self.assertEqual(classify_signal([{"publication_date": (today - timedelta(days=240)).isoformat(), "deadline": "Unknown"}]), "Medium")
         self.assertEqual(classify_signal([{"publication_date": (today - timedelta(days=500)).isoformat(), "deadline": "Unknown"}]), "Weak")
         self.assertEqual(classify_signal([{"publication_date": "Unknown", "deadline": "Unknown"}]), "Unknown")
@@ -50,7 +50,7 @@ class ScoringTests(unittest.TestCase):
     def test_verified_event_survives_partial_signal_research(self):
         signal, status = derive_account_signal(
             {"research_status": "Partial", "signal_state": "Unknown"},
-            [{"publication_date": date.today().isoformat(), "deadline": "Unknown"}],
+            [{"publication_date": date.today().isoformat(), "deadline": "2026-12-01", "event_type": "tender", "buyer": "C1", "title": "Current tender", "source_url": "https://example.de/tender", "assurance_level": "source", "verification_status": "Verified"}],
             "Searched",
         )
         self.assertEqual(signal, "Strong")

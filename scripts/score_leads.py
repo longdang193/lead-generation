@@ -17,6 +17,9 @@ def stamp() -> str:
 
 
 def value(field: str, record: dict[str, object]) -> float | None:
+    field_assurance = record.get("field_assurance")
+    if isinstance(field_assurance, dict) and field in field_assurance and str(field_assurance[field]) != "source":
+        return None
     raw = record.get(field)
     if field == "portfolio_potential":
         size = record.get("portfolio_size")
@@ -42,6 +45,17 @@ def parse_date(value: object) -> date | None:
         return None
 
 
+def _commercially_strong_event(event: dict[str, object]) -> bool:
+    assurance = str(event.get("assurance_level") or "")
+    verification = str(event.get("verification_status") or event.get("match_confidence") or "")
+    if assurance != "source" and verification != "Verified":
+        return False
+    required = ("event_type", "buyer", "title", "deadline")
+    if any(event.get(field) in (None, "", "Unknown") for field in required):
+        return False
+    return bool(event.get("source_url") not in (None, "", "Unknown"))
+
+
 def classify_signal(event_rows: list[dict[str, object]], as_of_date: date | None = None) -> str:
     if not event_rows:
         return "None found"
@@ -61,7 +75,10 @@ def classify_signal(event_rows: list[dict[str, object]], as_of_date: date | None
             ranks.append(3)
         else:
             ranks.append(2)
-    return {4: "Strong", 3: "Medium", 2: "Weak", 0: "Unknown"}[max(ranks)]
+    rank = max(ranks)
+    if rank == 4 and not any(_commercially_strong_event(event) for event in event_rows):
+        return "Medium"
+    return {4: "Strong", 3: "Medium", 2: "Weak", 0: "Unknown"}[rank]
 
 
 def calculate_fit(record: dict[str, object]) -> tuple[float | None, int]:
