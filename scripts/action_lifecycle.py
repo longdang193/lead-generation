@@ -114,9 +114,52 @@ def _manifest_budget(manifest_path: Path, run_id: str) -> int:
     return raw
 
 
+def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeActionRequest) -> None:
+    authorization = manifest.get("authorization")
+    if not isinstance(authorization, dict):
+        return
+    accepted_company_ids = authorization.get("accepted_company_ids")
+    if isinstance(accepted_company_ids, list) and accepted_company_ids and request.company_id not in {str(value) for value in accepted_company_ids}:
+        raise ValueError("company is outside the accepted company scope")
+    allowed_action_types = authorization.get("allowed_action_types")
+    if isinstance(allowed_action_types, list) and allowed_action_types and request.action_type not in {str(value) for value in allowed_action_types}:
+        raise ValueError("action type is outside the admitted scope")
+    scope_prefixes = authorization.get("scope_prefixes")
+    if isinstance(scope_prefixes, dict):
+        expected_prefix = scope_prefixes.get(request.action_type)
+        if expected_prefix is not None and not request.scope.startswith(str(expected_prefix)):
+            raise ValueError("request scope does not match manifest authorization")
+    for request_key in ("contract_version", "strategy_version"):
+        expected = authorization.get(request_key)
+        if expected is not None and getattr(request, request_key) != str(expected):
+            raise ValueError(f"request {request_key} does not match manifest authorization")
+    profile_versions = authorization.get("profile_versions")
+    if isinstance(profile_versions, dict):
+        expected = profile_versions.get(request.action_type)
+        if expected is not None and request.profile_version != str(expected):
+            raise ValueError("request profile_version does not match manifest authorization")
+    provenance = request.provenance
+    for request_key, manifest_key in (("campaign_id", "campaign_id"), ("campaign_version", "campaign_version"), ("scope_version", "scope_version")):
+        expected = authorization.get(manifest_key)
+        if expected is not None and provenance.get(request_key) != str(expected):
+            raise ValueError(f"request {request_key} does not match manifest authorization")
+
+
+def canonical_request_hash(request: NativeActionRequest | dict[str, object]) -> str:
+    validated = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
+    payload = validated.model_dump(exclude={"request_hash"}, exclude_none=True)
+    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
 def admit_action(root: Path, request: NativeActionRequest | dict[str, object], manifest_path: Path) -> NativeActionRequest:
     validated = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
+    if validated.request_hash != canonical_request_hash(validated):
+        raise ValueError("request hash mismatch")
     with _run_lock(root, validated.run_id):
+        manifest = load(manifest_path)
+        if str(manifest.get("run_id") or "") != validated.run_id:
+            raise ValueError("run_id does not match manifest")
+        _validate_manifest_authorization(manifest, validated)
         events = _read(lifecycle_path(root, validated.run_id))
         admissions = [event for event in events if event.event_type == "admitted"]
         for event in admissions:

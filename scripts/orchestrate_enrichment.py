@@ -180,6 +180,8 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         raise ValueError("implementation worktree must be clean before opening research queues")
     campaign = load_campaign_spec(root, campaign_config or _default_campaign_config(root))
     run_id = run_id or f"lead-{uuid.uuid4().hex[:16]}"
+    accepted_ids = sorted(str(company_id) for company_id in (accepted_company_ids or set()) if str(company_id))
+    budget_company_count = len(accepted_ids) or campaign.target_count
     manifest_inputs: dict[str, dict[str, str]] = {}
     for path in inputs:
         key = next((name for name, relative_path in campaign.input_bindings.items() if (root / relative_path).resolve() == path.resolve()), path.stem)
@@ -198,7 +200,19 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "config_version": "lead-enrichment-run-v1",
         "delivery_policy": campaign.delivery_policy,
         "campaign": campaign.manifest_record(),
-        "accepted_company_ids": sorted(accepted_company_ids or set()),
+        "accepted_company_ids": accepted_ids,
+        "budget_limit": budget_company_count * len(campaign.lanes),
+        "authorization": {
+            "accepted_company_ids": accepted_ids,
+            "campaign_id": campaign.campaign_id,
+            "campaign_version": campaign.version,
+            "scope_version": "admitted-work-item-v1",
+            "allowed_action_types": list(campaign.lanes),
+            "scope_prefixes": {lane: f"{lane}:" for lane in campaign.lanes},
+            "contract_version": "1",
+            "strategy_version": "1",
+            "profile_versions": {lane: f"{lane}-v1" for lane in campaign.lanes},
+        },
         "campaign_inputs": manifest_inputs,
         "inputs": manifest_inputs,
         "supporting_inputs": {path.stem: manifest_entry(root, path) for path in supporting_inputs},

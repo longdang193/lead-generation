@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from action_lifecycle import admit_action, replay_lifecycle, settle_action, validate_result
+from action_lifecycle import admit_action, canonical_request_hash, replay_lifecycle, settle_action, validate_result
 from action_receipts import canonical_json
 from run_manifest import atomic_write
 
@@ -32,6 +32,8 @@ def action(**overrides: object) -> dict[str, object]:
         "provenance": {"source": "test"},
     }
     value.update(overrides)
+    if "request_hash" not in overrides:
+        value["request_hash"] = canonical_request_hash(value)
     return value
 
 
@@ -114,6 +116,46 @@ class ActionLifecycleTests(unittest.TestCase):
         admit_action(self.root, request, self.manifest)
         with self.assertRaisesRegex(ValueError, "conflicting duplicate action admission"):
             admit_action(self.root, action(company_id="FOREIGN", budget_units=999), self.manifest)
+
+    def test_admission_rejects_company_outside_manifest_scope(self):
+        atomic_write(self.manifest, {
+            "run_id": "run-1",
+            "budget_limit": 1,
+            "authorization": {
+                "accepted_company_ids": ["C1"],
+                "campaign_id": "campaign-1",
+                "campaign_version": "v1",
+                "scope_version": "admitted-work-item-v1",
+            },
+        })
+        with self.assertRaisesRegex(ValueError, "accepted company scope"):
+            admit_action(self.root, action(company_id="C2", provenance={"campaign_id": "campaign-1", "campaign_version": "v1", "scope_version": "admitted-work-item-v1"}), self.manifest)
+
+    def test_admission_rejects_scope_and_version_outside_manifest_scope(self):
+        atomic_write(self.manifest, {
+            "run_id": "run-1",
+            "budget_limit": 1,
+            "authorization": {
+                "accepted_company_ids": ["C1"],
+                "allowed_action_types": ["signals"],
+                "scope_prefixes": {"signals": "signals:"},
+                "contract_version": "1",
+                "strategy_version": "1",
+                "profile_versions": {"signals": "signals-v1"},
+            },
+        })
+        with self.assertRaisesRegex(ValueError, "request scope"):
+            admit_action(self.root, action(scope="portfolio:C1", profile_version="signals-v1"), self.manifest)
+        with self.assertRaisesRegex(ValueError, "contract_version"):
+            admit_action(self.root, action(contract_version="2"), self.manifest)
+        with self.assertRaisesRegex(ValueError, "profile_version"):
+            admit_action(self.root, action(profile_version="signals-v2"), self.manifest)
+
+    def test_admission_rejects_forged_request_hash(self):
+        request = action()
+        request["request_hash"] = "b" * 64
+        with self.assertRaisesRegex(ValueError, "request hash mismatch"):
+            admit_action(self.root, request, self.manifest)
 
     def test_exact_duplicate_result_validation_is_idempotent(self):
         request = action()

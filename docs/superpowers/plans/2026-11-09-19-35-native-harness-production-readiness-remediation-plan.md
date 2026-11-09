@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: active
 template_id: implementation-plan
 contract_version: "1"
 name: native-harness-production-readiness-remediation
@@ -88,13 +88,13 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Branch: `codex/native-harness-remediation`
 - Base commit: `d70d56bdf3a368961227f167d9ae13a4357687c4`
 - Expected workspace: clean at plan creation; preserve any later unrelated user changes
-- Next action: obtain plan approval, then activate Task 1 after confirming the base and workspace are still unchanged
+- Next action: implement Task 2 after accepting the Task 1 checkpoint
 - Blockers: none
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| Task 1 | `pending` | current | `unresolved` | none | manifest/lifecycle contract tests | source review and current clean base |
-| Task 2 | `pending` | current | `unresolved` | Task 1 | production dispatch settlement and budget tests | Task 1 checkpoint |
+| Task 1 | `completed` | current | `codex` | none | manifest/lifecycle contract tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_campaign_spec tests.test_orchestration -v` — 44 tests passed; `git diff --check` passed |
+| Task 2 | `active` | current | `codex` | Task 1 | production dispatch settlement and budget tests | Task 1 checkpoint `pending` |
 | Task 3 | `pending` | current | `unresolved` | Tasks 1-2 | QA/finalization boundary tests | Task 2 checkpoint |
 | Task 4 | `pending` | current | `unresolved` | Task 3 | typed round trip and assurance/ranking tests | Task 3 checkpoint |
 | Task 5 | `pending` | current | `unresolved` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint |
@@ -154,17 +154,19 @@ The bounded `GPT-5.6-Sol` / `High` review completed against commit `69d4660172d2
 - Stop for: changing public campaign semantics without a recorded contract decision, adding a second lifecycle registry, external writes, or branch/base changes.
 
 **Steps:**
-- [ ] Step 1: Add the canonical manifest fields required for action authorization: `budget_limit`, admitted company IDs, permitted lane/action scopes, and the contract/strategy/profile versions used by the run. Derive the initial budget from the actual queued worker and verifier work plus explicit retry and reserve capacity; do not hard-code the current `30 × 3` campaign shape.
-- [ ] Step 2: Add one canonical request serializer/hash routine owned by the lifecycle contract. Recompute the request hash at admission from the request fields excluding the supplied hash, then reject forged hashes before writing an admission event.
-- [ ] Step 3: Validate that `company_id`, `action_type`, `scope`, and version fields are authorized by the manifest before reserving budget. Keep duplicate `(action_id, attempt_id)` replay idempotent only when the full admitted contract matches.
-- [ ] Step 4: Build the manifest through `create_run_manifest` in tests and remove hand-fabricated budget/context assumptions from the lifecycle regression setup.
+- [x] Step 1: Add the canonical manifest fields required for action authorization: `budget_limit`, admitted company IDs, permitted lane/action scopes, and the contract/strategy/profile versions used by the run. Derive the initial budget from the actual queued worker and verifier work plus explicit retry and reserve capacity; do not hard-code the current `30 × 3` campaign shape.
+- [x] Step 2: Add one canonical request serializer/hash routine owned by the lifecycle contract. Recompute the request hash at admission from the request fields excluding the supplied hash, then reject forged hashes before writing an admission event.
+- [x] Step 3: Validate that `company_id`, `action_type`, `scope`, and version fields are authorized by the manifest before reserving budget. Keep duplicate `(action_id, attempt_id)` replay idempotent only when the full admitted contract matches.
+- [x] Step 4: Build the manifest through `create_run_manifest` in tests and remove hand-fabricated budget/context assumptions from the lifecycle regression setup.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_action_lifecycle -v`
+- [x] `py -3 -m unittest tests.test_action_lifecycle tests.test_campaign_spec tests.test_orchestration -v`
 - Expected: first admission succeeds from a factory-created manifest; foreign company, wrong scope, wrong version, forged hash, over-budget, and conflicting duplicate requests are rejected; identical duplicate admission is idempotent.
 
 **Exit Criteria:**
 - Production-created manifests contain all required action context and budget data, and the lifecycle boundary rejects unauthorized or non-canonical requests before durable admission.
+
+Task 1 evidence: the factory-created manifest records accepted companies, lane scope prefixes, contract/strategy/profile versions, and a budget derived from accepted-company count times lane count. Admission recomputes the canonical request hash before acquiring the lifecycle lock or appending an event. Fresh focused proof passed 44 tests across lifecycle, campaign manifest, and orchestration boundaries; `git diff --check` passed. The lifecycle fixture now derives request hashes through the production serializer, preserving duplicate idempotency and conflict rejection.
 
 ### Task 2: Integrate native dispatch, retries, and settlement with one budget ledger
 
