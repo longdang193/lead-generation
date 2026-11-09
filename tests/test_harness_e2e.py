@@ -30,7 +30,7 @@ class HarnessE2ETests(unittest.TestCase):
     def _trace(self, root: Path, run_id: str, *, strict: bool, stop_early: bool = False) -> dict[str, object]:
         manifest_path = root / "evidence" / "manifests" / f"native_handoff_{run_id}.json"
         manifest = {
-            "record_type": "RunManifest", "run_id": run_id, "head_sha": "0" * 40, "git_revision": "0" * 40,
+            "record_type": "RunManifest", "run_id": run_id, "execution_mode": "fixture", "head_sha": "0" * 40, "git_revision": "0" * 40,
             "delivery_policy": "strict" if strict else "personal",
             "budget_limit": 1,
             "barriers": {"research": not stop_early, "verifier": not stop_early, "verified_evidence": not stop_early, "projection": not stop_early, "ranking": not stop_early, "readiness": not stop_early},
@@ -58,7 +58,7 @@ class HarnessE2ETests(unittest.TestCase):
         action["manifest_path"] = manifest_path.relative_to(root).as_posix()
         invoke({"action": "admit_action", "payload": action}, root)
         invoke({"action": "validate_result", "payload": {"run_id": run_id, "action_id": "action-1", "attempt_id": "attempt-1", "company_id": "C1", "status": "Partial" if stop_early else "Completed", "result_hash": result_hash, "result": result_payload}}, root)
-        invoke({"action": "record_receipt", "payload": {key: value for key, value in {**action, "result_hash": result_hash, "terminal_status": "Unavailable" if stop_early else "Completed", "budget_requested": 1, "budget_settled": 1, "created_at": datetime.now(timezone.utc).isoformat(), "coverage_delta": {"signals": 0 if stop_early else 1}}.items() if key not in {"budget_units", "manifest_path"}}}, root)
+        invoke({"action": "record_receipt", "payload": {key: value for key, value in {**action, "result_hash": result_hash, "terminal_status": "Partial" if stop_early else "Completed", "budget_requested": 1, "budget_settled": 1, "created_at": datetime.now(timezone.utc).isoformat(), "coverage_delta": {"signals": 0 if stop_early else 1}}.items() if key not in {"budget_units", "manifest_path"}}}, root)
         if not stop_early:
             claims = [_claim("c1", "C1", "service_fit", "Confirmed"), _claim("c2", "C1", "event", {"event_id": "E1", "event_type": "tender", "event_date": "2026-11-01"})]
             thesis = {"company_id": "C1", "structural_fit": 35, "confidence": "high", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}

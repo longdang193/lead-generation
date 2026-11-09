@@ -88,6 +88,12 @@ class AccountIntelligenceTests(unittest.TestCase):
         self.assertEqual(rows[0]["corroboration_count"], 1)
         self.assertEqual(rows[0]["status"], "Verified")
 
+    def test_same_source_family_does_not_gain_weight_from_distinct_excerpts(self):
+        first = claim("c1", "C1")
+        second = {**claim("c2", "C1"), "evidence_excerpt": "A separate excerpt from the same source"}
+        rows = build_account_timeline([first, second])
+        self.assertEqual(rows[0]["corroboration_count"], 1)
+
     def test_unsupported_hypothesis_is_marked_speculative(self):
         thesis = validate_account_thesis({
             "company_id": "C1", "structural_fit": 0, "confidence": "medium", "recommended_action": "research",

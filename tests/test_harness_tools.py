@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from harness_tools import discover_profiles, invoke
-from run_manifest import atomic_write, file_sha256, finalization_eligibility, load
+from run_manifest import atomic_write, file_sha256, finalization_eligibility, load, reconstruct_finalization_readiness
 
 
 class HarnessToolTests(unittest.TestCase):
@@ -67,6 +67,21 @@ class HarnessToolTests(unittest.TestCase):
         eligible, errors = finalization_eligibility(manifest, "strict")
         self.assertFalse(eligible)
         self.assertTrue(any("nonnegative integers" in error for error in errors))
+
+    def test_finalization_reconstructs_required_artifacts_instead_of_trusting_flags(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workbook = root / "workbook.xlsx"
+            workbook.write_bytes(b"workbook")
+            manifest = root / "manifest.json"
+            atomic_write(manifest, {
+                "run_id": "run-1", "execution_mode": "production", "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "complete"}, "delivery": {"status": "completed", "delivery_policy": "strict", "target_count": 0, "delivered_count": 0, "shortfall": 0},
+                "outputs": {"workbook": {"path": "workbook.xlsx", "sha256": file_sha256(workbook)}},
+            })
+            proof = reconstruct_finalization_readiness(root, manifest, "strict")
+            self.assertFalse(proof["ready"])
+            self.assertTrue(any("verified evidence artifact" in error for error in proof["errors"]))
 
     def test_discover_companies_is_bounded_to_repository_root(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -411,13 +411,14 @@ plan no longer presents completed implementation as pending coordination work.
 ## Plan Verification Record
 
 - Workspace: `C:\Users\HOANG PHI LONG DANG\repos\lead-generation`; branch `main`; base `origin/main` at `283caee`; current pre-commit state includes the implementation diff plus this reconciliation.
-- Focused proof: `py -3 -m unittest tests.test_harness_tools tests.test_harness_e2e tests.test_personal_mode -v` — `19` tests passed.
+- Focused proof: `py -3 -m unittest tests.test_harness_tools tests.test_harness_e2e tests.test_personal_mode -v` — `19` tests passed before review-cycle fixes; post-fix focused proof `py -3 -m unittest tests.test_action_lifecycle tests.test_account_intelligence tests.test_harness_tools tests.test_artifact_manifest_side_effects tests.test_harness_e2e -q` — `41` tests passed.
 - Integrated proof: `py -3 -m unittest tests.test_end_to_end_enrichment tests.test_harness_e2e tests.test_personal_mode -v` — passed during implementation and covered the real-kernel fixture campaign.
-- Full proof: `py -3 -m unittest discover -s tests -p "test_*.py" -v` — `176` tests passed.
+- Full proof: `py -3 -m unittest discover -s tests -p "test_*.py" -v` — `181` tests passed after review-cycle fixes.
 - Boundary inspection: `git diff --check` — passed after removing accidental trailing blank lines; native publication remains rejected except through `finalize_run`.
 - Adapter coverage added in `tests/test_harness_tools.py` for repository-bounded discovery, shared normalization/identity, hashed promotion output, JSONL/CSV ranking inputs, and export/QA artifact references.
 - Fixture exception: E2E provider behavior uses deterministic repository fixtures/mocks; no live external provider or CRM write was performed. Live-provider capability and latency remain deferred operational proof, not an implementation blocker.
-- Residual risk: the repository is currently on `main` with one existing local plan commit ahead of `origin/main`; branch finishing must create/push the requested feature branch and obtain independent PR review before merge.
+- Residual risk: the implementation is on `codex/native-harness-remediation`; PR `#14` is open and requires the second independent review cycle before merge.
+- Review cycle 1 on PR `#14` at head `6cac7f03c9315343e8113f24d8043152467e63f0` returned `FAIL` with six source-supported findings. The follow-up fix set binds settlement identity and terminal status to admitted/validated events, marks validated-only actions unsettled during replay, makes exact result validation idempotent, verifies required production artifacts before finalization/recovery, and counts corroboration by both source family and evidence fingerprint. A second independent review is required on the new head.
 
 ## Verification
 

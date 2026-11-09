@@ -149,6 +149,17 @@ def _marker_paths(root: Path, marker: Mapping[str, object]) -> tuple[Path, Path]
     return marker_path_value("staging_path"), marker_path_value("final_path")
 
 
+def _bind_workbook_output(manifest: dict[str, object], root: Path, workbook: Path, sha256: str) -> dict[str, object]:
+    outputs = manifest.get("outputs")
+    bound_outputs = dict(outputs) if isinstance(outputs, dict) else {}
+    bound_outputs["workbook"] = {
+        "path": workbook.resolve().relative_to(root.resolve()).as_posix(),
+        "sha256": sha256,
+    }
+    manifest["outputs"] = bound_outputs
+    return manifest
+
+
 def _publication_status_errors(status: str, manifest: Mapping[str, object]) -> list[str]:
     errors: list[str] = []
     if status not in {"complete", "completed", "partial"}:
@@ -219,9 +230,10 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
     status_errors = _publication_status_errors(status, candidate)
     if status_errors:
         raise ValueError("publication status validation failed: " + "; ".join(status_errors))
-    allowed, errors = finalization_eligibility(candidate, delivery_policy)
-    if not allowed:
-        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
+    candidate = _bind_workbook_output(candidate, root, staging if staging.exists() else final, expected)
+    proof = reconstruct_finalization_readiness(root, manifest_path, delivery_policy, overlay=candidate)
+    if not proof["ready"]:
+        raise ValueError("publication finalization admission failed: " + "; ".join(proof["errors"]))
     if staging.exists():
         if file_sha256(staging) != expected:
             raise ValueError("publication recovery found a mismatched staging output")
@@ -294,9 +306,10 @@ def publish_staged_output(
     status_errors = _publication_status_errors(status, candidate)
     if status_errors:
         raise ValueError("publication status validation failed: " + "; ".join(status_errors))
-    allowed, errors = finalization_eligibility(candidate, policy)
-    if not allowed:
-        raise ValueError("publication finalization admission failed: " + "; ".join(errors))
+    candidate = _bind_workbook_output(candidate, root, staging, file_sha256(staging))
+    proof = reconstruct_finalization_readiness(root, manifest_path, policy, overlay=candidate)
+    if not proof["ready"]:
+        raise ValueError("publication finalization admission failed: " + "; ".join(proof["errors"]))
     _validate_publication_artifact(root, manifest, staging, final, file_sha256(staging))
     marker_path = publication_marker_path(root, run_id)
     atomic_write(marker_path, {
@@ -342,13 +355,39 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
         if not lifecycle.get("action_count"):
             errors.append("finalization requires durable action lifecycle evidence")
         else:
-            unsettled = [item for item in lifecycle.get("actions", []) if item.get("status") == "Admitted"]
+            unsettled = [item for item in lifecycle.get("actions", []) if item.get("settled") is not True]
             if unsettled:
                 errors.append("finalization requires all admitted actions to settle")
     allowed, policy_errors = finalization_eligibility(manifest, delivery_policy)
     if not allowed:
         errors.extend(policy_errors)
     outputs = manifest.get("outputs")
+    if str(manifest.get("execution_mode") or "production") != "fixture":
+        required_outputs = {
+            "verified_evidence": "verified evidence",
+            "scores": "projection scores",
+            "priority": "ranked leads",
+            "qa_report": "QA report",
+            "qa_sample": "QA sample",
+        }
+        output_bucket = outputs if isinstance(outputs, dict) else {}
+        for key, label in required_outputs.items():
+            artifact = output_bucket.get(key)
+            if not isinstance(artifact, dict):
+                errors.append(f"finalization requires a recorded {label} artifact")
+                continue
+            raw_path = str(artifact.get("path") or "")
+            raw_hash = str(artifact.get("sha256") or "")
+            path = Path(raw_path)
+            path = path if path.is_absolute() else root / path
+            try:
+                path = path.resolve()
+                path.relative_to(root.resolve())
+            except ValueError:
+                errors.append(f"{label} artifact path escapes repository root")
+                continue
+            if not path.exists() or not path.is_file() or not re.fullmatch(r"[0-9a-f]{64}", raw_hash) or file_sha256(path) != raw_hash:
+                errors.append(f"{label} artifact hash is invalid or stale")
     workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
     if not isinstance(workbook, dict):
         errors.append("finalization requires a recorded workbook artifact")

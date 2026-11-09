@@ -109,6 +109,38 @@ class ActionLifecycleTests(unittest.TestCase):
         self.assertEqual(first.action_id, second.action_id)
         self.assertEqual(replay_lifecycle(self.root, "run-1")["action_count"], 1)
 
+    def test_exact_duplicate_result_validation_is_idempotent(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        result = result_for(request)
+        first = validate_result(self.root, result)
+        second = validate_result(self.root, result)
+        self.assertEqual(first.result_hash, second.result_hash)
+        self.assertFalse(replay_lifecycle(self.root, "run-1")["actions"][0]["settled"])
+
+    def test_settlement_must_match_admitted_identity_and_validated_status(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        validated = validate_result(self.root, result_for(request))
+        receipt = {
+            **request,
+            "company_id": "C2",
+            "result_hash": validated.result_hash,
+            "terminal_status": "Failed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "created_at": datetime.now(timezone.utc),
+        }
+        with self.assertRaisesRegex(ValueError, "company_id"):
+            settle_action(self.root, receipt)
+
+    def test_replay_marks_validated_only_action_unsettled(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        validate_result(self.root, result_for(request))
+        replay = replay_lifecycle(self.root, "run-1")
+        self.assertFalse(replay["actions"][0]["settled"])
+
 
 if __name__ == "__main__":
     unittest.main()

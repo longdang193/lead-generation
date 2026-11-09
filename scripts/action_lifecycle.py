@@ -150,6 +150,16 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             raise ValueError("action is not admitted")
         if admission.company_id != validated.company_id:
             raise ValueError("result company does not match admission")
+        existing = next((prior for prior in events if prior.event_type == "result_validated" and prior.action_id == validated.action_id and prior.attempt_id == validated.attempt_id), None)
+        if existing is not None:
+            if any((
+                existing.company_id != validated.company_id,
+                existing.result_hash != validated.result_hash,
+                existing.terminal_status != validated.status,
+                existing.provenance != validated.provenance,
+            )):
+                raise ValueError("conflicting duplicate result validation")
+            return validated
         event = LifecycleEvent(
             run_id=validated.run_id,
             action_id=validated.action_id,
@@ -169,11 +179,6 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             provenance=validated.provenance,
             created_at=datetime.now(timezone.utc),
         )
-        existing = [prior for prior in events if prior.event_type == "result_validated" and prior.action_id == validated.action_id and prior.attempt_id == validated.attempt_id]
-        for prior in existing:
-            if _dump(prior) != _dump(event):
-                raise ValueError("conflicting duplicate result validation")
-            return validated
         _append_locked(root, event)
     return validated
 
@@ -192,8 +197,23 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
             raise ValueError("action is not admitted")
         if result is None:
             raise ValueError("action result is not validated")
+        identity_fields = {
+            "company_id": admission.company_id,
+            "action_type": admission.action_type,
+            "scope": admission.scope,
+            "idempotency_key": admission.idempotency_key,
+            "request_hash": admission.request_hash,
+            "contract_version": admission.contract_version,
+            "strategy_version": admission.strategy_version,
+            "profile_version": admission.profile_version,
+        }
+        for field, expected in identity_fields.items():
+            if getattr(validated, field) != expected:
+                raise ValueError(f"receipt {field} does not match admission")
         if validated.result_hash != result.result_hash:
             raise ValueError("receipt result hash does not match validated result")
+        if validated.terminal_status != result.terminal_status:
+            raise ValueError("receipt terminal status does not match validated result")
         if validated.budget_requested != admission.budget_units:
             raise ValueError("receipt budget does not match admission")
         if validated.budget_settled > validated.budget_requested:
@@ -265,7 +285,7 @@ def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
             status = settlement.terminal_status
         else:
             status = result.terminal_status if result is not None else "Admitted"
-        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "status": status})
+        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "status": status, "settled": settlement is not None})
     return {
         "action_count": len(actions),
         "actions": actions,

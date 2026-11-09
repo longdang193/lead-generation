@@ -124,7 +124,7 @@ def build_account_timeline(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> 
             if value_to_add not in prior[field]:
                 prior[field].append(value_to_add)
         prior["status"] = _derived_event_status(set(prior["statuses"]))
-        prior["corroboration_count"] = len(prior["evidence_fingerprints"])
+        prior["corroboration_count"] = min(len(set(prior["source_families"])), len(set(prior["evidence_fingerprints"])))
     return sorted(timeline.values(), key=lambda row: (row["company_id"], str(row.get("event_date") or ""), row["event_id"]))
 
 
