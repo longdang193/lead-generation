@@ -56,6 +56,19 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(import_discovery.main(), 2)
         run_apify_actor.assert_not_called()
 
+    @patch("import_discovery.overpass_query")
+    @patch("import_discovery.run_apify_actor")
+    @patch.object(import_discovery.RuntimeConfig, "from_env")
+    def test_fetch_providers_rejects_zero_and_nonfinite_apify_budgets_before_calls(self, from_env, run_apify_actor, overpass_query):
+        for budget in (0.0, float("nan"), float("inf")):
+            from_env.return_value = RuntimeConfig(apify_api_token="configured", apify_max_spend_usd=budget, overpass_api_url="configured")
+            with self.subTest(budget=budget), TemporaryDirectory() as directory, patch.object(sys, "argv", ["import_discovery.py", "--fetch-providers", "--output", str(Path(directory) / "discovery.csv")]):
+                self.assertEqual(import_discovery.main(), 2)
+            run_apify_actor.assert_not_called()
+            overpass_query.assert_not_called()
+            run_apify_actor.reset_mock()
+            overpass_query.reset_mock()
+
     def test_json_provider_fields_are_preserved(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "provider.json"

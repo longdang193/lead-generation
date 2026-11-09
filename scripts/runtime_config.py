@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -89,10 +90,14 @@ class RuntimeConfig:
         errors: list[str] = []
         if self.request_timeout_seconds <= 0 or self.max_pages_per_company <= 0 or self.max_fetch_retries < 0 or self.run_deadline_seconds <= 0 or self.max_total_attempts <= 0:
             errors.append("runtime bounds must be positive")
-        if self.apify_max_spend_usd < 0 or self.max_priority_accounts <= 0:
+        invalid_spend = not math.isfinite(self.apify_max_spend_usd) or self.apify_max_spend_usd < 0
+        if (provider != "apify" and invalid_spend) or self.max_priority_accounts <= 0:
             errors.append("spend and priority bounds are invalid")
-        if provider == "apify" and 0 < self.apify_max_spend_usd < APIFY_MIN_SPEND_USD:
-            errors.append(f"APIFY_MAX_SPEND_USD must be at least {APIFY_MIN_SPEND_USD:.2f} for Apify")
+        if provider == "apify":
+            if not math.isfinite(self.apify_max_spend_usd):
+                errors.append(f"APIFY_MAX_SPEND_USD must be finite and at least {APIFY_MIN_SPEND_USD:.2f} for Apify")
+            elif self.apify_max_spend_usd < APIFY_MIN_SPEND_USD:
+                errors.append(f"APIFY_MAX_SPEND_USD must be at least {APIFY_MIN_SPEND_USD:.2f} for Apify")
         if provider == "apify" and require_secrets and not self.apify_api_token:
             errors.append("APIFY_API_TOKEN is required for Apify")
         if provider == "hunter" and require_secrets and not self.hunter_api_key:
