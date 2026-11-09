@@ -139,6 +139,11 @@ def main() -> int:
     if args.fetch_providers:
         args.apify, args.overpass = provider_output_paths(args.apify, args.overpass)
         if config.apify_api_token:
+            errors = config.validate(provider="apify", require_secrets=True)
+            if errors:
+                for error in errors:
+                    print(f"ERROR: {error}")
+                return 2
             queries = args.apify_queries or ["Hausverwaltung Berlin WEG Verwaltung", "Immobilienverwaltung Berlin Mietverwaltung"]
             try:
                 items, run_id, usage = run_apify_actor(

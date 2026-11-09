@@ -57,10 +57,10 @@
   ],
   "source_hashes": {
     "config/campaigns/berlin-hausverwaltung.json": "2a13cfdfa9723aeab7bec1e0bf53c87f316e65966b4ecd83079fe3656e022fac",
-    "data/intermediate/companies_normalized_2026-11-07.csv": "f48b050f36c1b5ad21d0211d625ff14f8d3d73a1f855522e16f9fa5ba22e6d65",
-    "data/processed/priority_leads_2026-11-08.csv": "e4a451c0541b8fcf18946ccc84c999bcc89050725a3d25011b84ca1b84a61a3f",
-    "evidence/live-source-verification-2026-11-09/website-evidence.jsonl": "321c9f82b5e6b5351534c80fa259486732157808c7aea9aa23ad6af1cd5b41a5",
-    "evidence/live-source-verification-2026-11-09/capture-index.csv": "1461100063d543a90e74c54d61ad18779bc997d590abccc67c1d0948b86bec25"
+    "data/intermediate/companies_normalized_2026-11-07.csv": "ae44ce81adf314f84fa496223b913f6bc61a471f5d3249f1d189ba4f8c97cdb2",
+    "data/processed/priority_leads_2026-11-08.csv": "be6312eeb457d755abfbd9738cabf382fc2a7efaf36cd20b0dfb37a90e535798",
+    "evidence/live-source-verification-2026-11-09/website-evidence.jsonl": "ea5c3c8c5af9aad338505870bd448c513a06ac20f864b2d58be7cbe873000774",
+    "evidence/live-source-verification-2026-11-09/capture-index.csv": "526ae07eac1e30e229dd6587d3f18a50ebfeb3c1b71c49de97ff157e162c610d"
   },
   "source_verification_artifact": "evidence/live-source-verification-2026-11-09/website-evidence.jsonl",
   "source_verification_summary": {
@@ -70,5 +70,7 @@
     "berlin_relevance_confirmed_by_official_site": 10,
     "gate_status": "blocked",
     "gate_reason": "Provider connectivity and website fetches do not replace an independent source_verification verifier for strict production promotion."
-  }
+  },
+  "hash_basis": "SHA-256 of Git blob bytes from git show <revision>:<path>",
+  "artifact_revision": "ec9e64e2df185de1410a9b54406d89f98f4c0dc0"
 }

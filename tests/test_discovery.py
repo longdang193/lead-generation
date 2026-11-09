@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+import import_discovery
 from import_discovery import provider_output_paths, read_rows, refresh_identity
 from runtime_config import RuntimeConfig
 
@@ -46,6 +47,14 @@ class DiscoveryTests(unittest.TestCase):
             config.validate(provider="apify"),
             ["APIFY_MAX_SPEND_USD must be at least 0.50 for Apify"],
         )
+
+    @patch("import_discovery.run_apify_actor")
+    @patch.object(import_discovery.RuntimeConfig, "from_env")
+    def test_fetch_providers_rejects_invalid_apify_budget_before_call(self, from_env, run_apify_actor):
+        from_env.return_value = RuntimeConfig(apify_api_token="configured", apify_max_spend_usd=0.01, overpass_api_url="")
+        with TemporaryDirectory() as directory, patch.object(sys, "argv", ["import_discovery.py", "--fetch-providers", "--output", str(Path(directory) / "discovery.csv")]):
+            self.assertEqual(import_discovery.main(), 2)
+        run_apify_actor.assert_not_called()
 
     def test_json_provider_fields_are_preserved(self):
         with TemporaryDirectory() as directory:
