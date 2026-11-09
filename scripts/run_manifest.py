@@ -116,6 +116,34 @@ def atomic_write(path: Path, manifest: Mapping[str, object]) -> None:
             os.unlink(temporary_name)
 
 
+def publication_marker_path(root: Path, run_id: str) -> Path:
+    return root / "output" / f"{run_id}.publication.json"
+
+
+def recover_publication(root: Path, manifest_path: Path) -> None:
+    manifest = load(manifest_path)
+    run_id = str(manifest.get("run_id") or "")
+    if not run_id:
+        return
+    marker_path = publication_marker_path(root, run_id)
+    if not marker_path.exists():
+        return
+    marker = load(marker_path)
+    staging = root / str(marker.get("staging_path") or "")
+    final = root / str(marker.get("final_path") or "")
+    expected = str(marker.get("staging_sha256") or "")
+    if final.exists():
+        if file_sha256(final) != expected:
+            raise ValueError("publication recovery found a mismatched final output")
+        update(path=manifest_path, root=root, outputs={"workbook": final}, status=str(manifest.get("status") or "ready_for_validation"), barriers={"published": True})
+        marker_path.unlink()
+        return
+    if staging.exists() and file_sha256(staging) == expected:
+        marker_path.unlink()
+        return
+    raise ValueError("publication recovery found neither a valid staging nor final output")
+
+
 def update(
     path: Path,
     root: Path,

@@ -10,11 +10,33 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import _native_command_builder, build_verifier_queue, complete_company_ids, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import _native_command_builder, _worker_payloads, build_verifier_queue, complete_company_ids, create_run_manifest, delivery_summary, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
+    def test_malformed_claims_are_quarantined_without_aborting_other_lanes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "signals.json"
+            output.write_text(json.dumps({"research_run": {"record_type": "ResearchRun", "company_id": "C1"}, "claims": [{"candidate_claim_id": "ok"}, "broken"]}), encoding="utf-8")
+            runs, claims, quarantined = _worker_payloads({"signals": [{"lane": "signals", "company_id": "C1", "status": "succeeded", "output_path": str(output)}]})
+            self.assertEqual(len(runs), 1)
+            self.assertEqual(claims, [{"candidate_claim_id": "ok"}])
+            self.assertEqual(quarantined[0]["reason"], "malformed_claim")
+
+    def test_personal_delivery_uses_successful_lane_union_and_explicit_shortfall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "signals-C1.json"
+            output.write_text(json.dumps({"research_run": {"status": "Completed", "provider_status": "Available"}}), encoding="utf-8")
+            results = {"signals": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}], "contacts": [{"company_id": "C1", "status": "failed"}]}
+            queues = {"signals": [{"company_id": "C1"}], "contacts": [{"company_id": "C1"}]}
+            self.assertEqual(complete_company_ids(results, queues, "personal"), {"C1"})
+            self.assertEqual(delivery_summary({"C1"}, 2, "personal")["status"], "partial")
+
+    def test_strict_delivery_keeps_all_lane_intersection(self):
+        results = {"signals": [{"company_id": "C1", "status": "succeeded", "output_path": ""}], "contacts": [{"company_id": "C1", "status": "failed"}]}
+        queues = {"signals": [{"company_id": "C1"}], "contacts": [{"company_id": "C1"}]}
+        self.assertEqual(complete_company_ids(results, queues, "strict"), set())
     def test_verifier_queue_is_limited_to_dispatched_scope(self):
         admitted_items = [
             {"company_id": f"R{index:02d}", "lane": "signals", "scope": f"signals:R{index:02d}", "scope_hash": f"hash-{index:02d}"}

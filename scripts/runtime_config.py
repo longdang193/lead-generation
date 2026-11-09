@@ -40,16 +40,30 @@ class RuntimeConfig:
         values = load_dotenv(path)
         merged = {key: os.environ[key] for key in values if key in os.environ}
         merged.update(values)
+        def number(name: str, default: int) -> int:
+            raw = merged.get(name, default)
+            try:
+                return int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be an integer: {raw!r}") from exc
+
+        def decimal(name: str, default: float) -> float:
+            raw = merged.get(name, default)
+            try:
+                return float(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be numeric: {raw!r}") from exc
+
         return cls(
             apify_api_token=merged.get("APIFY_API_TOKEN", ""),
             hunter_api_key=merged.get("HUNTER_API_KEY", ""),
             ted_api_base_url=merged.get("TED_API_BASE_URL", ""),
             overpass_api_url=merged.get("OVERPASS_API_URL", cls.overpass_api_url),
-            request_timeout_seconds=int(merged.get("REQUEST_TIMEOUT_SECONDS", cls.request_timeout_seconds)),
-            max_pages_per_company=int(merged.get("MAX_PAGES_PER_COMPANY", cls.max_pages_per_company)),
-            max_fetch_retries=int(merged.get("MAX_FETCH_RETRIES", cls.max_fetch_retries)),
-            apify_max_spend_usd=float(merged.get("APIFY_MAX_SPEND_USD", cls.apify_max_spend_usd)),
-            max_priority_accounts=int(merged.get("MAX_PRIORITY_ACCOUNTS", cls.max_priority_accounts)),
+            request_timeout_seconds=number("REQUEST_TIMEOUT_SECONDS", cls.request_timeout_seconds),
+            max_pages_per_company=number("MAX_PAGES_PER_COMPANY", cls.max_pages_per_company),
+            max_fetch_retries=number("MAX_FETCH_RETRIES", cls.max_fetch_retries),
+            apify_max_spend_usd=decimal("APIFY_MAX_SPEND_USD", cls.apify_max_spend_usd),
+            max_priority_accounts=number("MAX_PRIORITY_ACCOUNTS", cls.max_priority_accounts),
         )
 
     def validate(self, provider: str | None = None, require_secrets: bool = False) -> list[str]:

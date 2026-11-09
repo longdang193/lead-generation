@@ -10,11 +10,14 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from campaign_spec import load_campaign_spec
+from campaign_spec import load_campaign_spec, qualification_eligibility
 from orchestrate_enrichment import create_run_manifest, verify_manifest
 
 
 class CampaignSpecTests(unittest.TestCase):
+    def test_recompute_eligibility_ignores_stale_false_cache(self):
+        row = {"eligible": False, "resolution_status": "Accepted", "berlin_relevance": "Confirmed", "domain": "example.de"}
+        self.assertTrue(qualification_eligibility(row, "strict", recompute=True))
     def write_spec(self, root: Path, value: dict[str, object], name: str = "campaign.json") -> Path:
         path = root / "config" / "campaigns" / name
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -94,8 +94,11 @@ def main() -> int:
     contacts = read_csv(args.contacts)
     sources = read_csv(args.sources)
     research_runs = {}
+    delivery = {}
     if args.run_manifest and args.run_manifest.exists():
-        research_runs = load_manifest(args.run_manifest).get("research_runs", {})
+        manifest = load_manifest(args.run_manifest)
+        research_runs = manifest.get("research_runs", {})
+        delivery = manifest.get("delivery", {})
         if not isinstance(research_runs, dict):
             research_runs = {}
     wb = Workbook()
@@ -124,6 +127,7 @@ def main() -> int:
         {"Topic": "Source policy", "Definition": "VDIV directory for discovery; official websites for qualification; public contact pages for contacts."},
         {"Topic": "Buying signals", "Definition": "Separate event dataset; no account signal without verified company-event match."},
         {"Topic": "Limitations", "Definition": provider_limitation(RuntimeConfig.from_env(), research_runs)},
+        {"Topic": "Delivery status", "Definition": f"{delivery.get('status', 'unknown')} ({delivery.get('delivered_count', 0)}/{delivery.get('target_count', 0)} delivered); shortfall={delivery.get('shortfall', 0)}."},
         {"Topic": "Retrieval", "Definition": "Public VDIV page and official company websites retrieved during 2026-11-07/08 execution."},
     ]
     ws = wb.create_sheet("05_Methodology_Sources")

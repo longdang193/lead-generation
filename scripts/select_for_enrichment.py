@@ -49,9 +49,13 @@ def select_accounts(
     ]
 
     def sort_key(row: dict[str, str]) -> tuple[int, int, float, float, float, int, str]:
+        assurance_rank = {"source": 0, "structural": 1, "replay": 2, "unknown": 3}.get(str(row.get("assurance_level") or "unknown"), 3)
+        gap_rank = 0 if str(row.get("research_gap") or "None") == "None" else 1
         return (
             priority_rank(row.get("sales_priority")),
             tier_rank(row.get("lead_tier")),
+            assurance_rank,
+            gap_rank,
             -number(row.get("evidence_coverage")),
             -number(row.get("structural_lead_fit")),
             -number(row.get("portfolio_potential")),

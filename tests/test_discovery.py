@@ -9,10 +9,23 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from import_discovery import read_rows, refresh_identity
+from import_discovery import provider_output_paths, read_rows, refresh_identity
+from runtime_config import RuntimeConfig
 
 
 class DiscoveryTests(unittest.TestCase):
+    def test_invalid_runtime_integer_is_reported_before_provider_calls(self):
+        with TemporaryDirectory() as directory:
+            env = Path(directory) / ".env"
+            env.write_text("REQUEST_TIMEOUT_SECONDS=not-an-integer\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "REQUEST_TIMEOUT_SECONDS must be an integer"):
+                RuntimeConfig.from_env(env)
+
+    def test_fetch_provider_outputs_have_safe_defaults(self):
+        apify, overpass = provider_output_paths(None, None, root=Path("C:/tmp/run"))
+        self.assertEqual(apify, Path("C:/tmp/run/data/raw/apify.json"))
+        self.assertEqual(overpass, Path("C:/tmp/run/data/raw/overpass.json"))
+
     def test_json_provider_fields_are_preserved(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "provider.json"
