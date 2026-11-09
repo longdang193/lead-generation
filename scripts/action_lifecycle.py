@@ -192,8 +192,10 @@ def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeAc
     scope_prefixes = authorization.get("scope_prefixes")
     if isinstance(scope_prefixes, dict):
         expected_prefix = scope_prefixes.get(request.action_type)
-        if expected_prefix is not None and not request.scope.startswith(str(expected_prefix)):
-            raise ValueError("request scope does not match manifest authorization")
+        if expected_prefix is not None:
+            expected_scope = f"{expected_prefix}{request.company_id}"
+            if request.scope != expected_scope:
+                raise ValueError("request scope does not match manifest authorization")
     for request_key in ("contract_version", "strategy_version"):
         expected = authorization.get(request_key)
         if expected is not None and getattr(request, request_key) != str(expected):

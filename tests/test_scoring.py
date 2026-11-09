@@ -24,6 +24,26 @@ class ScoringTests(unittest.TestCase):
     def test_signal_classification_accepts_manifest_bound_as_of_date(self):
         self.assertEqual(classify_signal([{"publication_date": "2026-01-01", "deadline": "Unknown"}], date(2026, 11, 9)), "Medium")
 
+    def test_structural_portfolio_size_does_not_inflate_fit(self):
+        fit, coverage = calculate_fit({
+            "service_fit": "Confirmed",
+            "residential_weg": "Confirmed",
+            "portfolio_size": 500,
+            "berlin_relevance": "Confirmed",
+            "field_assurance": {"portfolio_size": "structural"},
+        })
+        self.assertEqual(coverage, 75)
+        self.assertEqual(fit, 75.0)
+
+    def test_recent_incomplete_event_does_not_borrow_strength_from_expired_event(self):
+        self.assertEqual(
+            classify_signal([
+                {"publication_date": "2026-11-01", "deadline": "Unknown", "assurance_level": "source", "verification_status": "Verified", "event_type": "tender", "buyer": "C1", "title": "Open tender", "source_url": "https://example.de/open"},
+                {"publication_date": "2026-01-01", "deadline": "2026-11-08", "assurance_level": "source", "verification_status": "Verified", "event_type": "tender", "buyer": "C1", "title": "Expired tender", "source_url": "https://example.de/expired"},
+            ],
+            date(2026, 11, 9),
+        ), "Medium")
+
     def test_ordinary_weg_word_is_not_condominium_evidence(self):
         value, _, _ = claim("Wir weisen den Weg zu guter Verwaltung.", [r"wohnungseigent[üu]mergemeinschaft", r"\bweg[- ]verwaltung\b", r"eigent[üu]mergemeinschaft"])
         self.assertEqual(value, "Unknown")

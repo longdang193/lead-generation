@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+from datetime import datetime, timezone
 import subprocess
 import sys
 import tempfile
@@ -12,6 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from harness_tools import discover_profiles, invoke
 from run_manifest import atomic_write, file_sha256, finalization_eligibility, load, reconstruct_finalization_readiness
+from action_lifecycle import admit_action, canonical_request_hash, settle_action, validate_result
+from action_receipts import canonical_json
+from typed_contracts import WorkerResult
 
 
 class HarnessToolTests(unittest.TestCase):
@@ -82,6 +87,55 @@ class HarnessToolTests(unittest.TestCase):
             proof = reconstruct_finalization_readiness(root, manifest, "strict")
             self.assertFalse(proof["ready"])
             self.assertTrue(any("verified evidence artifact" in error for error in proof["errors"]))
+
+    def test_strict_finalization_requires_verifier_coverage_for_each_accepted_company(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "manifest.json"
+            atomic_write(manifest, {
+                "run_id": "run-1",
+                "execution_mode": "production",
+                "budget_limit": 2,
+                "accepted_company_ids": ["C1"],
+                "admitted_work_items": [{"company_id": "C1", "lane": "signals", "scope": "signals:C1"}],
+                "authorization": {
+                    "accepted_company_ids": ["C1"],
+                    "allowed_action_types": ["signals"],
+                    "scope_prefixes": {"signals": "signals:"},
+                    "contract_version": "1",
+                    "strategy_version": "1",
+                    "profile_versions": {"signals": "signals-v1"},
+                },
+                "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "complete"},
+                "delivery": {"status": "completed", "delivery_policy": "strict", "target_count": 1, "delivered_count": 1, "shortfall": 0},
+            })
+            request = {
+                "run_id": "run-1", "action_id": "signals:C1", "attempt_id": "signals:C1:attempt-1", "company_id": "C1",
+                "action_type": "signals", "scope": "signals:C1", "contract_version": "1", "strategy_version": "1",
+                "profile_version": "signals-v1", "idempotency_key": "signals:C1/attempt-1", "budget_units": 1,
+                "provenance": {"source": "test"},
+            }
+            request["request_hash"] = canonical_request_hash(request)
+            admit_action(root, request, manifest)
+            result_payload = {"ok": True}
+            result_hash = hashlib.sha256(canonical_json(result_payload).encode("utf-8")).hexdigest()
+            validated = validate_result(root, WorkerResult(
+                run_id="run-1", action_id="signals:C1", attempt_id="signals:C1:attempt-1", company_id="C1",
+                status="Completed", result=result_payload, result_hash=result_hash, provenance={"source": "test"},
+            ))
+            settle_action(root, {
+                **request,
+                "result_hash": validated.result_hash,
+                "terminal_status": "Completed",
+                "budget_requested": 1,
+                "budget_settled": 1,
+                "coverage_delta": {"signals": 1},
+                "created_at": datetime.now(timezone.utc),
+            })
+            proof = reconstruct_finalization_readiness(root, manifest, "strict")
+            self.assertFalse(proof["ready"])
+            self.assertTrue(any("completed verifier action" in error for error in proof["errors"]))
 
     def test_finalization_rejects_unrelated_artifacts_and_failed_qa(self):
         with tempfile.TemporaryDirectory() as directory:

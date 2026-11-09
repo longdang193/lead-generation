@@ -18,7 +18,8 @@ def stamp() -> str:
 
 def value(field: str, record: dict[str, object]) -> float | None:
     field_assurance = record.get("field_assurance")
-    if isinstance(field_assurance, dict) and field in field_assurance and str(field_assurance[field]) != "source":
+    assurance_field = "portfolio_size" if field == "portfolio_potential" else field
+    if isinstance(field_assurance, dict) and assurance_field in field_assurance and str(field_assurance[assurance_field]) != "source":
         return None
     raw = record.get(field)
     if field == "portfolio_potential":
@@ -70,7 +71,7 @@ def classify_signal(event_rows: list[dict[str, object]], as_of_date: date | None
         if published is None:
             ranks.append(0)
         elif published >= today - timedelta(days=180):
-            ranks.append(4)
+            ranks.append(4 if _commercially_strong_event(event) else 3)
         elif published >= today - timedelta(days=365):
             ranks.append(3)
         else:

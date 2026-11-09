@@ -106,14 +106,15 @@ class NativeAdapterTests(unittest.TestCase):
             })
             output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
             attempts = {"count": 0}
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "admitted-work-item-v1", "scope_hash": "0" * 64}
+            payload_text = json.dumps(self.valid_research_payload(item))
 
             def command_builder(item, output_path, config):
                 attempts["count"] += 1
                 if attempts["count"] < 2:
                     return [sys.executable, "-c", "raise SystemExit(1)"]
-                return [sys.executable, "-c", "from pathlib import Path; Path(__import__('sys').argv[1]).write_text('{}')", str(output_path)]
+                return [sys.executable, "-c", f"from pathlib import Path; Path(__import__('sys').argv[1]).write_text({payload_text!r})", str(output_path)]
 
-            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "admitted-work-item-v1", "scope_hash": "0" * 64}
             budget = DispatchBudget(60, 3)
             records = dispatch_native_lane(
                 [item], "run-1", "signals", output_dir,
@@ -133,6 +134,48 @@ class NativeAdapterTests(unittest.TestCase):
             self.assertEqual(records[0]["capacity"]["attempted"], 2)
             self.assertEqual(records[0]["capacity"]["retried"], 1)
             self.assertEqual(records[0]["capacity"]["remaining"], 1)
+
+    def test_restart_allocates_new_lifecycle_attempt_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            atomic_write(manifest_path, {
+                "run_id": "run-1",
+                "budget_limit": 2,
+                "authorization": {
+                    "accepted_company_ids": ["C1"],
+                    "allowed_action_types": ["signals"],
+                    "scope_prefixes": {"signals": "signals:"},
+                    "campaign_id": "campaign-1",
+                    "campaign_version": "v1",
+                    "scope_version": "v1",
+                    "contract_version": "1",
+                    "strategy_version": "1",
+                    "profile_versions": {"signals": "signals-v1"},
+                },
+            })
+            output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            payload_text = json.dumps(self.valid_research_payload(item))
+            failed = dispatch_native_lane(
+                [item], "run-1", "signals", output_dir,
+                NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1),
+                command_builder=lambda item, output_path, config: [sys.executable, "-c", "raise SystemExit(1)"],
+                lifecycle_root=root,
+                manifest_path=manifest_path,
+            )
+            self.assertEqual(failed[0]["status"], "failed")
+            succeeded = dispatch_native_lane(
+                [item], "run-1", "signals", output_dir,
+                NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1),
+                command_builder=lambda item, output_path, config: [sys.executable, "-c", f"from pathlib import Path; Path(__import__('sys').argv[1]).write_text({payload_text!r})", str(output_path)],
+                lifecycle_root=root,
+                manifest_path=manifest_path,
+            )
+            self.assertEqual(succeeded[0]["status"], "succeeded")
+            actions = replay_lifecycle(root, "run-1")["actions"]
+            self.assertEqual([action["attempt_id"] for action in actions], ["signals:C1:attempt-1", "signals:C1:attempt-2"])
+            self.assertTrue(all(action["settled"] for action in actions))
 
     def test_shared_budget_reserves_verifier_capacity_until_released(self):
         budget = DispatchBudget(60, 120, reserved_attempts=30)
@@ -239,17 +282,19 @@ class NativeAdapterTests(unittest.TestCase):
             stale = output_dir / "signals-C1.json"
             stale.write_text("stale", encoding="utf-8")
             state = root / "attempts.txt"
-            code = "from pathlib import Path; import json, sys; state=Path(sys.argv[1]); count=int(state.read_text() or '0') if state.exists() else 0; state.write_text(str(count + 1));\nif count < 1: raise SystemExit(1)\nPath(sys.argv[2]).write_text(json.dumps({'research_run': {}, 'claims': []}))"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            payload_text = json.dumps(self.valid_research_payload(item))
+            code = f"from pathlib import Path; import sys; state=Path(sys.argv[1]); count=int(state.read_text() or '0') if state.exists() else 0; state.write_text(str(count + 1));\nif count < 1: raise SystemExit(1)\nPath(sys.argv[2]).write_text({payload_text!r})"
 
             def command_builder(item, output_path, config):
                 return [sys.executable, "-c", code, str(state), str(output_path)]
 
-            records = dispatch_native_lane([{"company_id": "C1"}], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=1), command_builder=command_builder)
+            records = dispatch_native_lane([item], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=1), command_builder=command_builder)
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertEqual(records[0]["attempts"], 2)
             self.assertTrue((output_dir / "signals-C1.json").exists())
 
-    def test_reconciliation_rejects_tampered_payload_and_non_object_claims(self):
+    def test_invalid_worker_payload_is_not_reported_as_success(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
@@ -260,11 +305,9 @@ class NativeAdapterTests(unittest.TestCase):
                 return [sys.executable, "-c", code, str(output_path)]
 
             records = dispatch_native_lane([item], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default"), command_builder=command_builder)
-            with self.assertRaisesRegex(ValueError, "claims are not objects"):
-                reconcile_lane_outputs(records, [item], "run-1", "signals")
-            (output_dir / "signals-C1.json").write_text("tampered", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hash mismatch"):
-                reconcile_lane_outputs(records, [item], "run-1", "signals")
+            self.assertEqual(records[0]["status"], "failed")
+            self.assertEqual(records[0]["failure_class"], "invalid_worker_output")
+            self.assertFalse((output_dir / "signals-C1.json").exists())
 
     def test_native_verifier_nonempty_decision_promotes(self):
         repository_root = Path(__file__).resolve().parents[1]

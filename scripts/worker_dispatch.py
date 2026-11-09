@@ -16,7 +16,7 @@ from typing import Callable, Iterable
 import jsonschema
 
 from dispatch_contracts import validate_lane_output
-from action_lifecycle import admit_action as admit_lifecycle_action, canonical_request_hash, reject_result, settle_action, validate_result as validate_lifecycle_result
+from action_lifecycle import admit_action as admit_lifecycle_action, canonical_request_hash, reject_result, replay_lifecycle, settle_action, validate_result as validate_lifecycle_result
 from action_receipts import canonical_json
 from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
 from typed_contracts import ActionReceipt, NativeActionRequest, WorkerResult
@@ -269,8 +269,10 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
         return False
     if not isinstance(payload, dict):
         return False
-    if not _valid_terminal_evidence(path, item, run_id, lane):
-        return False
+    return _valid_worker_payload(payload, item, run_id, lane) and _valid_terminal_evidence(path, item, run_id, lane)
+
+
+def _valid_worker_payload(payload: dict[str, object], item: dict[str, object], run_id: str, lane: str) -> bool:
     if lane == "verifier":
         expected = {
             "run_id": run_id,
@@ -313,6 +315,40 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
         if not isinstance(claim, dict) or not claim_requirements_met(claim)[0] or claim.get("candidate_claim_id") != candidate_claim_id(claim) or claim.get("candidate_sha256") != candidate_sha256(claim):
             return False
     return True
+
+
+def _next_attempt_number(root: Path, run_id: str, action_id: str) -> int:
+    try:
+        actions = replay_lifecycle(root, run_id).get("actions", [])
+    except (OSError, ValueError):
+        return 1
+    attempts = []
+    for action in actions:
+        if action.get("action_id") == action_id:
+            raw = str(action.get("attempt_id") or "")
+            try:
+                attempts.append(int(raw.rsplit("-", 1)[1]))
+            except (IndexError, ValueError):
+                continue
+    return max(attempts, default=0) + 1
+
+
+def _has_completed_lifecycle(root: Path, run_id: str, item: dict[str, object], lane: str) -> bool:
+    try:
+        actions = replay_lifecycle(root, run_id).get("actions", [])
+    except (OSError, ValueError):
+        return False
+    expected_action_id = f"{lane}:{item['company_id']}"
+    expected_scope = str(item.get("scope") or expected_action_id)
+    return any(
+        action.get("action_id") == expected_action_id
+        and action.get("company_id") == str(item["company_id"])
+        and action.get("action_type") == lane
+        and action.get("scope") == expected_scope
+        and action.get("status") == "Completed"
+        and action.get("settled") is True
+        for action in actions
+    )
 
 
 def split_material_gap_queue(
@@ -372,15 +408,12 @@ def dispatch_native_lane(
         item_output = output_dir / f"{lane}-{company_id}.json"
         cache_item = dict(item)
         cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
-        if item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane):
+        reusable = item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane)
+        if reusable and lifecycle_root is not None and manifest_path is not None:
+            reusable = _has_completed_lifecycle(lifecycle_root, run_id, item, lane)
+        if reusable:
             if budget is not None:
                 budget.record_reuse()
-            if lifecycle_root is not None and manifest_path is not None:
-                request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, 1)
-                admit_research_action(request, root=lifecycle_root, manifest_path=manifest_path)
-                output_hash = hashlib.sha256(item_output.read_bytes()).hexdigest()
-                relative_output = item_output.resolve().relative_to(lifecycle_root.resolve()).as_posix()
-                _settle_lifecycle_attempt(lifecycle_root, request, status="Completed", result_payload={"output_path": relative_output, "output_sha256": output_hash}, artifact={"path": relative_output, "sha256": output_hash, "kind": "worker"})
             return {
                 "run_id": run_id,
                 "lane": lane,
@@ -404,8 +437,10 @@ def dispatch_native_lane(
         exit_code: int | None = None
         started = time.time()
         attempt_history: list[dict[str, object]] = []
+        attempt_offset = _next_attempt_number(lifecycle_root, run_id, f"{lane}:{company_id}") - 1 if lifecycle_root is not None and manifest_path is not None else 0
         for attempts in range(1, config.max_retries + 2):
-            lifecycle_request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, attempts) if lifecycle_root is not None and manifest_path is not None else None
+            attempt_number = attempt_offset + attempts
+            lifecycle_request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, attempt_number) if lifecycle_root is not None and manifest_path is not None else None
             try:
                 if lifecycle_request is not None:
                     admit_research_action(lifecycle_request, budget=budget, root=lifecycle_root, manifest_path=manifest_path)
@@ -418,7 +453,7 @@ def dispatch_native_lane(
                 break
             if budget is not None and attempts > 1:
                 budget.record_retry()
-            attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
+            attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempt_number}.json"
             if attempt_output.exists():
                 attempt_output.unlink()
             attempt_command = command_builder(item, attempt_output, config) if command_builder else [
@@ -434,14 +469,23 @@ def dispatch_native_lane(
                 if budget is not None:
                     remaining_seconds = budget.remaining_seconds()
                     if remaining_seconds <= 0:
-                        attempts -= 1
+                        status = "timed_out"
                         terminal_failure_class = "budget_exhausted"
-                        attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted"})
+                        if lifecycle_request is not None:
+                            _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Unavailable", result_payload={"attempt": attempt_number, "failure_class": "deadline_expired"}, validation_errors=["deadline expired before worker launch"])
+                        attempt_history.append({"attempt": attempt_number, "status": "budget_exhausted"})
                         break
                     timeout_seconds = min(timeout_seconds, max(0.1, remaining_seconds))
                 completed = subprocess.run(attempt_command, check=False, timeout=timeout_seconds, cwd=output_dir.parent.parent.parent)
                 exit_code = completed.returncode
+                payload_valid = False
                 if exit_code == 0 and attempt_output.exists():
+                    try:
+                        payload = json.loads(attempt_output.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        payload = None
+                    payload_valid = isinstance(payload, dict) and _valid_worker_payload(payload, cache_item, run_id, lane)
+                if payload_valid:
                     os.replace(attempt_output, item_output)
                     _write_terminal_evidence(item_output, cache_item, run_id, lane)
                     status = "succeeded"
@@ -449,12 +493,19 @@ def dispatch_native_lane(
                         output_hash = hashlib.sha256(item_output.read_bytes()).hexdigest()
                         relative_output = item_output.resolve().relative_to(lifecycle_root.resolve()).as_posix()
                         _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Completed", result_payload={"output_path": relative_output, "output_sha256": output_hash}, artifact={"path": relative_output, "sha256": output_hash, "kind": "worker"})
-                    attempt_history.append({"attempt": attempts, "status": status})
+                    attempt_history.append({"attempt": attempt_number, "status": status})
+                    break
+                if exit_code == 0 and attempt_output.exists() and not payload_valid:
+                    if lifecycle_request is not None:
+                        _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Rejected", result_payload={"output_path": str(attempt_output), "failure_class": "invalid_worker_output"}, validation_errors=["worker output does not satisfy the lane contract"])
+                    status = "failed"
+                    terminal_failure_class = "invalid_worker_output"
+                    attempt_history.append({"attempt": attempt_number, "status": status, "failure_class": terminal_failure_class})
                     break
                 status = "failed"
                 if lifecycle_request is not None:
-                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempts, "exit_code": exit_code, "failure_class": item.get("failure_class") or "worker_failure"})
-                attempt_history.append({"attempt": attempts, "status": status, "exit_code": exit_code})
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempt_number, "exit_code": exit_code, "failure_class": item.get("failure_class") or "worker_failure"})
+                attempt_history.append({"attempt": attempt_number, "status": status, "exit_code": exit_code})
                 if item.get("failure_class") == "deterministic" or exit_code in {2, 64, 78}:
                     break
                 continue
@@ -463,8 +514,8 @@ def dispatch_native_lane(
                 if budget is not None:
                     budget.record_timeout()
                 if lifecycle_request is not None:
-                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Unavailable", result_payload={"attempt": attempts, "failure_class": "timeout"})
-                attempt_history.append({"attempt": attempts, "status": status})
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Unavailable", result_payload={"attempt": attempt_number, "failure_class": "timeout"})
+                attempt_history.append({"attempt": attempt_number, "status": status})
                 if attempts <= min(config.timeout_retries, config.max_retries):
                     continue
                 break
@@ -474,8 +525,8 @@ def dispatch_native_lane(
             except OSError as exc:
                 status = "failed"
                 if lifecycle_request is not None:
-                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempts, "failure_class": "launch_error", "error": str(exc)})
-                attempt_history.append({"attempt": attempts, "status": status, "failure_class": "deterministic"})
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempt_number, "failure_class": "launch_error", "error": str(exc)})
+                attempt_history.append({"attempt": attempt_number, "status": status, "failure_class": "deterministic"})
                 break
             finally:
                 if attempt_output.exists():

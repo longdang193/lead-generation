@@ -470,3 +470,17 @@ The plan is ready for completion verification when:
 9. documentation records fixture, mocked-provider, and deferred live-provider/CRM proof separately
 
 `skill-verification-before-completion` returned `verified` against the fresh focused/full suite, diff check, plan reconciliation, and explicit deferred live-provider/CRM proof boundary. Plan completion does not imply commit, push, merge, or publication.
+
+## Review-Cycle Remediation Evidence
+
+The first independent PR review identified seven actionable lifecycle, authorization, finalization, scoring, and freshness issues. The implementation was patched before the final review cycle:
+
+- portfolio scoring now maps `portfolio_potential` assurance to the underlying `portfolio_size` field;
+- recent signal freshness cannot borrow commercial strength from a different expired event;
+- action scope authorization binds the exact company scope instead of only a lane prefix;
+- strict finalization requires completed, settled coverage for admitted work items and a completed verifier action for every accepted company;
+- successful worker exit requires a valid lane payload, while malformed output settles as rejected/failed with zero coverage;
+- restarted dispatches allocate monotonic lifecycle attempt identities and durable artifact names;
+- deadline expiry after admission settles the admitted attempt as unavailable.
+
+Added regressions cover mixed assurance scoring, mixed-freshness signals, exact scope binding, invalid worker output, restart attempt identities, and verifier-only finalization. Fresh verification: `py -3 -m unittest discover -s tests -p "test_*.py" -v` — 206 tests passed; `git diff --check` passed. Live provider calls, external source fetches, credentials, CRM writes, and unverified review findings remain outside the proof boundary.

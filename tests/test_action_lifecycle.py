@@ -148,6 +148,8 @@ class ActionLifecycleTests(unittest.TestCase):
         })
         with self.assertRaisesRegex(ValueError, "request scope"):
             admit_action(self.root, action(scope="portfolio:C1", profile_version="signals-v1"), self.manifest)
+        with self.assertRaisesRegex(ValueError, "request scope"):
+            admit_action(self.root, action(scope="signals:C2"), self.manifest)
         with self.assertRaisesRegex(ValueError, "contract_version"):
             admit_action(self.root, action(contract_version="2"), self.manifest)
         with self.assertRaisesRegex(ValueError, "profile_version"):

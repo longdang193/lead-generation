@@ -503,9 +503,17 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             if unsettled:
                 errors.append("finalization requires all admitted actions to settle")
             accepted_ids = {str(value) for value in manifest.get("accepted_company_ids", []) if str(value)}
-            completed_ids = {str(item.get("company_id") or "") for item in lifecycle.get("actions", []) if item.get("status") == "Completed"}
-            if delivery_policy == "strict" and accepted_ids and not accepted_ids.issubset(completed_ids):
-                errors.append("durable lifecycle does not cover every accepted company with a completed action")
+            actions = lifecycle.get("actions", []) if isinstance(lifecycle.get("actions"), list) else []
+            completed_tuples = {(str(item.get("company_id") or ""), str(item.get("action_type") or ""), str(item.get("scope") or "")) for item in actions if item.get("status") == "Completed" and item.get("settled") is True}
+            admitted_items = manifest.get("admitted_work_items", []) if isinstance(manifest.get("admitted_work_items"), list) else []
+            required_tuples = {(str(item.get("company_id") or ""), str(item.get("lane") or item.get("action_type") or ""), str(item.get("scope") or "")) for item in admitted_items if isinstance(item, dict)}
+            missing_tuples = sorted(required_tuples - completed_tuples)
+            if delivery_policy == "strict" and missing_tuples:
+                errors.append("durable lifecycle does not cover every admitted work item: " + ", ".join("/".join(item) for item in missing_tuples))
+            verifier_ids = {str(item.get("company_id") or "") for item in actions if item.get("action_type") == "verifier" and item.get("status") == "Completed" and item.get("settled") is True}
+            if delivery_policy == "strict" and accepted_ids and not accepted_ids.issubset(verifier_ids):
+                errors.append("durable lifecycle does not cover every accepted company with a completed verifier action")
+            completed_ids = {company_id for company_id, _, _ in completed_tuples}
             recorded_coverage = manifest.get("coverage") or manifest.get("research_coverage")
             if isinstance(recorded_coverage, dict):
                 recorded_status = str(recorded_coverage.get("status") or recorded_coverage.get("coverage_status") or "unknown")
