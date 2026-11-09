@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import jsonschema
 
-from lead_contract import candidate_sha256, claim_requirements_met, run_scope_matches, verifier_decision_valid, update_run_manifest
+from lead_contract import candidate_sha256, claim_requirements_met, contact_claim_valid, run_scope_matches, verifier_decision_valid, update_run_manifest
 
 
 SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "config" / "research_evidence_schema.json").read_text(encoding="utf-8"))
@@ -41,6 +41,26 @@ def validate_verifier_decision(decision: dict[str, object], claims: dict[str, di
     if claim is None:
         return False, ["unknown_candidate_claim_id"]
     return verifier_decision_valid(decision, claim)
+
+
+def decision_assurance_level(decision: dict[str, object], verifier_registry: dict[str, object]) -> str:
+    explicit = str(decision.get("assurance_level") or "")
+    if explicit in {"replay", "structural", "source", "unknown"}:
+        return explicit
+    registration = verifier_registry.get(str(decision.get("verifier_run_id") or ""))
+    capability = registration.get("capability") if isinstance(registration, dict) else None
+    if capability == "replay":
+        return "replay"
+    if capability == "source_verification":
+        return "source"
+    if capability == "structural_validation":
+        return "structural"
+    reason_codes = {str(value) for value in decision.get("reason_codes", []) if value}
+    if "native_contract" in reason_codes:
+        return "structural"
+    if reason_codes.intersection({"page_local", "source_bound"}):
+        return "source"
+    return "unknown"
 
 
 def _manifest_context(manifest: dict[str, object]) -> tuple[str, set[str], dict[str, dict[str, object]], dict[str, object]]:
@@ -87,7 +107,7 @@ def _source_allowed(source_url: object, policy: dict[str, object], company_id: s
         return True
     external_domains = {str(item).lower().removeprefix("www.") for item in policy.get("approved_external_domains", []) if str(item).strip()}
     external_kinds = {str(item).lower() for item in policy.get("external_source_kinds", [])}
-    return claim_type in {"buying_signal", "event"} and source_kind.lower() in external_kinds and any(hostname == domain or hostname.endswith(f".{domain}") for domain in external_domains)
+    return claim_type in {"buying_signal", "event", "contact"} and source_kind.lower() in external_kinds and any(hostname == domain or hostname.endswith(f".{domain}") for domain in external_domains)
 
 
 def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_path: Path, run_manifest: Path | None = None) -> list[dict[str, object]]:
@@ -132,6 +152,17 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
                 quarantined.append({"claim": claim, "reason": "source_policy"})
                 continue
             raise ValueError(f"candidate source is outside the active source policy: {claim_id}")
+        if claim.get("claim_type") == "contact":
+            company_domain = ""
+            company_domains = source_policy.get("company_domains")
+            if isinstance(company_domains, dict):
+                company_domain = str(company_domains.get(str(claim.get("company_id") or "")) or "")
+            contact_valid, contact_errors = contact_claim_valid(claim, company_domain)
+            if not contact_valid:
+                if delivery_policy == "personal":
+                    quarantined.append({"claim": claim, "reason": "invalid_contact_claim", "errors": contact_errors})
+                    continue
+                raise ValueError(f"contact claim is not attributable: {claim_id}: {', '.join(contact_errors)}")
         complete, missing = claim_requirements_met(claim)
         if not complete:
             if delivery_policy == "personal":
@@ -180,7 +211,14 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         if decisions[claim_id]["decision"] != "Verified":
             continue
         claim = dict(claims[claim_id])
-        claim["candidate_status"] = "Verified"
+        assurance_level = decision_assurance_level(decisions[claim_id], verifier_registry)
+        if assurance_level == "unknown":
+            if delivery_policy == "personal":
+                quarantined.append({"claim": claim, "reason": "missing_verifier_assurance"})
+                continue
+            raise ValueError(f"verifier assurance is missing: {claim_id}")
+        claim["assurance_level"] = assurance_level
+        claim["candidate_status"] = "Verified" if assurance_level == "source" else "Supported"
         claim["verified_at"] = decisions[claim_id]["verified_at"]
         claim["verifier_run_id"] = decisions[claim_id]["verifier_run_id"]
         errors = sorted(error.message for error in VALIDATOR.iter_errors(claim))

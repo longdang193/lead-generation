@@ -29,7 +29,8 @@
         "account_relationship": { "enum": ["direct", "same_domain", "directory", "inferred", "unknown"] },
         "confidence": { "enum": ["high", "medium", "low", "unknown"] },
         "research_run_id": { "type": "string", "minLength": 1 },
-        "candidate_status": { "enum": ["Candidate", "Verified", "Rejected", "Needs review"] },
+        "candidate_status": { "enum": ["Candidate", "Supported", "Verified", "Rejected", "Needs review"] },
+        "assurance_level": { "enum": ["replay", "structural", "source", "unknown"] },
         "person_name": { "type": ["string", "null"] },
         "role": { "type": ["string", "null"] },
         "company_affiliation": { "type": ["string", "null"] },
@@ -55,6 +56,7 @@
         "reason_codes": { "type": "array", "items": { "type": "string" } },
         "verifier_id": { "type": "string", "minLength": 1 },
         "verifier_run_id": { "type": "string", "minLength": 1 },
+        "assurance_level": { "enum": ["replay", "structural", "source", "unknown"] },
         "verified_at": { "type": "string", "format": "date-time" }
       },
       "additionalProperties": false
@@ -96,6 +98,7 @@
         "truncated": { "type": "boolean" },
         "provider_status": { "enum": ["Available", "Unavailable", "Unknown"] },
         "adapter_capability": { "type": "string", "minLength": 1 },
+        "assurance_level": { "enum": ["replay", "structural", "source", "unknown"] },
         "error_code": { "type": ["string", "null"] },
         "scope_version": { "type": "string", "minLength": 1 },
         "scope_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },

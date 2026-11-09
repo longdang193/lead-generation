@@ -93,6 +93,11 @@ def main() -> int:
     priority = read_csv(args.priority)
     contacts = read_csv(args.contacts)
     sources = read_csv(args.sources)
+    research_runs = {}
+    if args.run_manifest and args.run_manifest.exists():
+        research_runs = load_manifest(args.run_manifest).get("research_runs", {})
+        if not isinstance(research_runs, dict):
+            research_runs = {}
     wb = Workbook()
     ws = wb.active
     ws.title = "01_All_Leads"
@@ -118,7 +123,7 @@ def main() -> int:
         {"Topic": "A tier", "Definition": "Structural fit >= 70 and evidence coverage >= 75%."},
         {"Topic": "Source policy", "Definition": "VDIV directory for discovery; official websites for qualification; public contact pages for contacts."},
         {"Topic": "Buying signals", "Definition": "Separate event dataset; no account signal without verified company-event match."},
-        {"Topic": "Limitations", "Definition": provider_limitation(RuntimeConfig.from_env())},
+        {"Topic": "Limitations", "Definition": provider_limitation(RuntimeConfig.from_env(), research_runs)},
         {"Topic": "Retrieval", "Definition": "Public VDIV page and official company websites retrieved during 2026-11-07/08 execution."},
     ]
     ws = wb.create_sheet("05_Methodology_Sources")

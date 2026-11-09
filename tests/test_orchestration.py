@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -9,11 +10,90 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import _native_command_builder, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import _native_command_builder, build_verifier_queue, complete_company_ids, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
+    def test_verifier_queue_is_limited_to_dispatched_scope(self):
+        admitted_items = [
+            {"company_id": f"R{index:02d}", "lane": "signals", "scope": f"signals:R{index:02d}", "scope_hash": f"hash-{index:02d}"}
+            for index in range(30)
+        ]
+        claims_by_company = {item["company_id"]: [] for item in admitted_items}
+        queue, dispatched_ids = build_verifier_queue(
+            accepted_ids={f"R{index:02d}" for index in range(35)},
+            admitted_items=admitted_items,
+            claims_by_company=claims_by_company,
+            claims_dir=Path("claims"),
+            run_id="run-1",
+            delivery_policy="personal",
+        )
+        self.assertEqual([item["company_id"] for item in queue], [f"R{index:02d}" for index in range(30)])
+        self.assertEqual(dispatched_ids, {f"R{index:02d}" for index in range(30)})
+        self.assertTrue(all(item["lane"] == "verifier" for item in queue))
+        self.assertTrue(all(item["scope"] == f"verifier:{item['company_id']}" for item in queue))
+
+    def test_verifier_queue_preserves_source_scope_as_verifier_scope(self):
+        item = {"company_id": "C1", "lane": "contacts", "scope": "contacts:C1", "scope_version": "v1", "scope_hash": "a" * 64}
+        queue, _ = build_verifier_queue(
+            accepted_ids={"C1"},
+            admitted_items=[item],
+            claims_by_company={"C1": []},
+            claims_dir=Path("claims"),
+            run_id="run-1",
+            delivery_policy="personal",
+        )
+        self.assertEqual(queue[0]["lane"], "verifier")
+        self.assertEqual(queue[0]["scope"], "verifier:C1")
+        self.assertEqual(queue[0]["scope_version"], "v1")
+        self.assertEqual(queue[0]["scope_hash"], "a" * 64)
+
+    def test_unavailable_research_is_not_delivered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "signals-C1.json"
+            output.write_text(json.dumps({"research_run": {"status": "Not searched", "provider_status": "Unavailable"}, "claims": []}), encoding="utf-8")
+            results = {"signals": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}], "portfolio": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}]}
+            queues = {"signals": [{"company_id": "C1"}], "portfolio": [{"company_id": "C1"}]}
+            self.assertEqual(complete_company_ids(results, queues), set())
+
+    def test_strict_delivery_rejects_incomplete_research(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign_path = root / "config" / "strict.json"
+            campaign_path.parent.mkdir(parents=True)
+            source_campaign = Path(__file__).resolve().parents[1] / "config" / "campaigns" / "berlin-hausverwaltung.json"
+            campaign = json.loads(source_campaign.read_text(encoding="utf-8"))
+            campaign["target_count"] = 2
+            campaign["delivery_policy"] = "strict"
+            campaign_path.write_text(json.dumps(campaign), encoding="utf-8")
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,resolution_status\nC00,Company 00,c00.de,c00.de,Berlin,Accepted\nC01,Company 01,c01.de,c01.de,Berlin,Accepted\n", encoding="utf-8")
+            manifest = root / "evidence" / "manifests" / "strict.json"
+            manifest.parent.mkdir(parents=True)
+            revision = __import__("subprocess").run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+            campaign_record = __import__("campaign_spec").load_campaign_spec(root, campaign_path).manifest_record()
+            manifest.write_text(json.dumps({"run_id": "strict-1", "head_sha": revision, "git_revision": revision, "config_version": "lead-enrichment-run-v1", "campaign": campaign_record, "generated_at": "2026-11-08T00:00:00+00:00", "accepted_company_ids": ["C00", "C01"], "inputs": {"provisional_shortlist": __import__("run_manifest").entry(root, shortlist)}, "outputs": {}, "barriers": {}}), encoding="utf-8")
+            original_dispatch = __import__("worker_dispatch").dispatch_fixture_lanes
+
+            def mark_unavailable(queues, run_id, output_dir):
+                results = original_dispatch(queues, run_id, output_dir)
+                if output_dir.name != "reserve":
+                    for records in results.values():
+                        for record in records:
+                            if record["company_id"] == "C00":
+                                output = Path(record["output_path"])
+                                payload = json.loads(output.read_text(encoding="utf-8"))
+                                payload["research_run"]["status"] = "Not searched"
+                                payload["research_run"]["provider_status"] = "Unavailable"
+                                output.write_text(json.dumps(payload), encoding="utf-8")
+                                record["output_sha256"] = hashlib.sha256(output.read_bytes()).hexdigest()
+                return results
+
+            argv = ["orchestrate_enrichment.py", "run", "--root", str(root), "--manifest", str(manifest), "--shortlist", str(shortlist), "--campaign-config", str(campaign_path), "--fixture"]
+            with patch.object(sys, "argv", argv), patch("worker_dispatch.dispatch_fixture_lanes", side_effect=mark_unavailable):
+                self.assertEqual(__import__("orchestrate_enrichment").main(), 1)
+
     def test_queue_is_deterministic_and_scoped_to_shortlist(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

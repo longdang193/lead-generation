@@ -6,6 +6,7 @@ import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
+from campaign_spec import qualification_eligibility
 from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
@@ -96,6 +97,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--audit-output", type=Path, required=True)
     parser.add_argument("--signal-audit", type=Path)
+    parser.add_argument("--delivery-policy", choices=("personal", "strict"), default="strict")
     args = parser.parse_args()
     records = []
     for line in args.qualification.read_text(encoding="utf-8").splitlines():
@@ -134,7 +136,7 @@ def main() -> int:
         }
         fit, observed_weight = calculate_fit(record)
         coverage = observed_weight
-        if coverage < 50 or fit is None or record.get("berlin_relevance") != "Confirmed":
+        if coverage < 50 or fit is None or not qualification_eligibility(record, args.delivery_policy):
             tier = "Research"
         elif fit >= 70 and coverage >= 75:
             tier = "A"
@@ -165,6 +167,10 @@ def main() -> int:
             "signal_search_status": search_status,
             "actionability": actionability,
             "sales_priority": sales_priority,
+            "assurance_level": record.get("assurance_level", "unknown"),
+            "provider_status": record.get("provider_status", "Unknown"),
+            "research_gap": record.get("research_gap", "None"),
+            "next_action": "Research" if record.get("research_gap", "None") != "None" else actionability,
             "lead_tier": tier,
             "evidence_urls": " | ".join(parse_evidence_urls(record.get("evidence_urls"))),
             "buying_signal_event_ids": " | ".join(signal_event_ids),

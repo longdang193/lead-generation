@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -70,6 +71,29 @@ class CampaignSpecTests(unittest.TestCase):
             self.assertEqual(verify_manifest(manifest_path, root), [])
             path.write_text(json.dumps({**self.valid_spec(), "target_count": 6}), encoding="utf-8")
             self.assertTrue(any("campaign hash mismatch" in error for error in verify_manifest(manifest_path, root)))
+
+    def test_manifest_lifecycle_allows_runtime_artifacts_in_real_git_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign_path = self.write_spec(root, self.valid_spec())
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Test Runner"], cwd=root, check=True)
+            subprocess.run(["git", "add", str(campaign_path.relative_to(root))], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+            manifest_path = root / "evidence" / "manifests" / "run.json"
+
+            create_run_manifest(root, manifest_path, "run-1", [], [], campaign_config=campaign_path, require_clean=True)
+
+            for path in (root / "evidence" / "fixture" / "run-1" / "qualification.jsonl", root / "output" / "run-1.xlsx"):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("runtime\n", encoding="utf-8")
+
+            self.assertEqual(verify_manifest(manifest_path, root), [])
+            dirty_source = root / "scripts" / "dirty.py"
+            dirty_source.parent.mkdir()
+            dirty_source.write_text("changed = True\n", encoding="utf-8")
+            self.assertIn("implementation worktree is dirty", verify_manifest(manifest_path, root))
 
 
 if __name__ == "__main__":

@@ -20,6 +20,25 @@ REQUIRED_FIELDS = (
 DELIVERY_POLICIES = {"personal", "strict"}
 
 
+def qualification_eligibility(row: Mapping[str, object], delivery_policy: str, *, recompute: bool = False) -> bool:
+    if delivery_policy not in DELIVERY_POLICIES:
+        raise ValueError(f"unknown delivery policy: {delivery_policy}")
+    if not recompute and "eligible" in row:
+        raw_eligible = row.get("eligible")
+        if isinstance(raw_eligible, str):
+            raw_eligible = raw_eligible.strip().lower() in {"1", "true", "yes", "accepted"}
+        if not bool(raw_eligible):
+            return False
+    if str(row.get("resolution_status") or "").strip() != "Accepted":
+        return False
+    relevance = str(row.get("berlin_relevance") or "").strip()
+    if relevance and relevance != "Confirmed" and not (delivery_policy == "personal" and relevance == "Probable"):
+        return False
+    if ("verified_company_domain" in row or "domain" in row) and not str(row.get("verified_company_domain") or row.get("domain") or "").strip():
+        return False
+    return True
+
+
 def _resolve_under_root(root: Path, path: Path) -> Path:
     root = root.resolve()
     resolved = path if path.is_absolute() else root / path

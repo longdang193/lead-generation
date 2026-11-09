@@ -5,3 +5,20 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# Run-owned enrichment artifacts; implementation changes must remain visible.
+/data/processed/
+/evidence/audits/
+/evidence/candidate/
+/evidence/fixture/
+/evidence/manifests/*.json
+/evidence/queues/
+/evidence/reports/
+/evidence/research_runs/
+/evidence/verified/
+/evidence/verifier/
+/claims/
+/output/*.staging.xlsx
+/output/lead-*.xlsx
+/output/*.xlsx
+/output/github-review/

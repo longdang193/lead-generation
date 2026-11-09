@@ -3,14 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import hashlib
-import re
-import subprocess
 from pathlib import Path
 
 from openpyxl import load_workbook
 from pptx import Presentation
 
-from run_manifest import repository_root
+from run_manifest import repository_root, validate_manifest_revision
 
 
 def resolve_manifest_path(manifest_path: Path, value: object) -> Path:
@@ -21,7 +19,10 @@ def resolve_manifest_path(manifest_path: Path, value: object) -> Path:
     return (repository_root(manifest_path.parent) / path).resolve()
 
 
-def verify_manifest_bucket(errors: list[str], manifest_path: Path, bucket_name: str, bucket: dict[str, object]) -> None:
+def verify_manifest_bucket(errors: list[str], manifest_path: Path, bucket_name: str, bucket: object) -> None:
+    if not isinstance(bucket, dict):
+        errors.append(f"manifest section is not an object: {bucket_name}")
+        return
     for key, item in bucket.items():
         if not isinstance(item, dict):
             errors.append(f"manifest entry is invalid: {bucket_name}.{key}")
@@ -92,15 +93,12 @@ def main() -> int:
     else:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
-            revision = str(manifest.get("git_revision") or "")
-            if not re.fullmatch(r"[0-9a-f]{40}", revision):
-                errors.append("run manifest missing full Git revision")
-            else:
-                if not args.allow_unreachable_revision:
-                    try:
-                        subprocess.run(["git", "cat-file", "-e", f"{revision}^{{commit}}"], check=True, capture_output=True)
-                    except (OSError, subprocess.CalledProcessError):
-                        errors.append("run manifest Git revision is not reachable")
+            revision_errors = validate_manifest_revision(
+                repository_root(args.run_manifest.parent),
+                manifest,
+                require_current=not args.allow_unreachable_revision,
+            )
+            errors.extend(revision_errors)
             output_manifest = manifest.get("outputs", {})
             expected = output_manifest.get("workbook", {}).get("sha256")
             digest = hashlib.sha256(args.workbook.read_bytes()).hexdigest() if args.workbook.exists() else ""

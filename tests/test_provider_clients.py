@@ -73,6 +73,18 @@ class ProviderClientTests(unittest.TestCase):
         self.assertEqual(overpass_timeout(RuntimeConfig(request_timeout_seconds=15)), 30)
         self.assertEqual(overpass_timeout(RuntimeConfig(request_timeout_seconds=45)), 45)
 
+    def test_provider_limitation_requires_current_run_evidence_for_exercised_claim(self):
+        configured = RuntimeConfig(apify_api_token="apify", hunter_api_key="hunter", ted_api_base_url="https://ted.example")
+        self.assertIn("no current-run provider evidence", provider_limitation(configured, {}).lower())
+        runs = {
+            "run-1:signals:C1": {
+                "adapter_capability": "live_research",
+                "status": "Completed",
+                "provider_status": "Available",
+            }
+        }
+        self.assertIn("current run records", provider_limitation(configured, runs).lower())
+
     def test_read_rows_accepts_normalized_apify_fields(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "apify.json"

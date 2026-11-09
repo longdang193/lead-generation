@@ -5,6 +5,7 @@ import csv
 import json
 from pathlib import Path
 
+from campaign_spec import qualification_eligibility
 from lead_contract import priority_rank, signal_rank, tier_rank, update_run_manifest
 
 
@@ -27,14 +28,11 @@ def number(value: object, default: float = -1.0) -> float:
         return default
 
 
-def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object]) -> bool:
-    if not qualification:
+def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object], delivery_policy: str = "strict") -> bool:
+    if not qualification or not qualification_eligibility(qualification, delivery_policy):
         return False
-    resolution = str(qualification.get("resolution_status") or "")
-    eligible = qualification.get("eligible")
-    if isinstance(eligible, str):
-        eligible = eligible.strip().lower() in {"1", "true", "yes", "accepted"}
-    return resolution == "Accepted" and bool(eligible) and row.get("lead_tier") in {"A", "B"} and number(row.get("evidence_coverage")) >= 50
+    allowed_tiers = {"A", "B"} | ({"Research"} if delivery_policy == "personal" else set())
+    return row.get("lead_tier") in allowed_tiers and number(row.get("evidence_coverage")) >= 50
 
 
 def select_accounts(
@@ -42,11 +40,12 @@ def select_accounts(
     qualification: dict[str, dict[str, object]],
     max_accounts: int,
     accepted_company_ids: set[str] | None = None,
+    delivery_policy: str = "strict",
 ) -> list[dict[str, str]]:
     selected = [
         row for row in scores
         if accepted_company_ids is None or str(row.get("company_id") or "") in accepted_company_ids
-        if eligible_for_enrichment(row, qualification.get(str(row.get("company_id") or ""), {}))
+        if eligible_for_enrichment(row, qualification.get(str(row.get("company_id") or ""), {}), delivery_policy)
     ]
 
     def sort_key(row: dict[str, str]) -> tuple[int, int, float, float, float, int, str]:
@@ -94,12 +93,13 @@ def main() -> int:
     parser.add_argument("--max-accounts", type=int, default=30)
     parser.add_argument("--run-manifest", type=Path)
     parser.add_argument("--company-id", action="append", dest="company_ids", default=[])
+    parser.add_argument("--delivery-policy", choices=("personal", "strict"), default="strict")
     args = parser.parse_args()
 
     with args.scores.open(encoding="utf-8-sig", newline="") as handle:
         scores = list(csv.DictReader(handle))
     qualification = read_qualification(args.qualification)
-    selected = select_accounts(scores, qualification, args.max_accounts, set(args.company_ids) or None)
+    selected = select_accounts(scores, qualification, args.max_accounts, set(args.company_ids) or None, args.delivery_policy)
     write_provisional_shortlist(selected, args.output, args.audit_output)
     if args.run_manifest and args.run_manifest.exists():
         update_run_manifest(args.run_manifest, inputs={"scores": args.scores, "qualification": args.qualification}, outputs={"provisional_shortlist": args.output, "shortlist_audit": args.audit_output})
