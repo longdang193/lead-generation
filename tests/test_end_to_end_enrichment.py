@@ -55,9 +55,9 @@ class EndToEndEnrichmentTests(unittest.TestCase):
             self.assertEqual({row["assurance_level"] for row in priority_rows}, {"replay"})
             self.assertEqual({row["provider_status"] for row in priority_rows}, {"Available"})
             self.assertEqual({row["research_gap"] for row in priority_rows}, {"None"})
-            self.assertEqual({row["next_action"] for row in priority_rows}, {"Ready"})
-            self.assertTrue(all(row["buying_signal"] == "Strong" for row in priority_rows))
-            self.assertTrue(all(row["sales_priority"] == "Pursue" for row in priority_rows))
+            self.assertEqual({row["next_action"] for row in priority_rows}, {"Research"})
+            self.assertTrue(all(row["buying_signal"] == "Unknown" for row in priority_rows))
+            self.assertTrue(all(row["sales_priority"] == "Research" for row in priority_rows))
             self.assertEqual((root / "evidence" / "reports" / "run-1" / "qa.md").read_text(encoding="utf-8").count("Errors: 0"), 1)
 
     def test_fixture_small_campaign_reuses_controller_with_two_lanes(self):

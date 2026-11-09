@@ -5,6 +5,7 @@ import hashlib
 import os
 import signal
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -54,6 +55,32 @@ class NativeExecutorConfig:
     max_workers: int = 3
     adapter_args: tuple[str, ...] = ()
     timeout_retries: int = 1
+
+
+class DispatchBudget:
+    def __init__(self, deadline_seconds: int, max_attempts: int, reserved_attempts: int = 0) -> None:
+        if deadline_seconds <= 0 or max_attempts <= 0:
+            raise ValueError("dispatch budget must be positive")
+        if reserved_attempts < 0 or reserved_attempts > max_attempts:
+            raise ValueError("reserved dispatch attempts must be between zero and the total budget")
+        self.deadline = time.monotonic() + deadline_seconds
+        self.remaining_attempts = max_attempts
+        self.reserved_attempts = reserved_attempts
+        self._lock = threading.Lock()
+
+    def remaining_seconds(self) -> float:
+        return max(0.0, self.deadline - time.monotonic())
+
+    def reserve_attempt(self) -> bool:
+        with self._lock:
+            if self.remaining_attempts <= self.reserved_attempts or self.remaining_seconds() <= 0:
+                return False
+            self.remaining_attempts -= 1
+            return True
+
+    def release_reserved_attempts(self) -> None:
+        with self._lock:
+            self.reserved_attempts = 0
 
 
 def _terminal(status: str) -> str:
@@ -200,6 +227,7 @@ def dispatch_native_lane(
     config: NativeExecutorConfig,
     *,
     command_builder: Callable[[dict[str, object], Path, NativeExecutorConfig], list[str]] | None = None,
+    budget: DispatchBudget | None = None,
 ) -> list[dict[str, object]]:
     """Run one bounded native lane with explicit worker terminal states.
 
@@ -232,10 +260,16 @@ def dispatch_native_lane(
             _terminal_evidence_path(item_output).unlink()
         attempts = 0
         status = "failed"
+        terminal_failure_class: str | None = None
         exit_code: int | None = None
         started = time.time()
         attempt_history: list[dict[str, object]] = []
         for attempts in range(1, config.max_retries + 2):
+            if budget is not None and not budget.reserve_attempt():
+                attempts -= 1
+                terminal_failure_class = "budget_exhausted"
+                attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted"})
+                break
             attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
             if attempt_output.exists():
                 attempt_output.unlink()
@@ -248,7 +282,16 @@ def dispatch_native_lane(
                 "--output", str(attempt_output),
             ]
             try:
-                completed = subprocess.run(attempt_command, check=False, timeout=config.timeout_seconds, cwd=output_dir.parent.parent.parent)
+                timeout_seconds = config.timeout_seconds
+                if budget is not None:
+                    remaining_seconds = budget.remaining_seconds()
+                    if remaining_seconds <= 0:
+                        attempts -= 1
+                        terminal_failure_class = "budget_exhausted"
+                        attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted"})
+                        break
+                    timeout_seconds = min(timeout_seconds, max(0.1, remaining_seconds))
+                completed = subprocess.run(attempt_command, check=False, timeout=timeout_seconds, cwd=output_dir.parent.parent.parent)
                 exit_code = completed.returncode
                 if exit_code == 0 and attempt_output.exists():
                     os.replace(attempt_output, item_output)
@@ -286,7 +329,7 @@ def dispatch_native_lane(
             "exit_code": exit_code,
             "duration_seconds": round(time.time() - started, 3),
             "output_path": item_output.as_posix(),
-            "failure_class": str(item.get("failure_class") or ("timeout" if status == "timed_out" else "transient" if status == "failed" and attempts > 1 else "deterministic" if status == "failed" else "none")),
+            "failure_class": str(terminal_failure_class or item.get("failure_class") or ("timeout" if status == "timed_out" else "transient" if status == "failed" and attempts > 1 else "deterministic" if status == "failed" else "none")),
             "attempt_history": attempt_history,
         }
         if item_output.exists():

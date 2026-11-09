@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from orchestrate_enrichment import _native_command_builder, build_verifier_queue
 from lead_contract import candidate_claim_id, candidate_sha256
 from promote_evidence import promote_verified_claims
-from worker_dispatch import NativeExecutorConfig, _execution_fingerprints, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
+from worker_dispatch import DispatchBudget, NativeExecutorConfig, _execution_fingerprints, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
 
 class NativeAdapterTests(unittest.TestCase):
@@ -70,6 +70,26 @@ class NativeAdapterTests(unittest.TestCase):
             self.assertEqual(records[0]["status"], "succeeded")
             self.assertTrue(records[0]["reused_terminal"])
             self.assertEqual(records[0]["attempts"], 0)
+
+    def test_dispatch_stops_when_shared_attempt_budget_is_exhausted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "candidate"
+            output_dir.mkdir(parents=True)
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            budget = DispatchBudget(60, 1)
+            deterministic_command = lambda queue_item, output_path, config: [sys.executable, "-c", "raise SystemExit(2)"]
+            first = dispatch_native_lane([item], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=1), command_builder=deterministic_command, budget=budget)
+            second = dispatch_native_lane([{**item, "company_id": "C2"}], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=1), command_builder=deterministic_command, budget=budget)
+            self.assertEqual(first[0]["failure_class"], "deterministic")
+            self.assertEqual(second[0]["failure_class"], "budget_exhausted")
+
+    def test_shared_budget_reserves_verifier_capacity_until_released(self):
+        budget = DispatchBudget(60, 120, reserved_attempts=30)
+        self.assertTrue(all(budget.reserve_attempt() for _ in range(90)))
+        self.assertFalse(budget.reserve_attempt())
+        budget.release_reserved_attempts()
+        self.assertTrue(all(budget.reserve_attempt() for _ in range(30)))
+        self.assertFalse(budget.reserve_attempt())
 
     def test_material_gap_queue_omits_only_valid_terminal_output(self):
         with tempfile.TemporaryDirectory() as directory:
