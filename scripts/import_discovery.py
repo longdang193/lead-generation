@@ -19,6 +19,13 @@ from provider_clients import ProviderError, normalize_apify_items, overpass_quer
 OVERPASS_MIN_TIMEOUT_SECONDS = 30
 
 
+def provider_output_paths(apify: Path | None, overpass: Path | None, *, root: Path = Path(".")) -> tuple[Path, Path]:
+    return (
+        apify or root / "data" / "raw" / "apify.json",
+        overpass or root / "data" / "raw" / "overpass.json",
+    )
+
+
 def now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
@@ -124,8 +131,13 @@ def main() -> int:
     parser.add_argument("--refresh-vdiv", action="store_true")
     parser.add_argument("--quarantine-output", type=Path)
     args = parser.parse_args()
-    config = RuntimeConfig.from_env()
+    try:
+        config = RuntimeConfig.from_env()
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        return 2
     if args.fetch_providers:
+        args.apify, args.overpass = provider_output_paths(args.apify, args.overpass)
         if config.apify_api_token:
             queries = args.apify_queries or ["Hausverwaltung Berlin WEG Verwaltung", "Immobilienverwaltung Berlin Mietverwaltung"]
             try:

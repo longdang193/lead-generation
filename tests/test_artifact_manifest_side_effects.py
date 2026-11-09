@@ -14,10 +14,57 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from build_workbook import main as build_workbook
 from qa_leads import main as qa_leads
-from run_manifest import validate_manifest_revision
+from run_manifest import atomic_write, file_sha256, publication_marker_path, recover_publication, validate_manifest_revision
 
 
 class ArtifactManifestSideEffectTests(unittest.TestCase):
+    def test_publication_recovery_rebinds_manifest_after_crash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            final = root / "output" / "run-1.xlsx"
+            final.parent.mkdir(parents=True)
+            final.write_bytes(b"published workbook")
+            manifest_path.write_text(json.dumps({"run_id": "run-1", "head_sha": "a" * 40, "status": "ready_for_validation", "outputs": {}, "inputs": {}, "supporting_inputs": {}}), encoding="utf-8")
+            atomic_write(publication_marker_path(root, "run-1"), {"run_id": "run-1", "final_path": "output/run-1.xlsx", "staging_path": "output/run-1.staging.xlsx", "staging_sha256": file_sha256(final)})
+            recover_publication(root, manifest_path)
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["outputs"]["workbook"]["path"], "output/run-1.xlsx")
+            self.assertFalse(publication_marker_path(root, "run-1").exists())
+
+    def test_publication_recovery_finishes_replacement_when_old_final_exists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            final = root / "output" / "run-1.xlsx"
+            staging = root / "output" / "run-1.staging.xlsx"
+            final.parent.mkdir(parents=True)
+            final.write_bytes(b"old workbook")
+            staging.write_bytes(b"new workbook")
+            manifest_path.write_text(json.dumps({"run_id": "run-1", "head_sha": "a" * 40, "status": "ready_for_validation", "outputs": {}, "inputs": {}, "supporting_inputs": {}}), encoding="utf-8")
+            atomic_write(publication_marker_path(root, "run-1"), {"run_id": "run-1", "final_path": "output/run-1.xlsx", "staging_path": "output/run-1.staging.xlsx", "staging_sha256": file_sha256(staging)})
+            recover_publication(root, manifest_path)
+            self.assertEqual(final.read_bytes(), b"new workbook")
+            self.assertFalse(staging.exists())
+
+    def test_publication_recovery_preserves_outputs_when_revision_is_stale(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            final = root / "output" / "run-1.xlsx"
+            staging = root / "output" / "run-1.staging.xlsx"
+            final.parent.mkdir(parents=True)
+            final.write_bytes(b"old workbook")
+            staging.write_bytes(b"new workbook")
+            manifest_path.write_text(json.dumps({"run_id": "run-1", "head_sha": "a" * 40, "git_revision": "a" * 40, "status": "ready_for_validation", "outputs": {}, "inputs": {}, "supporting_inputs": {}}), encoding="utf-8")
+            atomic_write(publication_marker_path(root, "run-1"), {"run_id": "run-1", "head_sha": "a" * 40, "final_path": "output/run-1.xlsx", "staging_path": "output/run-1.staging.xlsx", "staging_sha256": file_sha256(staging)})
+            with patch("run_manifest.git_revision", return_value="b" * 40):
+                with self.assertRaisesRegex(ValueError, "revision validation"):
+                    recover_publication(root, manifest_path)
+            self.assertEqual(final.read_bytes(), b"old workbook")
+            self.assertEqual(staging.read_bytes(), b"new workbook")
+            self.assertTrue(publication_marker_path(root, "run-1").exists())
+
     def test_stale_reachable_revision_is_rejected_against_current_checkout(self):
         root = Path(__file__).resolve().parents[1]
         revisions = subprocess.run(["git", "rev-list", "--max-count=2", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()

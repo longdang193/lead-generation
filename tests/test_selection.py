@@ -34,6 +34,15 @@ class SelectionTests(unittest.TestCase):
         selected = select_accounts(scores, qualification, 30, {"C1"})
         self.assertEqual([row["company_id"] for row in selected], ["C1"])
 
+    def test_source_assurance_and_research_gaps_break_score_ties(self):
+        scores = [
+            {"company_id": "replay", "lead_tier": "A", "evidence_coverage": "80", "sales_priority": "Pursue", "structural_lead_fit": "80", "portfolio_potential": "50", "buying_signal": "Strong", "assurance_level": "replay", "research_gap": "contact"},
+            {"company_id": "source", "lead_tier": "A", "evidence_coverage": "80", "sales_priority": "Pursue", "structural_lead_fit": "80", "portfolio_potential": "50", "buying_signal": "Strong", "assurance_level": "source", "research_gap": "None"},
+        ]
+        qualification = {company_id: {"resolution_status": "Accepted", "eligible": True} for company_id in ("replay", "source")}
+        selected = select_accounts(scores, qualification, 2)
+        self.assertEqual([row["company_id"] for row in selected], ["source", "replay"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,10 +120,19 @@ def process(row: dict[str, str], config: RuntimeConfig) -> tuple[dict[str, objec
         r"(?:immobilien|objekte|einheiten|wohnanlagen|portfolio)\s+(?:in|aus)\s+berlin",
     ]
     if result["berlin_relevance"] == "Unknown":
-        berlin_match = next((re.search(pattern, text, re.I) for pattern in berlin_patterns if re.search(pattern, text, re.I)), None)
+        berlin_match = None
+        berlin_page_url = url
+        berlin_page_text = ""
+        for page_url, page_text in page_texts:
+            match = next((re.search(pattern, page_text, re.I) for pattern in berlin_patterns if re.search(pattern, page_text, re.I)), None)
+            if match:
+                berlin_match = match
+                berlin_page_url = page_url
+                berlin_page_text = page_text
+                break
         if berlin_match:
             result["berlin_relevance"] = "Confirmed"
-            result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": checked_urls[0] if checked_urls else url, "evidence_excerpt": text[max(0, berlin_match.start() - 120):berlin_match.end() + 180].strip()[:420]})
+            result["claims"].append({"field": "berlin_relevance", "value": "Confirmed", "confidence": "High", "evidence_url": berlin_page_url, "evidence_excerpt": berlin_page_text[max(0, berlin_match.start() - 120):berlin_match.end() + 180].strip()[:420]})
     result["evidence_urls"] = checked_urls
     result["text_excerpt"] = text[:900]
     capture = {"company_id": row.get("company_id", ""), "url": checked_urls[0] if checked_urls else url, "status": result["fetch_status"], "pages_checked": str(result["pages_checked"]), "retrieved_at": result["retrieved_at"]}

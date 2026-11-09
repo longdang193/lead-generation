@@ -22,6 +22,29 @@ RESEARCH_SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "config" / "
 RESEARCH_VALIDATOR = jsonschema.Draft202012Validator(RESEARCH_SCHEMA)
 
 
+def _fingerprint(value: object) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _execution_fingerprints(item: dict[str, object], run_id: str, lane: str) -> dict[str, str]:
+    identity_fields = (
+        "campaign_id", "company_id", "scope", "scope_version", "scope_hash",
+        "trusted_domain", "location", "adapter", "adapter_capability",
+        "profile", "worker_profile", "provider", "provider_status",
+        "input_fingerprint", "claims_path", "executable", "adapter_args",
+        "head_sha", "campaign_sha256", "input_hashes", "verifier_profile",
+    )
+    identity = {field: item.get(field) for field in identity_fields if field in item}
+    identity.update({"run_id": run_id, "lane": lane})
+    return {
+        "execution": _fingerprint(identity),
+        "adapter": _fingerprint({"adapter": item.get("adapter") or item.get("adapter_capability"), "profile": item.get("profile") or item.get("worker_profile")}),
+        "provider": _fingerprint({"provider": item.get("provider"), "provider_status": item.get("provider_status")}),
+        "input": _fingerprint({key: item.get(key) for key in ("campaign_id", "company_id", "trusted_domain", "location", "scope", "scope_version", "scope_hash", "input_fingerprint", "claims_path") if key in item}),
+    }
+
+
 @dataclass(frozen=True)
 class NativeExecutorConfig:
     executable: str
@@ -44,11 +67,14 @@ def _terminal_evidence_path(path: Path) -> Path:
 
 
 def _write_terminal_evidence(path: Path, item: dict[str, object], run_id: str, lane: str) -> None:
+    output_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
     evidence: dict[str, object] = {
         "run_id": run_id,
         "lane": lane,
         "company_id": item["company_id"],
-        "output_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "output_sha256": output_sha256,
+        "payload_sha256": output_sha256,
+        "fingerprints": _execution_fingerprints(item, run_id, lane),
     }
     claims_path = item.get("claims_path")
     if lane == "verifier" and claims_path:
@@ -68,11 +94,16 @@ def _valid_terminal_evidence(path: Path, item: dict[str, object], run_id: str, l
     expected = {"run_id": run_id, "lane": lane, "company_id": item["company_id"]}
     if any(evidence.get(field) != value for field, value in expected.items()):
         return False
+    if evidence.get("fingerprints") != _execution_fingerprints(item, run_id, lane):
+        return False
+    output_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    if evidence.get("payload_sha256") != output_sha256:
+        return False
     if lane == "verifier":
         claims_path = Path(str(item.get("claims_path") or ""))
         if not claims_path.exists() or evidence.get("claims_input_sha256") != hashlib.sha256(claims_path.read_bytes()).hexdigest():
             return False
-    return evidence.get("output_sha256") == hashlib.sha256(path.read_bytes()).hexdigest()
+    return evidence.get("output_sha256") == output_sha256
 
 
 def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lane: str) -> bool:
@@ -116,9 +147,9 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
     claims = payload.get("claims", [])
     if not all(research_run.get(field) == value for field, value in expected.items()):
         return False
-    if research_run.get("record_type") != "ResearchRun" or research_run.get("status") not in {"Not searched", "Completed", "Partial", "Unavailable", "Needs review"}:
+    if research_run.get("record_type") != "ResearchRun" or research_run.get("status") != "Completed":
         return False
-    if research_run.get("provider_status") not in {"Available", "Unavailable", "Unknown"} or not isinstance(research_run.get("attempts"), list):
+    if research_run.get("provider_status") != "Available" or not isinstance(research_run.get("attempts"), list) or not research_run.get("attempts"):
         return False
     if not isinstance(claims, list):
         return False
@@ -133,13 +164,17 @@ def split_material_gap_queue(
     run_id: str,
     lane: str,
     output_dir: Path,
+    config: NativeExecutorConfig | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     pending: list[dict[str, object]] = []
     reused: list[dict[str, object]] = []
     for item in queue:
         company_id = str(item["company_id"])
         output_path = output_dir / f"{lane}-{company_id}.json"
-        if not output_path.exists() or not _valid_terminal_output(output_path, item, run_id, lane):
+        cache_item = dict(item)
+        if config is not None:
+            cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
+        if not output_path.exists() or not _valid_terminal_output(output_path, cache_item, run_id, lane):
             pending.append(item)
             continue
         reused.append({
@@ -176,7 +211,9 @@ def dispatch_native_lane(
     def run_one(item: dict[str, object]) -> dict[str, object]:
         company_id = str(item["company_id"])
         item_output = output_dir / f"{lane}-{company_id}.json"
-        if item_output.exists() and _valid_terminal_output(item_output, item, run_id, lane):
+        cache_item = dict(item)
+        cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
+        if item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane):
             return {
                 "run_id": run_id,
                 "lane": lane,
@@ -215,13 +252,13 @@ def dispatch_native_lane(
                 exit_code = completed.returncode
                 if exit_code == 0 and attempt_output.exists():
                     os.replace(attempt_output, item_output)
-                    _write_terminal_evidence(item_output, item, run_id, lane)
+                    _write_terminal_evidence(item_output, cache_item, run_id, lane)
                     status = "succeeded"
                     attempt_history.append({"attempt": attempts, "status": status})
                     break
                 status = "failed"
                 attempt_history.append({"attempt": attempts, "status": status, "exit_code": exit_code})
-                if item.get("failure_class") == "deterministic":
+                if item.get("failure_class") == "deterministic" or exit_code in {2, 64, 78}:
                     break
                 continue
             except subprocess.TimeoutExpired:
@@ -235,8 +272,8 @@ def dispatch_native_lane(
                 raise
             except OSError:
                 status = "failed"
-                attempt_history.append({"attempt": attempts, "status": status, "failure_class": "transient"})
-                continue
+                attempt_history.append({"attempt": attempts, "status": status, "failure_class": "deterministic"})
+                break
             finally:
                 if attempt_output.exists():
                     attempt_output.unlink()
@@ -446,5 +483,7 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
             if research_run.get(field) != expected_value:
                 raise ValueError(f"worker output scope mismatch for {output_path}: {field}")
         claims = payload.get("claims", [])
-        if not isinstance(claims, list) or any(not isinstance(claim, dict) for claim in claims):
+        if not isinstance(claims, list):
+            raise ValueError(f"worker output claims are not objects: {output_path}")
+        if any(not isinstance(claim, dict) for claim in claims) and not allow_partial:
             raise ValueError(f"worker output claims are not objects: {output_path}")

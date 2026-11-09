@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
-from lead_contract import candidate_sha256, run_scope_matches
-from run_manifest import atomic_write, entry, load as load_manifest, portable_path, repository_root, update as update_manifest, validate_manifest_revision
+from lead_contract import candidate_claim_id, candidate_sha256, run_scope_matches
+from run_manifest import atomic_write, entry, load as load_manifest, portable_path, publication_marker_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
 
 
 def stamp() -> str:
@@ -101,6 +101,12 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         raise ValueError("implementation worktree must be clean before opening research queues")
     campaign = load_campaign_spec(root, campaign_config or _default_campaign_config(root))
     run_id = run_id or f"lead-{uuid.uuid4().hex[:16]}"
+    manifest_inputs: dict[str, dict[str, str]] = {}
+    for path in inputs:
+        key = next((name for name, relative_path in campaign.input_bindings.items() if (root / relative_path).resolve() == path.resolve()), path.stem)
+        if key in manifest_inputs:
+            raise ValueError(f"duplicate manifest input key: {key}")
+        manifest_inputs[key] = manifest_entry(root, path)
     manifest = {
         "run_id": run_id,
         "generated_at": stamp(),
@@ -112,7 +118,8 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "delivery_policy": campaign.delivery_policy,
         "campaign": campaign.manifest_record(),
         "accepted_company_ids": sorted(accepted_company_ids or set()),
-        "inputs": {path.stem: manifest_entry(root, path) for path in inputs},
+        "campaign_inputs": manifest_inputs,
+        "inputs": manifest_inputs,
         "supporting_inputs": {path.stem: manifest_entry(root, path) for path in supporting_inputs},
         "queues": {},
         "barriers": {"accepted_identity": True, "provisional_shortlist": False, "research": False, "verifier": False, "verified_evidence": False, "projection": False, "ranking": False, "readiness": False, "published": False},
@@ -165,6 +172,7 @@ def _write_lane_queue_rows(
     require_qualification: bool,
     company_rows: dict[str, dict[str, str]] | None,
     required_location_evidence: str | None,
+    execution_context: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     queue = []
     for row in sorted(rows, key=lambda item: str(item.get("company_id") or "")):
@@ -195,7 +203,13 @@ def _write_lane_queue_rows(
             require_confirmed_location=required_location_evidence is not None,
             required_location_evidence=required_location_evidence,
         )
-        queue.append({**admitted.as_dict(), "status": "pending"})
+        bound_fingerprint = hashlib.sha256(json.dumps(bound_row, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        queue.append({
+            **admitted.as_dict(),
+            "status": "pending",
+            "input_fingerprint": bound_fingerprint,
+            **(execution_context or {}),
+        })
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
         for item in queue:
@@ -233,7 +247,7 @@ def build_verifier_queue(
     return verifier_queue, verifier_ids
 
 
-def complete_company_ids(results: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]]) -> set[str]:
+def complete_company_ids(results: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]], delivery_policy: str = "strict") -> set[str]:
     lane_ids: list[set[str]] = []
     for lane, queue in queues.items():
         successful = {
@@ -244,7 +258,22 @@ def complete_company_ids(results: dict[str, list[dict[str, object]]], queues: di
         lane_ids.append({str(item["company_id"]) for item in queue} & successful)
     if not lane_ids:
         return set()
+    if delivery_policy == "personal":
+        return set.union(*lane_ids)
     return set.intersection(*lane_ids)
+
+
+def delivery_summary(delivered_ids: set[str], target_count: int, delivery_policy: str) -> dict[str, object]:
+    delivered_count = len(delivered_ids)
+    complete = delivered_count >= target_count
+    return {
+        "status": "completed" if complete else "partial" if delivery_policy == "personal" else "blocked",
+        "delivery_policy": delivery_policy,
+        "target_count": target_count,
+        "delivered_count": delivered_count,
+        "shortfall": max(target_count - delivered_count, 0),
+        "reason": "target_met" if complete else "under_target_delivery",
+    }
 
 
 def _delivery_payload_is_complete(record: dict[str, object], lane: str) -> bool:
@@ -292,7 +321,7 @@ def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
             errors.append(f"HEAD does not match manifest head_sha: expected {head_sha}, observed {manifest.get('head_sha')}")
         if implementation_status(root):
             errors.append("implementation worktree is dirty")
-    for bucket_name in ("inputs", "supporting_inputs", "outputs"):
+    for bucket_name in ("campaign_inputs", "inputs", "supporting_inputs", "outputs"):
         for name, item in manifest.get(bucket_name, {}).items():
             path = (root / str(item.get("path"))).resolve()
             try:
@@ -365,9 +394,12 @@ def _fixture_inputs(root: Path, shortlist: list[dict[str, str]], run_id: str) ->
     return {"qualification": qualification, "scores": scores, "contacts": contacts, "companies": companies, "sources": sources, **supporting}
 
 
-def _worker_payloads(records: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]] | None = None) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+def _worker_payloads(records: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]] | None = None) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+    from promote_evidence import VALIDATOR
+
     research_runs: list[dict[str, object]] = []
     claims: list[dict[str, object]] = []
+    quarantined: list[dict[str, object]] = []
     for lane_records in records.values():
         for record in lane_records:
             output_path = Path(str(record["output_path"]))
@@ -392,10 +424,34 @@ def _worker_payloads(records: dict[str, list[dict[str, object]]], queues: dict[s
             output_claims = payload.get("claims", [])
             if not isinstance(output_claims, list):
                 raise ValueError(f"worker claims are not a list: {output_path}")
-            if any(not isinstance(item, dict) for item in output_claims):
-                raise ValueError(f"worker claims contain a non-object record: {output_path}")
-            claims.extend(output_claims)
-    return research_runs, claims
+            for claim in output_claims:
+                quarantine = {"lane": record.get("lane"), "company_id": record.get("company_id"), "reason": "malformed_claim", "claim": claim}
+                if not isinstance(claim, dict):
+                    quarantined.append(quarantine)
+                    continue
+                schema_errors = sorted(error.message for error in VALIDATOR.iter_errors(claim))
+                if schema_errors:
+                    quarantine["errors"] = schema_errors
+                    quarantined.append(quarantine)
+                    continue
+                if claim.get("candidate_claim_id") != candidate_claim_id(claim):
+                    quarantine["errors"] = ["candidate_claim_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if claim.get("candidate_sha256") != candidate_sha256(claim):
+                    quarantine["errors"] = ["candidate_sha256 mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if str(claim.get("company_id") or "") != str(record.get("company_id") or ""):
+                    quarantine["errors"] = ["company_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if str(claim.get("research_run_id") or "") != str(research_run.get("run_id") or ""):
+                    quarantine["errors"] = ["research_run_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                claims.append(claim)
+    return research_runs, claims, quarantined
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
@@ -434,6 +490,7 @@ def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepte
 
 
 def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campaign_config: Path | None = None, fixture: bool = False, worker_executable: str | None = None, worker_profile: str = "default", verifier_executable: str | None = None, verifier_profile: str = "evidence-verifier") -> dict[str, object]:
+    recover_publication(root, manifest_path)
     manifest = load_manifest(manifest_path)
     admission_errors = verify_manifest(manifest_path, root)
     if admission_errors:
@@ -447,7 +504,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         raise ValueError(f"run requires exactly {campaign.target_count} provisional companies, got {len(shortlist)}")
     if campaign.delivery_policy == "strict" and len(shortlist) < campaign.target_count:
         raise ValueError(f"run requires at least {campaign.target_count} provisional companies, got {len(shortlist)}")
-    recorded_inputs = manifest.get("inputs", {})
+    recorded_inputs = manifest.get("campaign_inputs") or manifest.get("inputs", {})
     def recorded_path(item: object) -> Path:
         raw = Path(str(item or ""))
         return raw if raw.is_absolute() else (root / raw).resolve()
@@ -483,6 +540,27 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     required_location_evidence = str(campaign.qualification.get("berlin_relevance") or "").strip() or None
     if campaign.delivery_policy == "personal":
         required_location_evidence = None
+    execution_context = {
+        "adapter": "fixture_replay" if fixture else "native_worker",
+        "adapter_capability": "replay" if fixture else "live_research",
+        "worker_profile": worker_profile,
+        "provider": "fixture" if fixture else "configured",
+        "profile": worker_profile,
+        "executable": worker_executable or "fixture",
+        "adapter_args": list(worker_adapter_args),
+        "head_sha": str(manifest.get("head_sha") or ""),
+        "campaign_sha256": campaign.sha256,
+        "input_hashes": {name: file_digest(path) for name, path in fixture_inputs.items() if path.exists()},
+    }
+    if not fixture:
+        for name, path in fixture_inputs.items():
+            if not path.exists():
+                raise ValueError(f"campaign input is missing before admission: {name}")
+            recorded = recorded_inputs.get(name) if isinstance(recorded_inputs, dict) else None
+            if not isinstance(recorded, dict) or recorded.get("sha256") != file_digest(path):
+                raise ValueError(f"campaign input is not manifest-bound before admission: {name}")
+    else:
+        update_manifest_file(manifest_path, root, inputs=fixture_inputs)
     queues = {}
     for lane in campaign.lanes:
         queue_path = queue_dir / f"{lane}.jsonl"
@@ -496,6 +574,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             require_qualification=True,
             company_rows=company_rows,
             required_location_evidence=required_location_evidence,
+            execution_context=execution_context,
         )
     admitted_items = [item for lane in campaign.lanes for item in queues[lane]]
     domain_by_company = {str(item["company_id"]): str(item["trusted_domain"]) for item in admitted_items}
@@ -507,7 +586,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
     def dispatch_lane_items(queue: list[dict[str, object]], lane: str, output_dir: Path) -> list[dict[str, object]]:
-        pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir)
+        pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir, config=None if fixture else worker_config)
         if fixture:
             fresh = dispatch_fixture_lanes({lane: pending}, run_id, output_dir.parent).get(lane, [])
         else:
@@ -522,12 +601,13 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     for lane, records in results.items():
         reconcile_lane_outputs(records, queues[lane], run_id, lane, allow_partial=campaign.delivery_policy == "personal")
     replacement_log: list[dict[str, object]] = []
-    delivered_ids = complete_company_ids(results, queues)
+    delivered_ids = complete_company_ids(results, queues, campaign.delivery_policy)
     if campaign.delivery_policy == "strict" and delivered_ids != accepted_ids:
         missing_ids = ", ".join(sorted(accepted_ids - delivered_ids))
         raise ValueError(f"strict delivery requires complete research for every accepted company: {missing_ids}")
     if campaign.delivery_policy == "personal" and len(delivered_ids) < campaign.target_count:
-        reserve_ids = sorted(accepted_ids - active_ids)
+        shortlist_order = [str(row.get("company_id") or "") for row in shortlist]
+        reserve_ids = [company_id for company_id in shortlist_order if company_id in accepted_ids - active_ids]
         for reserve_id in reserve_ids:
             if len(delivered_ids) >= campaign.target_count:
                 break
@@ -547,6 +627,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
                     require_qualification=True,
                     company_rows=company_rows,
                     required_location_evidence=required_location_evidence,
+                    execution_context=execution_context,
                 )
             if fixture:
                 reserve_results = {lane: dispatch_lane_items(reserve_queues[lane], lane, root / "evidence" / "candidate" / run_id / "reserve" / lane) for lane in reserve_queues}
@@ -554,7 +635,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
                 reserve_results = {lane: dispatch_lane_items(reserve_queues[lane], lane, root / "evidence" / "candidate" / run_id / "reserve" / lane) for lane in reserve_queues}
             for lane, records in reserve_results.items():
                 reconcile_lane_outputs(records, reserve_queues[lane], run_id, lane, allow_partial=True)
-            reserve_delivered = complete_company_ids(reserve_results, reserve_queues)
+            reserve_delivered = complete_company_ids(reserve_results, reserve_queues, campaign.delivery_policy)
             replacement_log.append({"company_id": reserve_id, "status": "delivered" if reserve_delivered else "failed", "reason": "reserve_backfill"})
             if reserve_delivered:
                 delivered_ids.update(reserve_delivered)
@@ -583,14 +664,17 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             "admitted_work_items": admitted_items,
             "source_policy": source_policy,
             "dispatch_records": results,
+            "delivery": delivery_summary(delivered_ids, campaign.target_count, campaign.delivery_policy),
         },
     )
-    research_runs, claims = _worker_payloads(results, queues)
+    research_runs, claims, malformed_claims = _worker_payloads(results, queues)
     candidate_path = root / "evidence" / "candidate" / run_id / "claims.jsonl"
+    malformed_path = root / "evidence" / "candidate" / run_id / "malformed_quarantine.jsonl"
     decision_path = root / "evidence" / "verifier" / run_id / "decisions.jsonl"
     candidate_path.parent.mkdir(parents=True, exist_ok=True)
     decision_path.parent.mkdir(parents=True, exist_ok=True)
     _write_jsonl(candidate_path, claims)
+    _write_jsonl(malformed_path, malformed_claims)
     verifier_run_id = f"{run_id}:verifier"
     verifier_capability = "replay" if fixture else str(campaign.adapter_policy.get("verification_mode") or "structural_validation")
     if fixture:
@@ -608,11 +692,24 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             run_id=run_id,
             delivery_policy=campaign.delivery_policy,
         )
+        verifier_execution_context = {
+            "adapter": "native_verifier",
+            "adapter_capability": verifier_capability,
+            "profile": verifier_profile,
+            "verifier_profile": verifier_profile,
+            "executable": verifier_executable or "fixture",
+            "adapter_args": list(verifier_adapter_args),
+            "head_sha": str(manifest.get("head_sha") or ""),
+            "campaign_sha256": campaign.sha256,
+            "input_hashes": {name: file_digest(path) for name, path in fixture_inputs.items() if path.exists()},
+        }
+        for item in verifier_queue:
+            item.update(verifier_execution_context)
         def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
         verifier_output_dir = root / "evidence" / "verifier" / run_id / "outputs"
-        verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir)
+        verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir, config=verifier_config)
         verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
         decisions = []
@@ -632,7 +729,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         for run in research_runs
     }
     verifier_registry = {verifier_run_id: {"verifier_run_id": verifier_run_id, "verifier_id": "fixture-verifier" if fixture else verifier_profile, "status": "Completed", "capability": verifier_capability, "decision_count": len(decisions)}}
-    update_manifest_file(manifest_path, root, inputs={"candidate_evidence": candidate_path, "verifier_decisions": decision_path}, registries={"accepted_company_ids": sorted(accepted_ids), "research_runs": research_registry, "verifier_runs": verifier_registry}, status="research_complete", barriers={"research": True, "verifier": True})
+    update_manifest_file(manifest_path, root, inputs={"candidate_evidence": candidate_path, "verifier_decisions": decision_path}, outputs={"malformed_claim_quarantine": malformed_path}, registries={"accepted_company_ids": sorted(accepted_ids), "research_runs": research_registry, "verifier_runs": verifier_registry}, status="research_complete", barriers={"research": True, "verifier": True})
     from promote_evidence import promote_verified_claims
     verified_path = root / "evidence" / "verified" / run_id / "claims.jsonl"
     promote_verified_claims(candidate_path, decision_path, verified_path, manifest_path)
@@ -651,10 +748,11 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     selection_scope = delivered_ids
     priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, selection_scope, campaign.delivery_policy)
     validate_final_priority_rows(priority_rows, selection_scope, campaign.target_count, campaign.delivery_policy)
+    final_delivery = delivery_summary({str(row.get("company_id") or "") for row in priority_rows}, campaign.target_count, campaign.delivery_policy)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"
     shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
     write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)
-    update_manifest_file(manifest_path, root, outputs={"priority": priority_path, "shortlist_audit": shortlist_audit_path}, status="ranked", barriers={"ranking": True})
+    update_manifest_file(manifest_path, root, outputs={"priority": priority_path, "shortlist_audit": shortlist_audit_path}, registries={"delivery": final_delivery}, status="ranked", barriers={"ranking": True})
     staging = root / "output" / f"{run_id}.staging.xlsx"
     final_output = root / "output" / f"{run_id}.xlsx"
     build_report = root / "evidence" / "reports" / run_id / "build.json"
@@ -682,9 +780,18 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     if deliverable_check.returncode:
         raise RuntimeError(deliverable_check.stdout + deliverable_check.stderr)
     final_output.parent.mkdir(parents=True, exist_ok=True)
+    marker = publication_marker_path(root, run_id)
+    atomic_write(marker, {
+        "run_id": run_id,
+        "head_sha": str(manifest.get("head_sha") or ""),
+        "staging_path": staging.relative_to(root).as_posix(),
+        "final_path": final_output.relative_to(root).as_posix(),
+        "staging_sha256": file_digest(staging),
+    })
     os.replace(staging, final_output)
-    update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, status="completed", barriers={"readiness": True, "published": True})
-    return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report}
+    update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, registries={"delivery": final_delivery}, status=str(final_delivery["status"]), barriers={"readiness": True, "published": True})
+    marker.unlink(missing_ok=True)
+    return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report, "delivery": final_delivery}
 
 
 def _load_records_jsonl(path: Path) -> list[dict[str, object]]:

@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from orchestrate_enrichment import _native_command_builder, build_verifier_queue
 from lead_contract import candidate_claim_id, candidate_sha256
 from promote_evidence import promote_verified_claims
-from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
+from worker_dispatch import NativeExecutorConfig, _execution_fingerprints, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
 
 class NativeAdapterTests(unittest.TestCase):
@@ -25,7 +25,10 @@ class NativeAdapterTests(unittest.TestCase):
         jsonschema.Draft202012Validator(schema).validate(research_run)
 
     def write_cache_evidence(self, output: Path, item: dict[str, object], *, lane: str = "signals", claims_input: Path | None = None) -> None:
+        cache_item = {**item, "profile": "default", "executable": sys.executable, "adapter_args": []}
         evidence = {"run_id": "run-1", "lane": lane, "company_id": item["company_id"], "output_sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
+        evidence["payload_sha256"] = evidence["output_sha256"]
+        evidence["fingerprints"] = _execution_fingerprints(cache_item, "run-1", lane)
         if claims_input is not None:
             evidence["claims_input_sha256"] = hashlib.sha256(claims_input.read_bytes()).hexdigest()
         output.with_name(output.name + ".meta.json").write_text(json.dumps(evidence), encoding="utf-8")
@@ -76,7 +79,14 @@ class NativeAdapterTests(unittest.TestCase):
             output = output_dir / "signals-C1.json"
             output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
             self.write_cache_evidence(output, item)
-            pending, reused = split_material_gap_queue([item, {**item, "company_id": "C2", "scope": "signals:C2"}], "run-1", "signals", output_dir)
+            config = NativeExecutorConfig(sys.executable, "default")
+            pending, reused = split_material_gap_queue(
+                [item, {**item, "company_id": "C2", "scope": "signals:C2"}],
+                "run-1",
+                "signals",
+                output_dir,
+                config=config,
+            )
             self.assertEqual([row["company_id"] for row in pending], ["C2"])
             self.assertEqual([row["company_id"] for row in reused], ["C1"])
             self.assertTrue(reused[0]["reused_terminal"])
@@ -92,6 +102,19 @@ class NativeAdapterTests(unittest.TestCase):
             self.write_cache_evidence(output, item)
             output.write_text(json.dumps({**self.valid_research_payload(item), "claims": [{"tampered": True}]}), encoding="utf-8")
             pending, reused = split_material_gap_queue([item], "run-1", "signals", output_dir)
+            self.assertEqual([row["company_id"] for row in pending], ["C1"])
+            self.assertEqual(reused, [])
+
+    def test_mutated_execution_fingerprint_requires_reexecution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "candidate"
+            output_dir.mkdir(parents=True)
+            item = {"campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64, "worker_profile": "default", "provider": "configured"}
+            output = output_dir / "signals-C1.json"
+            output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
+            self.write_cache_evidence(output, item)
+            mutated = {**item, "worker_profile": "changed-profile"}
+            pending, reused = split_material_gap_queue([mutated], "run-1", "signals", output_dir)
             self.assertEqual([row["company_id"] for row in pending], ["C1"])
             self.assertEqual(reused, [])
 

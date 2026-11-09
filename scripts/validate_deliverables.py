@@ -93,6 +93,11 @@ def main() -> int:
     else:
         try:
             manifest = json.loads(args.run_manifest.read_text(encoding="utf-8"))
+            delivery = manifest.get("delivery", {})
+            if not isinstance(delivery, dict) or delivery.get("status") not in {"completed", "partial", "blocked"}:
+                errors.append("run manifest missing explicit delivery status")
+            elif delivery.get("status") == "completed" and int(delivery.get("delivered_count", 0)) < int(delivery.get("target_count", 0)):
+                errors.append("completed delivery is below target count")
             revision_errors = validate_manifest_revision(
                 repository_root(args.run_manifest.parent),
                 manifest,

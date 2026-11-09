@@ -136,7 +136,7 @@ def main() -> int:
         }
         fit, observed_weight = calculate_fit(record)
         coverage = observed_weight
-        if coverage < 50 or fit is None or not qualification_eligibility(record, args.delivery_policy):
+        if coverage < 50 or fit is None or not qualification_eligibility(record, args.delivery_policy, recompute=True):
             tier = "Research"
         elif fit >= 70 and coverage >= 75:
             tier = "A"

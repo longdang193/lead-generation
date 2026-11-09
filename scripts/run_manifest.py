@@ -116,6 +116,54 @@ def atomic_write(path: Path, manifest: Mapping[str, object]) -> None:
             os.unlink(temporary_name)
 
 
+def publication_marker_path(root: Path, run_id: str) -> Path:
+    return root / "output" / f"{run_id}.publication.json"
+
+
+def recover_publication(root: Path, manifest_path: Path) -> None:
+    manifest = load(manifest_path)
+    run_id = str(manifest.get("run_id") or "")
+    if not run_id:
+        return
+    marker_path = publication_marker_path(root, run_id)
+    if not marker_path.exists():
+        return
+    marker = load(marker_path)
+    if str(marker.get("run_id") or "") != run_id:
+        raise ValueError("publication recovery marker run_id mismatch")
+    marker_head_sha = str(marker.get("head_sha") or "")
+    if marker_head_sha and marker_head_sha != str(manifest.get("head_sha") or ""):
+        raise ValueError("publication recovery marker head_sha mismatch")
+    revision_errors = validate_manifest_revision(root, manifest)
+    if revision_errors:
+        raise ValueError("publication recovery revision validation failed: " + "; ".join(revision_errors))
+    root_resolved = root.resolve()
+    def marker_path_value(name: str) -> Path:
+        raw = str(marker.get(name) or "")
+        if not raw:
+            raise ValueError(f"publication recovery marker is missing {name}")
+        resolved = (root / raw).resolve()
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError as exc:
+            raise ValueError(f"publication recovery {name} escapes repository root") from exc
+        return resolved
+    staging = marker_path_value("staging_path")
+    final = marker_path_value("final_path")
+    expected = str(marker.get("staging_sha256") or "")
+    if staging.exists():
+        if file_sha256(staging) != expected:
+            raise ValueError("publication recovery found a mismatched staging output")
+        os.replace(staging, final)
+    elif not final.exists():
+        raise ValueError("publication recovery found neither a valid staging nor final output")
+    elif file_sha256(final) != expected:
+        raise ValueError("publication recovery found a mismatched final output")
+    update(path=manifest_path, root=root, outputs={"workbook": final}, status=str(manifest.get("status") or "ready_for_validation"), barriers={"published": True})
+    marker_path.unlink()
+    return
+
+
 def update(
     path: Path,
     root: Path,
