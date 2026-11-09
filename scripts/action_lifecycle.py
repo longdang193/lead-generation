@@ -184,7 +184,7 @@ def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeAc
     if not isinstance(authorization, dict):
         return
     accepted_company_ids = authorization.get("accepted_company_ids")
-    if isinstance(accepted_company_ids, list) and accepted_company_ids and request.company_id not in {str(value) for value in accepted_company_ids}:
+    if isinstance(accepted_company_ids, list) and request.company_id not in {str(value) for value in accepted_company_ids}:
         raise ValueError("company is outside the accepted company scope")
     allowed_action_types = authorization.get("allowed_action_types")
     if isinstance(allowed_action_types, list) and allowed_action_types and request.action_type not in {str(value) for value in allowed_action_types}:
@@ -327,6 +327,8 @@ def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> Wor
             )):
                 raise ValueError("conflicting duplicate result validation")
             return validated
+        if any(prior.event_type == "result_rejected" and prior.action_id == validated.action_id and prior.attempt_id == validated.attempt_id for prior in events):
+            raise ValueError("conflicting result rejection")
         event = LifecycleEvent(
             run_id=validated.run_id,
             action_id=validated.action_id,
@@ -372,6 +374,8 @@ def reject_result(
         admission = next((event for event in events if event.event_type == "admitted" and event.action_id == admitted.action_id and event.attempt_id == admitted.attempt_id), None)
         if admission is None:
             raise ValueError("action is not admitted")
+        if any(prior.event_type == "result_validated" and prior.action_id == admitted.action_id and prior.attempt_id == admitted.attempt_id for prior in events):
+            raise ValueError("conflicting result validation")
         existing = next((prior for prior in events if prior.event_type == "result_rejected" and prior.action_id == admitted.action_id and prior.attempt_id == admitted.attempt_id), None)
         if existing is not None:
             if any((

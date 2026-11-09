@@ -155,6 +155,30 @@ class ActionLifecycleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "profile_version"):
             admit_action(self.root, action(profile_version="signals-v2"), self.manifest)
 
+    def test_empty_company_allowlist_fails_closed(self):
+        atomic_write(self.manifest, {
+            "run_id": "run-1",
+            "budget_limit": 1,
+            "authorization": {"accepted_company_ids": [], "allowed_action_types": ["signals"]},
+        })
+        with self.assertRaisesRegex(ValueError, "company scope"):
+            admit_action(self.root, action(), self.manifest)
+
+    def test_result_validation_and_rejection_are_immutable_outcomes(self):
+        atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 2})
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        validate_result(self.root, result_for(request))
+        with self.assertRaisesRegex(ValueError, "conflicting result validation"):
+            reject_result(self.root, request, ["late rejection"], raw_result={"status": "invalid"})
+
+        rejected_request = action(action_id="action-2", attempt_id="attempt-2", idempotency_key="run-1/action-2/attempt-2")
+        rejected_request["request_hash"] = canonical_request_hash(rejected_request)
+        admit_action(self.root, rejected_request, self.manifest)
+        reject_result(self.root, rejected_request, ["malformed worker payload"], raw_result={"status": "invalid"})
+        with self.assertRaisesRegex(ValueError, "conflicting result rejection"):
+            validate_result(self.root, result_for(rejected_request))
+
     def test_admission_rejects_forged_request_hash(self):
         request = action()
         request["request_hash"] = "b" * 64

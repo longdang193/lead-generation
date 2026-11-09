@@ -16,7 +16,7 @@ from typing import Callable, Iterable
 import jsonschema
 
 from dispatch_contracts import validate_lane_output
-from action_lifecycle import admit_action as admit_lifecycle_action, canonical_request_hash, reject_result, replay_lifecycle, settle_action, validate_result as validate_lifecycle_result
+from action_lifecycle import admit_action as admit_lifecycle_action, canonical_request_hash, read_lifecycle, reject_result, replay_lifecycle, settle_action, validate_result as validate_lifecycle_result
 from action_receipts import canonical_json
 from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
 from typed_contracts import ActionReceipt, NativeActionRequest, WorkerResult
@@ -274,19 +274,7 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
 
 def _valid_worker_payload(payload: dict[str, object], item: dict[str, object], run_id: str, lane: str) -> bool:
     if lane == "verifier":
-        expected = {
-            "run_id": run_id,
-            "lane": lane,
-            "campaign_id": item.get("campaign_id", "legacy"),
-            "company_id": item["company_id"],
-            "scope": item.get("scope"),
-            "scope_version": item.get("scope_version"),
-            "scope_hash": item.get("scope_hash"),
-        }
-        claims_path = Path(str(item.get("claims_path") or ""))
-        if not claims_path.exists() or payload.get("claims_input_sha256") != hashlib.sha256(claims_path.read_bytes()).hexdigest():
-            return False
-        return all(payload.get(field) == value for field, value in expected.items()) and isinstance(payload.get("decisions"), list)
+        return _valid_verifier_payload(payload, item, run_id)
     research_run = payload.get("research_run", payload)
     if not isinstance(research_run, dict):
         return False
@@ -317,6 +305,48 @@ def _valid_worker_payload(payload: dict[str, object], item: dict[str, object], r
     return True
 
 
+def _valid_verifier_payload(payload: dict[str, object], item: dict[str, object], run_id: str) -> bool:
+    expected = {
+        "run_id": run_id,
+        "lane": "verifier",
+        "campaign_id": item.get("campaign_id", "legacy"),
+        "company_id": item["company_id"],
+        "scope": item.get("scope"),
+        "scope_version": item.get("scope_version"),
+        "scope_hash": item.get("scope_hash"),
+    }
+    if any(payload.get(field) != value for field, value in expected.items()):
+        return False
+    decisions = payload.get("decisions")
+    claims_path = Path(str(item.get("claims_path") or ""))
+    if not isinstance(decisions, list) or any(not isinstance(decision, dict) for decision in decisions) or not claims_path.exists():
+        return False
+    try:
+        if payload.get("claims_input_sha256") != hashlib.sha256(claims_path.read_bytes()).hexdigest():
+            return False
+        expected_claims: dict[str, str] = {}
+        for line in claims_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            claim = json.loads(line)
+            if not isinstance(claim, dict):
+                return False
+            claim_id = str(claim.get("candidate_claim_id") or "")
+            claim_hash = str(claim.get("candidate_sha256") or "")
+            if not claim_id or not claim_hash or claim_id in expected_claims:
+                return False
+            expected_claims[claim_id] = claim_hash
+        seen: set[str] = set()
+        for decision in decisions:
+            claim_id = str(decision.get("candidate_claim_id") or "")
+            if claim_id in seen or claim_id not in expected_claims or str(decision.get("candidate_sha256") or "") != expected_claims[claim_id]:
+                return False
+            seen.add(claim_id)
+        return seen == set(expected_claims)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
 def _next_attempt_number(root: Path, run_id: str, action_id: str) -> int:
     try:
         actions = replay_lifecycle(root, run_id).get("actions", [])
@@ -331,6 +361,75 @@ def _next_attempt_number(root: Path, run_id: str, action_id: str) -> int:
             except (IndexError, ValueError):
                 continue
     return max(attempts, default=0) + 1
+
+
+def _reconcile_interrupted_attempts(root: Path, run_id: str, item: dict[str, object], lane: str) -> None:
+    action_id = f"{lane}:{item['company_id']}"
+    events = read_lifecycle(root, run_id)
+    admitted = {
+        event.attempt_id: event
+        for event in events
+        if event.event_type == "admitted" and event.action_id == action_id
+    }
+    for attempt_id, admission in admitted.items():
+        attempt_events = [event for event in events if event.action_id == action_id and event.attempt_id == attempt_id]
+        if any(event.event_type == "settled" for event in attempt_events):
+            continue
+        result_event = next((event for event in attempt_events if event.event_type in {"result_validated", "result_rejected"}), None)
+        request = NativeActionRequest.model_validate({
+            "run_id": admission.run_id,
+            "action_id": admission.action_id,
+            "attempt_id": admission.attempt_id,
+            "company_id": admission.company_id,
+            "action_type": admission.action_type,
+            "scope": admission.scope,
+            "contract_version": admission.contract_version,
+            "strategy_version": admission.strategy_version,
+            "profile_version": admission.profile_version,
+            "idempotency_key": admission.idempotency_key,
+            "request_hash": admission.request_hash,
+            "budget_units": admission.budget_units,
+            "provenance": admission.provenance,
+        })
+        if result_event is None:
+            result_payload = {"failure_class": "interrupted_attempt"}
+            result_hash = hashlib.sha256(canonical_json(result_payload).encode("utf-8")).hexdigest()
+            validated = validate_lifecycle_result(root, WorkerResult(
+                run_id=request.run_id,
+                action_id=request.action_id,
+                attempt_id=request.attempt_id,
+                company_id=request.company_id,
+                status="Unavailable",
+                result=result_payload,
+                result_hash=result_hash,
+                provenance={"source": "native_dispatch", "reason": "interrupted_attempt"},
+            ))
+            result_event = None
+            result_hash = validated.result_hash
+            terminal_status = "Unavailable"
+            artifact_hash = None
+            validation_errors: list[str] = []
+            coverage_delta: dict[str, object] = {}
+            provenance = validated.provenance
+        else:
+            result_hash = result_event.result_hash
+            terminal_status = result_event.terminal_status
+            artifact_hash = result_event.artifact_hash
+            validation_errors = result_event.validation_errors
+            coverage_delta = result_event.coverage_delta if terminal_status in {"Completed", "Partial"} else {}
+            provenance = result_event.provenance
+        settle_action(root, {
+            **request.model_dump(),
+            "result_hash": result_hash,
+            "artifact_hash": artifact_hash,
+            "terminal_status": terminal_status,
+            "validation_errors": validation_errors,
+            "budget_requested": request.budget_units,
+            "budget_settled": request.budget_units,
+            "coverage_delta": coverage_delta,
+            "provenance": provenance,
+            "created_at": datetime.now(timezone.utc),
+        })
 
 
 def _has_completed_lifecycle(root: Path, run_id: str, item: dict[str, object], lane: str) -> bool:
@@ -408,6 +507,8 @@ def dispatch_native_lane(
         item_output = output_dir / f"{lane}-{company_id}.json"
         cache_item = dict(item)
         cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
+        if lifecycle_root is not None and manifest_path is not None:
+            _reconcile_interrupted_attempts(lifecycle_root, run_id, item, lane)
         reusable = item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane)
         if reusable and lifecycle_root is not None and manifest_path is not None:
             reusable = _has_completed_lifecycle(lifecycle_root, run_id, item, lane)

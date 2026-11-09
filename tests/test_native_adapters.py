@@ -177,6 +177,91 @@ class NativeAdapterTests(unittest.TestCase):
             self.assertEqual([action["attempt_id"] for action in actions], ["signals:C1:attempt-1", "signals:C1:attempt-2"])
             self.assertTrue(all(action["settled"] for action in actions))
 
+    def test_restart_settles_interrupted_attempt_before_retrying(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            atomic_write(manifest_path, {
+                "run_id": "run-1",
+                "budget_limit": 2,
+                "authorization": {
+                    "accepted_company_ids": ["C1"],
+                    "allowed_action_types": ["signals"],
+                    "scope_prefixes": {"signals": "signals:"},
+                    "campaign_id": "campaign-1",
+                    "campaign_version": "v1",
+                    "scope_version": "v1",
+                    "contract_version": "1",
+                    "strategy_version": "1",
+                    "profile_versions": {"signals": "signals-v1"},
+                },
+            })
+            output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+
+            def interrupt(item, output_path, config):
+                raise KeyboardInterrupt
+
+            with self.assertRaises(KeyboardInterrupt):
+                dispatch_native_lane(
+                    [item], "run-1", "signals", output_dir,
+                    NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1),
+                    command_builder=interrupt,
+                    lifecycle_root=root,
+                    manifest_path=manifest_path,
+                )
+            payload_text = json.dumps(self.valid_research_payload(item))
+            records = dispatch_native_lane(
+                [item], "run-1", "signals", output_dir,
+                NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1),
+                command_builder=lambda item, output_path, config: [sys.executable, "-c", f"from pathlib import Path; Path(__import__('sys').argv[1]).write_text({payload_text!r})", str(output_path)],
+                lifecycle_root=root,
+                manifest_path=manifest_path,
+            )
+            self.assertEqual(records[0]["status"], "succeeded")
+            actions = replay_lifecycle(root, "run-1")["actions"]
+            self.assertEqual([action["status"] for action in actions], ["Unavailable", "Completed"])
+            self.assertTrue(all(action["settled"] for action in actions))
+
+    def test_invalid_verifier_decisions_are_rejected_before_success_settlement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            atomic_write(manifest_path, {
+                "run_id": "run-1",
+                "budget_limit": 1,
+                "authorization": {
+                    "accepted_company_ids": ["C1"],
+                    "allowed_action_types": ["verifier"],
+                    "scope_prefixes": {"verifier": "verifier:"},
+                    "campaign_id": "campaign-1",
+                    "campaign_version": "v1",
+                    "scope_version": "v1",
+                    "contract_version": "1",
+                    "strategy_version": "1",
+                    "profile_versions": {"verifier": "verifier-v1"},
+                },
+            })
+            claims_path = root / "claims.jsonl"
+            claims_path.write_text(json.dumps({"candidate_claim_id": "claim-1", "candidate_sha256": "a" * 64}) + "\n", encoding="utf-8")
+            output_dir = root / "evidence" / "verifier" / "run-1" / "outputs"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "verifier", "scope": "verifier:C1", "scope_version": "v1", "scope_hash": "0" * 64, "claims_path": claims_path}
+            payload = {
+                "run_id": "run-1", "lane": "verifier", "campaign_id": "campaign-1", "company_id": "C1",
+                "scope": "verifier:C1", "scope_version": "v1", "scope_hash": "0" * 64,
+                "claims_input_sha256": hashlib.sha256(claims_path.read_bytes()).hexdigest(), "decisions": [],
+            }
+            records = dispatch_native_lane(
+                [item], "run-1", "verifier", output_dir,
+                NativeExecutorConfig(sys.executable, "default", max_retries=0, max_workers=1),
+                command_builder=lambda item, output_path, config: [sys.executable, "-c", f"from pathlib import Path; Path(__import__('sys').argv[1]).write_text({json.dumps(payload)!r})", str(output_path)],
+                lifecycle_root=root,
+                manifest_path=manifest_path,
+            )
+            self.assertEqual(records[0]["status"], "failed")
+            self.assertEqual(records[0]["failure_class"], "invalid_worker_output")
+            self.assertEqual(replay_lifecycle(root, "run-1")["actions"][0]["status"], "Rejected")
+
     def test_shared_budget_reserves_verifier_capacity_until_released(self):
         budget = DispatchBudget(60, 120, reserved_attempts=30)
         self.assertTrue(all(budget.reserve_attempt() for _ in range(90)))
