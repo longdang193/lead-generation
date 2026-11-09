@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from account_intelligence import project_account_intelligence
 from action_receipts import replay_run
 from harness_tools import invoke
-from run_manifest import atomic_write, load
+from run_manifest import atomic_write, file_sha256, load
 
 
 def _claim(claim_id: str, company_id: str, claim_type: str, value: object) -> dict[str, object]:
@@ -63,7 +63,7 @@ class HarnessE2ETests(unittest.TestCase):
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_bytes(b"native-handoff-workbook")
             manifest["barriers"] = {key: True for key in manifest["barriers"]}
-            manifest["outputs"] = {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": ""}}
+            manifest["outputs"] = {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": file_sha256(staged)}}
             atomic_write(manifest_path, manifest)
             checked = invoke({"action": "check_finalization", "payload": {"run_id": run_id, "manifest_path": manifest_path.relative_to(root).as_posix(), "delivery_policy": "strict" if strict else "personal"}}, root)
             self.assertTrue(checked["eligible"])

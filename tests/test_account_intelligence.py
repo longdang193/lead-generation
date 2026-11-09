@@ -51,6 +51,28 @@ class AccountIntelligenceTests(unittest.TestCase):
         }])
         self.assertEqual(rows[0]["claim_id"], "c1")
 
+    def test_promoted_portfolio_and_wrapped_fit_values_are_supported(self):
+        promoted = {
+            **claim("c1", "C1", claim_type="portfolio_size", value={"value": 600}),
+            "record_type": "EvidenceClaim", "research_run_id": "run-1:portfolio:C1", "candidate_sha256": "a" * 64,
+            "source_domain": "example.com", "unit": "units", "as_of_date": "2026-11-09",
+            "verified_at": "2026-11-09T00:00:00Z", "verifier_run_id": "run-1:verifier",
+        }
+        self.assertGreater(calculate_structural_fit([promoted]), 0.0)
+        wrapped = claim("c2", "C1", claim_type="service_fit", value={"value": "Confirmed"})
+        self.assertEqual(calculate_structural_fit([wrapped]), 35.0)
+        contact = {
+            **claim("c3", "C1", claim_type="contact", value="Alice Smith"),
+            "record_type": "EvidenceClaim", "research_run_id": "run-1:contacts:C1", "candidate_sha256": "b" * 64,
+            "source_domain": "example.com", "person_name": "Alice Smith", "role": "Owner",
+            "company_affiliation": "Example GmbH", "email": "alice@example.com",
+            "verified_at": "2026-11-09T00:00:00Z", "verifier_run_id": "run-1:verifier",
+        }
+        validate_account_thesis({
+            "company_id": "C1", "structural_fit": 50, "confidence": "medium", "recommended_action": "research",
+            "hypotheses": [{"company_id": "C1", "hypothesis_type": "need", "statement": "Contact is attributable", "supporting_claim_ids": ["c3"], "confidence": "medium"}],
+        }, [contact])
+
     def test_fact_fit_ignores_hypotheses(self):
         self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Confirmed")]), 35.0)
         self.assertEqual(calculate_structural_fit([claim("c1", claim_type="service_fit", value="Not evident")]), 0.0)

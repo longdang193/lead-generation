@@ -641,6 +641,12 @@ The plan is ready for completion verification when:
   publication/recovery gate, promoted-envelope adapter, account scope checks,
   canonical fit scoring, strict delivery validation, terminal-state persistence,
   receipt round-trip, and regression tests. Full suite: `161` tests passed.
+- 2026-11-09: final review cycle 2 reproduced six additional edge cases;
+  patched manifest-bound artifact hashes, complete promoted portfolio/contact
+  fields, wrapped claim-value normalization, exact account scope parsing,
+  strict integer delivery counts, terminal publication status validation, and
+  added targeted regression coverage. Two review cycles are complete; no third
+  review was run.
 - 2026-11-09: saved this proposed plan only; no implementation code, runtime
   artifacts, provider calls, or external publication were performed.
 

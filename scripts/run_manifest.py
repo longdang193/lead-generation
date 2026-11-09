@@ -149,6 +149,40 @@ def _marker_paths(root: Path, marker: Mapping[str, object]) -> tuple[Path, Path]
     return marker_path_value("staging_path"), marker_path_value("final_path")
 
 
+def _publication_status_errors(status: str, manifest: Mapping[str, object]) -> list[str]:
+    errors: list[str] = []
+    if status not in {"complete", "completed", "partial"}:
+        errors.append(f"publication status is not terminal: {status}")
+        return errors
+    delivery = manifest.get("delivery")
+    delivery_status = str(delivery.get("status") or "") if isinstance(delivery, dict) else ""
+    if status in {"complete", "completed"} and delivery_status not in {"complete", "completed"}:
+        errors.append("complete publication requires complete delivery")
+    if status == "partial" and delivery_status not in {"partial", "blocked"}:
+        errors.append("partial publication requires partial delivery")
+    return errors
+
+
+def _validate_publication_artifact(root: Path, manifest: Mapping[str, object], staging: Path, final: Path, expected_hash: str) -> None:
+    outputs = manifest.get("outputs")
+    workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
+    if not isinstance(workbook, dict):
+        raise ValueError("manifest workbook artifact is missing")
+    recorded_path = Path(str(workbook.get("path") or ""))
+    recorded_path = recorded_path if recorded_path.is_absolute() else (root / recorded_path)
+    recorded_path = recorded_path.resolve()
+    if recorded_path not in {staging.resolve(), final.resolve()}:
+        raise ValueError("staging artifact does not match the manifest workbook path")
+    recorded_hash = str(workbook.get("sha256") or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", recorded_hash):
+        raise ValueError("manifest workbook artifact has an invalid hash")
+    if recorded_hash != expected_hash:
+        raise ValueError("staging artifact does not match the manifest workbook hash")
+    source = staging if staging.exists() else final if final.exists() else None
+    if source is None or file_sha256(source) != expected_hash:
+        raise ValueError("publication artifact hash does not match the staged or final bytes")
+
+
 def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, marker: Mapping[str, object]) -> None:
     manifest = load(manifest_path)
     run_id = str(manifest.get("run_id") or "")
@@ -182,6 +216,9 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
         candidate_barriers = {}
     candidate_barriers = {**candidate_barriers, **barriers, "published": True}
     candidate["barriers"] = candidate_barriers
+    status_errors = _publication_status_errors(status, candidate)
+    if status_errors:
+        raise ValueError("publication status validation failed: " + "; ".join(status_errors))
     allowed, errors = finalization_eligibility(candidate, delivery_policy)
     if not allowed:
         raise ValueError("publication finalization admission failed: " + "; ".join(errors))
@@ -193,6 +230,7 @@ def _complete_publication(root: Path, manifest_path: Path, marker_path: Path, ma
         raise ValueError("publication recovery found neither a valid staging nor final output")
     elif file_sha256(final) != expected:
         raise ValueError("publication recovery found a mismatched final output")
+    _validate_publication_artifact(root, manifest, staging, final, expected)
     update(
         path=manifest_path,
         root=root,
@@ -252,9 +290,13 @@ def publish_staged_output(
     if not isinstance(candidate_barriers, dict):
         candidate_barriers = {}
     candidate["barriers"] = {**candidate_barriers, **(barriers or {}), "published": True}
+    status_errors = _publication_status_errors(status, candidate)
+    if status_errors:
+        raise ValueError("publication status validation failed: " + "; ".join(status_errors))
     allowed, errors = finalization_eligibility(candidate, policy)
     if not allowed:
         raise ValueError("publication finalization admission failed: " + "; ".join(errors))
+    _validate_publication_artifact(root, manifest, staging, final, file_sha256(staging))
     marker_path = publication_marker_path(root, run_id)
     atomic_write(marker_path, {
         "run_id": run_id,
@@ -305,15 +347,20 @@ def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: st
         recorded_policy = str(delivery.get("delivery_policy") or "")
         if recorded_policy != delivery_policy:
             errors.append("delivery policy does not match finalization policy")
-        try:
-            target_count = int(delivery["target_count"])
-            delivered_count = int(delivery["delivered_count"])
-            shortfall = int(delivery["shortfall"])
-        except (KeyError, TypeError, ValueError):
+        raw_counts = {name: delivery.get(name) for name in ("target_count", "delivered_count", "shortfall")}
+        invalid_counts = [
+            name for name, value in raw_counts.items()
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ]
+        if invalid_counts:
+            errors.append("delivery counts must be nonnegative integers: " + ", ".join(sorted(invalid_counts)))
+        else:
+            target_count = raw_counts["target_count"]
+            delivered_count = raw_counts["delivered_count"]
+            shortfall = raw_counts["shortfall"]
+        if invalid_counts:
             errors.append("delivery counts are incomplete")
         else:
-            if min(target_count, delivered_count, shortfall) < 0:
-                errors.append("delivery counts cannot be negative")
             if shortfall != max(target_count - delivered_count, 0):
                 errors.append("delivery shortfall is inconsistent with delivery counts")
             if status in {"complete", "completed"} and delivered_count < target_count:

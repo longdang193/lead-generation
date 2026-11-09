@@ -99,6 +99,13 @@ class EvidenceClaim(ContractModel):
     scope: str = Field(default="account", min_length=1)
     published_at: date | None = None
     artifact: ArtifactRef | None = None
+    source_domain: str | None = None
+    unit: str | None = None
+    as_of_date: date | None = None
+    person_name: str | None = None
+    role: str | None = None
+    company_affiliation: str | None = None
+    email: str | None = None
     record_type: str | None = None
     research_run_id: str | None = None
     candidate_sha256: str | None = None

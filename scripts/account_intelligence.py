@@ -19,7 +19,10 @@ def _claim_model(value: EvidenceClaim | dict[str, Any]) -> EvidenceClaim:
         return value
     normalized = dict(value)
     normalized["claim_id"] = normalized.get("claim_id") or normalized.get("candidate_claim_id")
-    normalized["value"] = normalized.get("value", normalized.get("claim_value"))
+    claim_value = normalized.get("value", normalized.get("claim_value"))
+    if isinstance(claim_value, dict):
+        claim_value = claim_value.get("value", claim_value.get("name", claim_value))
+    normalized["value"] = claim_value
     normalized.setdefault("scope", normalized.get("account_relationship", "account"))
     source_kind = str(normalized.get("source_kind") or "other")
     if source_kind not in {item.value for item in SourceKind}:

@@ -111,6 +111,7 @@ class ResearchContractTests(unittest.TestCase):
         unavailable = dict(base, provider_status="Unavailable")
         self.assertFalse(none_found_allowed(unavailable, []))
         self.assertFalse(none_found_allowed(dict(base, scope="signals:C2"), []))
+        self.assertFalse(none_found_allowed(dict(base, scope="signals:C10"), []))
 
     def test_positive_const_condition_is_evaluated_as_json_schema_requires(self):
         errors: list[str] = []

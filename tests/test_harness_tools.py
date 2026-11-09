@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from harness_tools import discover_profiles, invoke
-from run_manifest import atomic_write, load
+from run_manifest import atomic_write, file_sha256, finalization_eligibility, load
 
 
 class HarnessToolTests(unittest.TestCase):
@@ -56,7 +56,7 @@ class HarnessToolTests(unittest.TestCase):
             staged.parent.mkdir(parents=True)
             staged.write_bytes(b"workbook")
             atomic_write(manifest_path, {"run_id": "run-1", "head_sha": "0" * 40, "git_revision": "0" * 40, "outputs": {}})
-            with self.assertRaisesRegex(ValueError, "finalization admission"):
+            with self.assertRaisesRegex(ValueError, "finalization admission|publication status"):
                 invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": "output/run.xlsx", "status": "complete"}}, root)
 
             manifest = {
@@ -64,11 +64,43 @@ class HarnessToolTests(unittest.TestCase):
                 "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
                 "coverage": {"status": "partial"},
                 "delivery": {"status": "partial", "delivery_policy": "personal", "target_count": 1, "delivered_count": 0, "shortfall": 1},
-                "outputs": {},
+                "outputs": {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": file_sha256(staged)}},
             }
             atomic_write(manifest_path, manifest)
-            invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": "output/run.xlsx", "status": "complete"}}, root)
-            self.assertEqual(load(manifest_path)["status"], "complete")
+            invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": manifest_path.relative_to(root).as_posix(), "staging_path": staged.relative_to(root).as_posix(), "final_path": "output/run.xlsx", "status": "partial"}}, root)
+            self.assertEqual(load(manifest_path)["status"], "partial")
+
+    def test_publication_rejects_artifact_hash_mismatch_and_nonterminal_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            staged = root / "staging.xlsx"
+            staged.write_bytes(b"workbook")
+            manifest = {
+                "run_id": "run-1", "head_sha": "0" * 40, "git_revision": "0" * 40, "delivery_policy": "personal",
+                "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "partial"},
+                "delivery": {"status": "partial", "delivery_policy": "personal", "target_count": 1, "delivered_count": 0, "shortfall": 1},
+                "outputs": {"workbook": {"path": staged.relative_to(root).as_posix(), "sha256": "a" * 64}},
+            }
+            atomic_write(manifest_path, manifest)
+            with self.assertRaisesRegex(ValueError, "workbook hash|manifest workbook path"):
+                invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": "manifest.json", "staging_path": "staging.xlsx", "final_path": "final.xlsx", "status": "partial"}}, root)
+            manifest["outputs"]["workbook"]["sha256"] = file_sha256(staged)
+            atomic_write(manifest_path, manifest)
+            with self.assertRaisesRegex(ValueError, "not terminal"):
+                invoke({"action": "publish_staged_output", "payload": {"run_id": "run-1", "manifest_path": "manifest.json", "staging_path": "staging.xlsx", "final_path": "final.xlsx", "status": "running"}}, root)
+
+    def test_finalization_rejects_non_integer_delivery_counts(self):
+        manifest = {
+            "campaign": {"target_count": 1},
+            "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+            "coverage": {"status": "complete"},
+            "delivery": {"status": "completed", "delivery_policy": "strict", "target_count": 1, "delivered_count": 1.9, "shortfall": -0.9},
+        }
+        eligible, errors = finalization_eligibility(manifest, "strict")
+        self.assertFalse(eligible)
+        self.assertTrue(any("nonnegative integers" in error for error in errors))
 
 
 if __name__ == "__main__":
