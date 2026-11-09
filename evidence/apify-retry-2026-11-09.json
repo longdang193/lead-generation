@@ -1,0 +1,29 @@
+{
+  "record_type": "BoundedApifyRetry",
+  "evaluated_at": "2026-11-09T11:19:17Z",
+  "git_revision": "e643d37dd019bae2cc9013f0cb0f7721ae98dc4a",
+  "provider": "apify",
+  "actor_id": "apify/google-search-scraper",
+  "actor_run_id": "Bh94abDzj5JjYdQsb",
+  "scope": {
+    "queries": [
+      "Hausverwaltung Berlin WEG Verwaltung",
+      "Immobilienverwaltung Berlin Mietverwaltung"
+    ],
+    "max_pages_per_query": 1,
+    "results_per_page": 10,
+    "country_code": "de",
+    "max_total_charge_usd": 3
+  },
+  "result": {
+    "status": "available",
+    "normalized_record_count": 20,
+    "reported_usage_total_usd": 0.00005,
+    "output_artifact": "C:/tmp/apify_retry_2026-11-09.json"
+  },
+  "limitations": [
+    "This retry validates Apify connectivity and bounded discovery only.",
+    "It does not independently verify company claims or close the strict production gate.",
+    "Temporary provider output remains outside the repository and contains no credentials."
+  ]
+}
