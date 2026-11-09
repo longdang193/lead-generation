@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-BUYING_SIGNALS = ("Strong", "Medium", "Weak", "None found", "Unknown")
+BUYING_SIGNALS = ("Verified trigger", "Strong", "Medium", "Weak", "No trigger found", "Research incomplete", "Unavailable", "None found", "Unknown")
 SEARCH_STATUSES = ("Searched", "Not searched", "Unavailable", "Unknown")
 RESEARCH_STATUSES = ("Not searched", "Completed", "Partial", "Unavailable", "Needs review")
 CLAIM_STATUSES = ("Candidate", "Verified", "Rejected", "Needs review")
@@ -110,7 +110,7 @@ def is_plausible_company_name(value: object) -> bool:
 
 
 def signal_rank(value: object) -> int:
-    return {"Strong": 4, "Medium": 3, "Weak": 2, "None found": 1, "Unknown": 0}.get(str(value), 0)
+    return {"Verified trigger": 5, "Strong": 4, "Medium": 3, "Weak": 2, "No trigger found": 1, "None found": 1, "Unknown": 0, "Research incomplete": 0, "Unavailable": 0}.get(str(value), 0)
 
 
 def canonical_json(value: object) -> str:
@@ -200,11 +200,11 @@ def tier_rank(value: object) -> int:
 def actionability_for(tier: str, coverage: float | None, signal: str) -> str:
     if coverage is None or tier not in {"A", "B"} or coverage < 50:
         return "Unknown"
-    if tier == "A" and coverage >= 75 and signal in {"Strong", "Medium"}:
+    if tier == "A" and coverage >= 75 and signal in {"Verified trigger", "Strong", "Medium"}:
         return "Ready"
-    if signal == "Unknown":
+    if signal in {"Unknown", "Research incomplete", "Unavailable"}:
         return "Research"
-    if signal in {"Weak", "None found"}:
+    if signal in {"Weak", "No trigger found", "None found"}:
         return "Monitor"
     return "Research"
 

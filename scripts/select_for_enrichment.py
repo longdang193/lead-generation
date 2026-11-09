@@ -48,6 +48,12 @@ def select_accounts(
         if eligible_for_enrichment(row, qualification.get(str(row.get("company_id") or ""), {}), delivery_policy)
     ]
 
+    if any("_commercial_score" in row for row in selected):
+        return sorted(
+            selected,
+            key=lambda row: (-number(row.get("_commercial_score"), -1.0), str(row.get("company_id") or "")),
+        )[:max_accounts]
+
     def sort_key(row: dict[str, str]) -> tuple[int, int, float, float, float, int, str]:
         assurance_rank = {"source": 0, "structural": 1, "replay": 2, "unknown": 3}.get(str(row.get("assurance_level") or "unknown"), 3)
         gap_rank = 0 if str(row.get("research_gap") or "None") == "None" else 1

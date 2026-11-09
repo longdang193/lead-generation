@@ -83,8 +83,7 @@ class CanonicalProjectionTests(unittest.TestCase):
             contacts.write_text("company_id,contact_name\nC1,Unknown\n", encoding="utf-8")
             manifest = root / "manifest.json"
             manifest.write_text(json.dumps({
-                "run_id": "run-1",
-                "head_sha": "a" * 40,
+                "run_id": "run-1", "head_sha": "a" * 40,
                 "research_runs": {"run-1:signals:C1": {
                     "run_id": "run-1:signals:C1",
                     "company_id": "C1",
@@ -102,6 +101,28 @@ class CanonicalProjectionTests(unittest.TestCase):
             self.assertEqual(audit["search_status"], "Unavailable")
             self.assertEqual(audit["signal_state"], "Unknown")
             self.assertEqual(score["buying_signal"], "Unknown")
+
+    def test_partial_coverage_cannot_project_no_trigger_found(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "promoted.jsonl").write_text("", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,buying_signal\nC1,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name\nC1,Unknown\n", encoding="utf-8")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({
+                "run_id": "run-1", "head_sha": "a" * 40,
+                "research_runs": {"run-1:signals:C1": {
+                    "run_id": "run-1:signals:C1", "company_id": "C1", "research_type": "signals",
+                    "status": "Completed", "provider_status": "Available", "coverage_status": "complete",
+                    "offer_id": "offer-1", "offer_version": "2026-11-09",
+                    "required_checks": ["official_site", "public_news"], "completed_checks": ["official_site"],
+                    "provider_states": {"official_site": "available", "public_news": "available"},
+                }},
+            }), encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1", manifest_path=manifest, root=root)
+            audit = next(csv.DictReader(outputs["signal_audit"].open(encoding="utf-8")))
+            self.assertEqual(audit["signal_state"], "Research incomplete")
 
     def test_structural_score_claim_is_retained_but_not_scored(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -12,7 +12,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 HASH64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -82,6 +82,144 @@ class ResearchStatus(str, Enum):
 class DeliveryPolicy(str, Enum):
     personal = "personal"
     strict = "strict"
+
+
+class OfferProfile(ContractModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=True,
+    )
+
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    solution: str = Field(min_length=1)
+    target_customer: str = Field(min_length=1)
+    problems_solved: tuple[str, ...] = Field(min_length=1)
+    value_propositions: tuple[str, ...] = Field(min_length=1)
+    economic_buyer_roles: tuple[str, ...] = Field(min_length=1)
+    relevant_triggers: tuple[str, ...] = Field(default_factory=tuple)
+    disqualifiers: tuple[str, ...] = Field(default_factory=tuple)
+    incumbent_or_competitor_signals: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class AccountIndicator(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    indicator_type: Literal["direct_intent", "trigger", "need_indicator", "change_readiness"]
+    statement: str = Field(min_length=1)
+    strength: float = Field(ge=0, le=100)
+    recency: date | None = None
+    confidence: Confidence
+    supporting_claim_ids: list[str] = Field(min_length=1)
+    counterevidence_claim_ids: list[str] = Field(default_factory=list)
+    offer_criterion: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def disjoint_evidence(self) -> "AccountIndicator":
+        overlap = set(self.supporting_claim_ids) & set(self.counterevidence_claim_ids)
+        if overlap:
+            raise ValueError("an indicator claim cannot be both support and counterevidence")
+        return self
+
+
+class SemanticReview(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    assertion_id: str = Field(min_length=1)
+    company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    reviewed_claim_ids: list[str] = Field(min_length=1)
+    offer_criterion: str = Field(min_length=1)
+    entailment: Literal["supported", "unsupported", "unclear"]
+    offer_relevance: Literal["relevant", "irrelevant", "unclear"]
+    temporal_relevance: Literal["current", "stale", "unknown"]
+    contradiction_result: Literal["none", "present", "unclear"]
+    decision: Literal["approved", "rejected", "needs_review"]
+    reason_codes: list[str] = Field(min_length=1)
+    reviewer_id: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def enforce_approval_gate(self) -> "SemanticReview":
+        approved = (
+            self.entailment == "supported"
+            and self.offer_relevance == "relevant"
+            and self.temporal_relevance == "current"
+            and self.contradiction_result == "none"
+        )
+        if self.decision == "approved" and not approved:
+            raise ValueError("approved semantic review requires supported, relevant, current, contradiction-free evidence")
+        return self
+
+
+class CoverageManifest(ContractModel):
+    company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    required_checks: list[str] = Field(min_length=1)
+    completed_checks: list[str] = Field(default_factory=list)
+    provider_states: dict[str, Literal["available", "unavailable", "invalid", "unknown"]] = Field(default_factory=dict)
+    truncated: bool = False
+    unresolved_candidates: int = Field(default=0, ge=0)
+    trigger_state: Literal["Verified trigger", "No trigger found", "Research incomplete", "Unavailable"] = "Research incomplete"
+
+    @model_validator(mode="after")
+    def completed_checks_are_declared(self) -> "CoverageManifest":
+        undeclared = sorted(set(self.completed_checks) - set(self.required_checks))
+        if undeclared:
+            raise ValueError("completed checks must be declared: " + ", ".join(undeclared))
+        if self.trigger_state == "No trigger found" and not self.permits_no_trigger():
+            raise ValueError("No trigger found requires complete, clean coverage")
+        return self
+
+    def permits_no_trigger(self) -> bool:
+        return (
+            set(self.completed_checks) == set(self.required_checks)
+            and not self.truncated
+            and self.unresolved_candidates == 0
+            and set(self.provider_states) >= set(self.required_checks)
+            and all(self.provider_states.get(check) == "available" for check in self.required_checks)
+        )
+
+
+class RankContribution(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    dimension: Literal["fit", "opportunity", "need", "change", "direct_intent", "access", "evidence_confidence"]
+    value: float = Field(ge=0, le=100)
+    weight: float = Field(ge=0)
+    contribution: float
+    supporting_claim_ids: list[str] = Field(default_factory=list)
+    offer_criterion: str = Field(min_length=1)
+
+
+class RankAudit(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    priority_state: Literal[
+        "Priority — verified trigger",
+        "Priority — strong fit, no trigger",
+        "Nurture",
+        "Research required",
+        "Disqualify",
+    ]
+    total_score: float = Field(ge=0)
+    contributions: list[RankContribution] = Field(min_length=1)
+    rationale_claim_ids: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def contributions_sum_to_total(self) -> "RankAudit":
+        total = round(sum(item.contribution for item in self.contributions), 6)
+        if abs(total - self.total_score) > 0.01:
+            raise ValueError(f"rank contributions do not sum to total_score: expected {total}, observed {self.total_score}")
+        return self
 
 
 class ArtifactRef(ContractModel):
@@ -261,6 +399,8 @@ class NativeActionRequest(ContractModel):
     contract_version: str = Field(min_length=1)
     strategy_version: str = Field(min_length=1)
     profile_version: str = Field(min_length=1)
+    profile_name: str | None = None
+    skills: list[str] = Field(default_factory=list)
     idempotency_key: str = Field(min_length=1)
     request_hash: str
     budget_units: int = Field(default=1, ge=0)
@@ -307,6 +447,8 @@ class LifecycleEvent(ContractModel):
     contract_version: str = Field(min_length=1)
     strategy_version: str = Field(min_length=1)
     profile_version: str = Field(min_length=1)
+    profile_name: str | None = None
+    skills: list[str] = Field(default_factory=list)
     request_hash: str
     budget_units: int = Field(default=0, ge=0)
     result_hash: str | None = None
@@ -315,6 +457,7 @@ class LifecycleEvent(ContractModel):
     terminal_status: Literal["Completed", "Partial", "Unavailable", "Failed", "Rejected"] | None = None
     budget_settled: int = Field(default=0, ge=0)
     coverage_delta: dict[str, Any] = Field(default_factory=dict)
+    stop_decision: dict[str, Any] | None = None
     validation_errors: list[str] = Field(default_factory=list)
     provenance: dict[str, str] = Field(default_factory=dict)
     created_at: datetime
@@ -348,6 +491,8 @@ class ActionReceipt(ContractModel):
     contract_version: str = Field(min_length=1)
     strategy_version: str = Field(min_length=1)
     profile_version: str = Field(min_length=1)
+    profile_name: str | None = None
+    skills: list[str] = Field(default_factory=list)
     idempotency_key: str = Field(min_length=1)
     request_hash: str
     result_hash: str
@@ -381,7 +526,11 @@ class ActionReceipt(ContractModel):
 
 
 class AccountHypothesis(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
     company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
     hypothesis_type: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     supporting_claim_ids: list[str] = Field(default_factory=list)
@@ -391,14 +540,27 @@ class AccountHypothesis(ContractModel):
 
 
 class AccountThesis(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
     company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
     structural_fit: float = Field(ge=0, le=100)
     opportunity_potential: float | None = Field(default=None, ge=0, le=100)
-    indicators: list[str] = Field(default_factory=list)
+    indicators: list[AccountIndicator] = Field(default_factory=list)
     hypotheses: list[AccountHypothesis] = Field(default_factory=list)
     direct_intent: str | None = None
     confidence: Confidence
+    why_this_account: str = Field(min_length=1)
+    why_now: str = Field(min_length=1)
+    problem_hypothesis: str = Field(min_length=1)
+    strongest_claim_ids: list[str] = Field(min_length=1)
+    counterevidence_claim_ids: list[str] = Field(default_factory=list)
+    uncertainty: list[str] = Field(default_factory=list)
+    access_summary: str = Field(min_length=1)
     research_gaps: list[str] = Field(default_factory=list)
+    research_gap_impact: str = Field(min_length=1)
+    semantic_review_ids: list[str] = Field(min_length=1)
     recommended_action: str = Field(min_length=1)
 
 

@@ -8,8 +8,18 @@ from pathlib import Path
 
 from campaign_spec import qualification_eligibility
 from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
+from typed_contracts import RankAudit, RankContribution, SemanticReview
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
+COMMERCIAL_WEIGHTS = {
+    "fit": 30.0,
+    "opportunity": 20.0,
+    "need": 15.0,
+    "change": 15.0,
+    "direct_intent": 10.0,
+    "access": 5.0,
+    "evidence_confidence": 5.0,
+}
 
 
 def stamp() -> str:
@@ -94,11 +104,106 @@ def calculate_fit(record: dict[str, object]) -> tuple[float | None, int]:
     return fit, observed_weight
 
 
+def _commercial_dimension_value(record: dict[str, object], dimension: str) -> float:
+    aliases = {
+        "fit": "structural_lead_fit",
+        "opportunity": "opportunity_score",
+        "need": "need_score",
+        "change": "change_score",
+        "direct_intent": "direct_intent_score",
+        "access": "access_score",
+        "evidence_confidence": "evidence_confidence_score",
+    }
+    raw = record.get(aliases[dimension], 0)
+    if dimension == "direct_intent" and raw in (None, ""):
+        raw = {"Verified trigger": 100, "Strong": 80, "Medium": 60, "Weak": 30}.get(str(record.get("buying_signal") or ""), 0)
+    try:
+        return max(0.0, min(100.0, float(raw)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def priority_reason(record: dict[str, object]) -> str:
+    why_account = str(record.get("why_this_account") or "Offer fit is not stated")
+    why_now = str(record.get("why_now") or "Timing is not established")
+    claims = ", ".join(str(value) for value in record.get("strongest_claim_ids", []) if value)
+    return f"{why_account}; {why_now}; supporting claims: {claims or 'none'}"
+
+
+def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: str, *, semantic_reviews: list[dict[str, object]] | None = None) -> RankAudit:
+    if semantic_reviews is None:
+        raise ValueError("validated semantic reviews are required before ranking")
+    if record.get("offer_id") != offer_id or record.get("offer_version") != offer_version:
+        raise ValueError("rank record offer context does not match requested offer")
+    reviews = [item if isinstance(item, SemanticReview) else SemanticReview.model_validate(item) for item in semantic_reviews]
+    review_ids = {review.assertion_id for review in reviews if review.decision == "approved"}
+    declared_review_ids = {str(value) for value in record.get("semantic_review_ids", []) if value}
+    if not declared_review_ids or not declared_review_ids.issubset(review_ids):
+        raise ValueError("ranking requires approved semantic review IDs")
+    company_id = str(record.get("company_id") or "")
+    if any(review.company_id != company_id or (review.offer_id, review.offer_version) != (offer_id, offer_version) for review in reviews):
+        raise ValueError("rank reviews must match the company and offer context")
+    claim_ids = [str(value) for value in record.get("strongest_claim_ids", []) if value]
+    if not claim_ids:
+        raise ValueError("rank record requires supporting claim IDs")
+    reviewed_claim_ids = {claim_id for review in reviews if review.assertion_id in declared_review_ids for claim_id in review.reviewed_claim_ids}
+    if not set(claim_ids).issubset(reviewed_claim_ids):
+        raise ValueError("rank claims must be covered by approved semantic reviews")
+    dimensions = {
+        name: _commercial_dimension_value(record, name)
+        for name in COMMERCIAL_WEIGHTS
+    }
+    contributions = [
+        RankContribution(
+            dimension=name,
+            value=value,
+            weight=COMMERCIAL_WEIGHTS[name],
+            contribution=round(value * COMMERCIAL_WEIGHTS[name] / 100.0, 6),
+            supporting_claim_ids=claim_ids,
+            offer_criterion=name,
+        )
+        for name, value in dimensions.items()
+    ]
+    signal = str(record.get("buying_signal") or "")
+    fit = dimensions["fit"]
+    if fit < 40:
+        state = "Disqualify"
+    elif signal == "Verified trigger":
+        state = "Priority — verified trigger"
+    elif fit >= 70 and signal == "No trigger found":
+        state = "Priority — strong fit, no trigger"
+    elif signal in {"Research incomplete", "Unavailable", "Unknown"}:
+        state = "Research required"
+    else:
+        state = "Nurture"
+    return RankAudit(
+        company_id=str(record.get("company_id") or ""),
+        offer_id=offer_id,
+        offer_version=offer_version,
+        priority_state=state,
+        total_score=round(sum(item.contribution for item in contributions), 6),
+        contributions=contributions,
+        rationale_claim_ids=claim_ids,
+    )
+
+
+def rank_account(record: dict[str, object], offer_id: str, offer_version: str) -> RankAudit:
+    return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None)
+
+
 def derive_account_signal(company_audit: dict[str, str], matched_events: list[dict[str, object]], default_search_status: str) -> tuple[str, str]:
     if not company_audit:
         return "Unknown", "Unknown"
     research_status = company_audit.get("research_status", company_audit.get("search_status", ""))
     search_status = company_audit.get("search_status") or {"Completed": "Searched", "Partial": "Unknown", "Needs review": "Unknown"}.get(research_status, default_search_status)
+    coverage_status = company_audit.get("coverage_status")
+    if not matched_events and company_audit.get("signal_state") in {"None found", "No trigger found"}:
+        complete_legacy = research_status == "Completed" and coverage_status in (None, "complete")
+        if coverage_status == "unavailable":
+            return "Unavailable", "Unknown"
+        if not complete_legacy:
+            return "Research incomplete", "Unknown"
+        return "No trigger found" if coverage_status == "complete" else "None found", search_status
     if research_status in {"Unavailable", "Not searched", "Partial", "Needs review"}:
         if matched_events:
             return classify_signal(matched_events), search_status
