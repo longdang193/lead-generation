@@ -118,7 +118,11 @@ def canonical_json(value: object) -> str:
 
 
 def candidate_claim_id(claim: dict[str, object]) -> str:
-    payload = "|".join(str(claim.get(key, "")) for key in ("company_id", "claim_type", "claim_value", "source_url"))
+    values = []
+    for key in ("company_id", "claim_type", "claim_value", "source_url"):
+        value = claim.get(key, "")
+        values.append(canonical_json(value) if isinstance(value, (dict, list)) else str(value))
+    payload = "|".join(values)
     return "claim-" + hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
 
 

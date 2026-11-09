@@ -118,6 +118,7 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "delivery_policy": campaign.delivery_policy,
         "campaign": campaign.manifest_record(),
         "accepted_company_ids": sorted(accepted_company_ids or set()),
+        "campaign_inputs": manifest_inputs,
         "inputs": manifest_inputs,
         "supporting_inputs": {path.stem: manifest_entry(root, path) for path in supporting_inputs},
         "queues": {},
@@ -320,7 +321,7 @@ def verify_manifest(manifest_path: Path, root: Path) -> list[str]:
             errors.append(f"HEAD does not match manifest head_sha: expected {head_sha}, observed {manifest.get('head_sha')}")
         if implementation_status(root):
             errors.append("implementation worktree is dirty")
-    for bucket_name in ("inputs", "supporting_inputs", "outputs"):
+    for bucket_name in ("campaign_inputs", "inputs", "supporting_inputs", "outputs"):
         for name, item in manifest.get(bucket_name, {}).items():
             path = (root / str(item.get("path"))).resolve()
             try:
@@ -503,7 +504,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         raise ValueError(f"run requires exactly {campaign.target_count} provisional companies, got {len(shortlist)}")
     if campaign.delivery_policy == "strict" and len(shortlist) < campaign.target_count:
         raise ValueError(f"run requires at least {campaign.target_count} provisional companies, got {len(shortlist)}")
-    recorded_inputs = manifest.get("inputs", {})
+    recorded_inputs = manifest.get("campaign_inputs") or manifest.get("inputs", {})
     def recorded_path(item: object) -> Path:
         raw = Path(str(item or ""))
         return raw if raw.is_absolute() else (root / raw).resolve()
@@ -555,7 +556,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         for name, path in fixture_inputs.items():
             if not path.exists():
                 raise ValueError(f"campaign input is missing before admission: {name}")
-            recorded = manifest.get("inputs", {}).get(name) if isinstance(manifest.get("inputs"), dict) else None
+            recorded = recorded_inputs.get(name) if isinstance(recorded_inputs, dict) else None
             if not isinstance(recorded, dict) or recorded.get("sha256") != file_digest(path):
                 raise ValueError(f"campaign input is not manifest-bound before admission: {name}")
     else:

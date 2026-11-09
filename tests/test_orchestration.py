@@ -297,6 +297,12 @@ class OrchestrationTests(unittest.TestCase):
             manifest_path = root / "evidence" / "manifests" / "run.json"
             with patch("orchestrate_enrichment.git_output", side_effect=["a" * 40, "", "main"]):
                 create_run_manifest(root, manifest_path, "run-1", [*input_paths, shortlist], [], accepted_company_ids={"C1"}, campaign_config=campaign_path, require_clean=True)
+            projected_scores = root / "data" / "processed" / "run-1" / "scores.csv"
+            projected_contacts = root / "data" / "processed" / "run-1" / "contacts.csv"
+            projected_scores.parent.mkdir(parents=True)
+            projected_scores.write_text("company_id\n", encoding="utf-8")
+            projected_contacts.write_text("company_id\n", encoding="utf-8")
+            update(manifest_path, root, inputs={"scores": projected_scores, "contacts": projected_contacts})
             with patch("orchestrate_enrichment._write_lane_queue_rows", side_effect=RuntimeError("admission complete")):
                 with self.assertRaisesRegex(RuntimeError, "admission complete"):
                     __import__("orchestrate_enrichment").run_pipeline(root, manifest_path, shortlist, campaign_config=campaign_path, worker_executable="worker")

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from lead_contract import actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_full_name, is_valid_business_email, parse_evidence_urls, sales_priority_for
+from lead_contract import actionability_for, candidate_claim_id, is_generic_mailbox, is_placeholder_email, is_plausible_full_name, is_valid_business_email, parse_evidence_urls, sales_priority_for
 
 
 class LeadContractTests(unittest.TestCase):
@@ -27,6 +28,11 @@ class LeadContractTests(unittest.TestCase):
         self.assertEqual(sales_priority_for("Ready", "A"), "Pursue")
         self.assertEqual(actionability_for("A", 75, "None found"), "Monitor")
         self.assertEqual(sales_priority_for("Unknown", "A"), "Defer")
+
+    def test_candidate_claim_id_is_stable_for_object_claim_values(self):
+        claim = {"company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1", "publication_date": "2026-11-08", "deadline": "2026-12-01"}, "source_url": "https://example.de/news"}
+        reordered = {**claim, "claim_value": json.loads(json.dumps(claim["claim_value"], sort_keys=True))}
+        self.assertEqual(candidate_claim_id(claim), candidate_claim_id(reordered))
 
 
 if __name__ == "__main__":

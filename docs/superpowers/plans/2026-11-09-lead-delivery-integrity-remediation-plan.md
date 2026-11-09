@@ -382,9 +382,10 @@ source revision; otherwise status remains `blocked`.
 ## Execution Evidence
 
 - Focused regression proof: `py -3 -m unittest tests.test_artifact_manifest_side_effects tests.test_discovery tests.test_native_adapters tests.test_orchestration tests.test_selection -v` — 48 passed.
-- Full regression proof: `python -m pytest -q` — 122 passed, with the existing fixture expectation `tests/test_end_to_end_enrichment.py::EndToEndEnrichmentTests::test_fixture_run_reconciles_all_lanes_and_records_barriers` failing on the prior `e2fb780` checkout as well; this remediation does not change that behavior.
+- Full regression proof: `python -m pytest -q` — 125 passed.
 - Static proof: `python -m compileall -q scripts tests` — passed; `git diff --check` — passed.
 - Secret scan: `rg -n "APIFY_API_TOKEN|HUNTER_API_KEY|Bearer [A-Za-z0-9._-]+" data evidence output presentation --glob '!*.md'` — no matches.
 - Direct backend proof covers replay/unavailable/partial delivery, deterministic failure classification, cache fingerprint invalidation, malformed-claim quarantine, page-local evidence, omitted discovery outputs, and publication crash recovery.
+- Final review corrections add serialization-stable object-valued claim IDs and immutable `campaign_inputs` bindings so workbook staging cannot invalidate non-fixture restart admission.
 - No provider-backed live probe ran. The durable gate remains blocked at `evidence/manifests/production-gate-blocked-2026-11-08.json`; fixture/replay success is not treated as live evidence.
 - Residual unverified claims: provider latency, credentials, quotas, costs, recall, contact accuracy, throughput, quarantine rates, and live TED/Hunter/Apify behavior.
