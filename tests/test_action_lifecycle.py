@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from action_lifecycle import admit_action, canonical_request_hash, replay_lifecycle, settle_action, validate_result
+from action_lifecycle import admit_action, canonical_request_hash, reject_result, replay_lifecycle, settle_action, validate_result
 from action_receipts import canonical_json
 from run_manifest import atomic_write
 
@@ -156,6 +156,29 @@ class ActionLifecycleTests(unittest.TestCase):
         request["request_hash"] = "b" * 64
         with self.assertRaisesRegex(ValueError, "request hash mismatch"):
             admit_action(self.root, request, self.manifest)
+
+    def test_rejected_result_is_durable_terminal_and_replayable(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        rejected = reject_result(self.root, request, ["malformed worker payload"], raw_result={"status": "invalid"})
+        rejected_again = reject_result(self.root, request, ["malformed worker payload"], raw_result={"status": "invalid"})
+        receipt = {
+            **request,
+            "result_hash": rejected.result_hash,
+            "terminal_status": "Rejected",
+            "validation_errors": ["malformed worker payload"],
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "coverage_delta": {},
+            "created_at": datetime.now(timezone.utc),
+        }
+        settle_action(self.root, receipt)
+        settle_action(self.root, receipt)
+        replay = replay_lifecycle(self.root, "run-1")
+        self.assertEqual(rejected.result_hash, rejected_again.result_hash)
+        self.assertEqual(replay["actions"][0]["status"], "Rejected")
+        self.assertEqual(replay["coverage"], {})
+        self.assertEqual(len([event for event in replay_lifecycle(self.root, "run-1")["actions"] if event["status"] == "Rejected"]), 1)
 
     def test_exact_duplicate_result_validation_is_idempotent(self):
         request = action()

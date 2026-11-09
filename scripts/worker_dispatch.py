@@ -9,13 +9,15 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable
 
 import jsonschema
 
 from dispatch_contracts import validate_lane_output
-from action_lifecycle import admit_action as admit_lifecycle_action, settle_action, validate_result as validate_lifecycle_result
+from action_lifecycle import admit_action as admit_lifecycle_action, canonical_request_hash, reject_result, settle_action, validate_result as validate_lifecycle_result
+from action_receipts import canonical_json
 from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
 from typed_contracts import ActionReceipt, NativeActionRequest, WorkerResult
 
@@ -80,6 +82,10 @@ class DispatchBudget:
             self.remaining_attempts -= 1
             return True
 
+    def release_attempt(self) -> None:
+        with self._lock:
+            self.remaining_attempts += 1
+
     def release_reserved_attempts(self) -> None:
         with self._lock:
             self.reserved_attempts = 0
@@ -89,10 +95,18 @@ def admit_research_action(request: NativeActionRequest | dict[str, object], budg
     """Validate a native action and optionally reserve one shared attempt."""
 
     admitted = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
-    if root is not None and manifest_path is not None:
-        admitted = admit_lifecycle_action(root, admitted, manifest_path)
-    if budget is not None and admitted.budget_units and not budget.reserve_attempt():
-        raise ValueError("shared dispatch budget exhausted")
+    reserved = False
+    if budget is not None and admitted.budget_units:
+        if not budget.reserve_attempt():
+            raise ValueError("shared dispatch budget exhausted")
+        reserved = True
+    try:
+        if root is not None and manifest_path is not None:
+            admitted = admit_lifecycle_action(root, admitted, manifest_path)
+    except Exception:
+        if reserved:
+            budget.release_attempt()
+        raise
     return admitted
 
 
@@ -103,6 +117,66 @@ def record_worker_result(result: WorkerResult | dict[str, object], root: Path | 
 
 def settle_action_receipt(root: Path, receipt: ActionReceipt | dict[str, object]) -> ActionReceipt:
     return settle_action(root, receipt)
+
+
+def _lifecycle_request(root: Path, manifest_path: Path, item: dict[str, object], run_id: str, lane: str, attempt: int) -> NativeActionRequest:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    authorization = manifest.get("authorization") if isinstance(manifest.get("authorization"), dict) else {}
+    profile_versions = authorization.get("profile_versions") if isinstance(authorization.get("profile_versions"), dict) else {}
+    action_id = f"{lane}:{item['company_id']}"
+    request: dict[str, object] = {
+        "run_id": run_id,
+        "action_id": action_id,
+        "attempt_id": f"{action_id}:attempt-{attempt}",
+        "company_id": str(item["company_id"]),
+        "action_type": lane,
+        "scope": str(item.get("scope") or f"{lane}:{item['company_id']}"),
+        "contract_version": str(authorization.get("contract_version") or "1"),
+        "strategy_version": str(authorization.get("strategy_version") or "1"),
+        "profile_version": str(profile_versions.get(lane) or f"{lane}-v1"),
+        "idempotency_key": f"{action_id}/attempt-{attempt}",
+        "budget_units": 1,
+        "provenance": {
+            "campaign_id": str(authorization.get("campaign_id") or item.get("campaign_id") or "legacy"),
+            "campaign_version": str(authorization.get("campaign_version") or item.get("campaign_version") or "legacy"),
+            "scope_version": str(authorization.get("scope_version") or item.get("scope_version") or "native-v1"),
+        },
+    }
+    request["request_hash"] = canonical_request_hash(request)
+    return NativeActionRequest.model_validate(request)
+
+
+def _settle_lifecycle_attempt(root: Path, request: NativeActionRequest, *, status: str, result_payload: dict[str, object], artifact: dict[str, str] | None = None, validation_errors: list[str] | None = None) -> None:
+    result_hash = hashlib.sha256(canonical_json(result_payload).encode("utf-8")).hexdigest()
+    if status == "Rejected":
+        rejected = reject_result(root, request, validation_errors or ["worker result rejected"], raw_result=result_payload, artifact_hash=(artifact or {}).get("sha256"), provenance={"source": "native_dispatch"})
+        result_hash = rejected.result_hash
+    else:
+        worker_result = WorkerResult(
+            run_id=request.run_id,
+            action_id=request.action_id,
+            attempt_id=request.attempt_id,
+            company_id=request.company_id,
+            status=status,
+            result=result_payload,
+            artifact=artifact,
+            result_hash=result_hash,
+            provenance={"source": "native_dispatch"},
+        )
+        validated = validate_lifecycle_result(root, worker_result)
+        result_hash = validated.result_hash
+    settle_action(root, {
+        **request.model_dump(),
+        "result_hash": result_hash,
+        "artifact_hash": (artifact or {}).get("sha256"),
+        "terminal_status": status,
+        "validation_errors": validation_errors or [],
+        "budget_requested": request.budget_units,
+        "budget_settled": request.budget_units,
+        "coverage_delta": {},
+        "provenance": {"source": "native_dispatch"},
+        "created_at": datetime.now(timezone.utc),
+    })
 
 def _terminal(status: str) -> str:
     if status not in TERMINAL:
@@ -249,6 +323,8 @@ def dispatch_native_lane(
     *,
     command_builder: Callable[[dict[str, object], Path, NativeExecutorConfig], list[str]] | None = None,
     budget: DispatchBudget | None = None,
+    lifecycle_root: Path | None = None,
+    manifest_path: Path | None = None,
 ) -> list[dict[str, object]]:
     """Run one bounded native lane with explicit worker terminal states.
 
@@ -263,6 +339,12 @@ def dispatch_native_lane(
         cache_item = dict(item)
         cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
         if item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane):
+            if lifecycle_root is not None and manifest_path is not None:
+                request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, 1)
+                admit_research_action(request, root=lifecycle_root, manifest_path=manifest_path)
+                output_hash = hashlib.sha256(item_output.read_bytes()).hexdigest()
+                relative_output = item_output.resolve().relative_to(lifecycle_root.resolve()).as_posix()
+                _settle_lifecycle_attempt(lifecycle_root, request, status="Completed", result_payload={"output_path": relative_output, "output_sha256": output_hash}, artifact={"path": relative_output, "sha256": output_hash, "kind": "worker"})
             return {
                 "run_id": run_id,
                 "lane": lane,
@@ -286,10 +368,16 @@ def dispatch_native_lane(
         started = time.time()
         attempt_history: list[dict[str, object]] = []
         for attempts in range(1, config.max_retries + 2):
-            if budget is not None and not budget.reserve_attempt():
+            lifecycle_request = _lifecycle_request(lifecycle_root, manifest_path, item, run_id, lane, attempts) if lifecycle_root is not None and manifest_path is not None else None
+            try:
+                if lifecycle_request is not None:
+                    admit_research_action(lifecycle_request, budget=budget, root=lifecycle_root, manifest_path=manifest_path)
+                elif budget is not None and not budget.reserve_attempt():
+                    raise ValueError("shared dispatch budget exhausted")
+            except ValueError as exc:
                 attempts -= 1
                 terminal_failure_class = "budget_exhausted"
-                attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted"})
+                attempt_history.append({"attempt": attempts + 1, "status": "budget_exhausted", "error": str(exc)})
                 break
             attempt_output = output_dir / f".{lane}-{company_id}-attempt-{attempts}.json"
             if attempt_output.exists():
@@ -318,15 +406,23 @@ def dispatch_native_lane(
                     os.replace(attempt_output, item_output)
                     _write_terminal_evidence(item_output, cache_item, run_id, lane)
                     status = "succeeded"
+                    if lifecycle_request is not None:
+                        output_hash = hashlib.sha256(item_output.read_bytes()).hexdigest()
+                        relative_output = item_output.resolve().relative_to(lifecycle_root.resolve()).as_posix()
+                        _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Completed", result_payload={"output_path": relative_output, "output_sha256": output_hash}, artifact={"path": relative_output, "sha256": output_hash, "kind": "worker"})
                     attempt_history.append({"attempt": attempts, "status": status})
                     break
                 status = "failed"
+                if lifecycle_request is not None:
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempts, "exit_code": exit_code, "failure_class": item.get("failure_class") or "worker_failure"})
                 attempt_history.append({"attempt": attempts, "status": status, "exit_code": exit_code})
                 if item.get("failure_class") == "deterministic" or exit_code in {2, 64, 78}:
                     break
                 continue
             except subprocess.TimeoutExpired:
                 status = "timed_out"
+                if lifecycle_request is not None:
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Unavailable", result_payload={"attempt": attempts, "failure_class": "timeout"})
                 attempt_history.append({"attempt": attempts, "status": status})
                 if attempts <= min(config.timeout_retries, config.max_retries):
                     continue
@@ -334,8 +430,10 @@ def dispatch_native_lane(
             except KeyboardInterrupt:
                 status = "cancelled"
                 raise
-            except OSError:
+            except OSError as exc:
                 status = "failed"
+                if lifecycle_request is not None:
+                    _settle_lifecycle_attempt(lifecycle_root, lifecycle_request, status="Failed", result_payload={"attempt": attempts, "failure_class": "launch_error", "error": str(exc)})
                 attempt_history.append({"attempt": attempts, "status": status, "failure_class": "deterministic"})
                 break
             finally:

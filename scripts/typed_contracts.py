@@ -243,7 +243,7 @@ class LifecycleEvent(ContractModel):
     action_id: str = Field(min_length=1)
     attempt_id: str = Field(min_length=1)
     parent_action_id: str | None = None
-    event_type: Literal["admitted", "result_validated", "settled"]
+    event_type: Literal["admitted", "result_validated", "result_rejected", "settled"]
     company_id: str = Field(min_length=1)
     action_type: str = Field(min_length=1)
     scope: str = Field(min_length=1)
@@ -259,6 +259,7 @@ class LifecycleEvent(ContractModel):
     terminal_status: Literal["Completed", "Partial", "Unavailable", "Failed", "Rejected"] | None = None
     budget_settled: int = Field(default=0, ge=0)
     coverage_delta: dict[str, Any] = Field(default_factory=dict)
+    validation_errors: list[str] = Field(default_factory=list)
     provenance: dict[str, str] = Field(default_factory=dict)
     created_at: datetime
 

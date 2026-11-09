@@ -88,14 +88,14 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Branch: `codex/native-harness-remediation`
 - Base commit: `d70d56bdf3a368961227f167d9ae13a4357687c4`
 - Expected workspace: clean at plan creation; preserve any later unrelated user changes
-- Next action: implement Task 2 after accepting the Task 1 checkpoint
+- Next action: implement Task 3 after accepting the Task 2 checkpoint
 - Blockers: none
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
 | Task 1 | `completed` | current | `codex` | none | manifest/lifecycle contract tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_campaign_spec tests.test_orchestration -v` — 44 tests passed; `git diff --check` passed |
-| Task 2 | `active` | current | `codex` | Task 1 | production dispatch settlement and budget tests | Task 1 checkpoint `pending` |
-| Task 3 | `pending` | current | `unresolved` | Tasks 1-2 | QA/finalization boundary tests | Task 2 checkpoint |
+| Task 2 | `completed` | current | `codex` | Task 1 | production dispatch settlement and budget tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_native_adapters -v` — 39 tests passed; lifecycle retry trace settled 2 attempts; `git diff --check` passed |
+| Task 3 | `active` | current | `codex` | Tasks 1-2 | QA/finalization boundary tests | Task 2 checkpoint `pending` |
 | Task 4 | `pending` | current | `unresolved` | Task 3 | typed round trip and assurance/ranking tests | Task 3 checkpoint |
 | Task 5 | `pending` | current | `unresolved` | Tasks 1-4 | scaling and signal/corroboration tests | Task 4 checkpoint |
 | Task 6 | `pending` | current | `unresolved` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint |
@@ -210,10 +210,10 @@ Task 1 evidence: the factory-created manifest records accepted companies, lane s
 - Stop for: live provider/CRM I/O, a new scheduler, unbounded concurrency, destructive process cleanup, or changes to external adapter protocols not covered by the repository contracts.
 
 **Steps:**
-- [ ] Step 1: Route every production queue item through the shared lifecycle adapter. Add an explicit durable rejection transition for schema/validation failures that records validation errors plus canonical/raw-artifact hash provenance, settles terminal `Rejected` with zero coverage, and remains replayable and idempotent; do not weaken `WorkerResult` validation to accept malformed results.
-- [ ] Step 2: Seal execution authorization after queues and runtime policy are materialized but before the first subprocess. Make runtime reservation and durable admission use one bounded helper; release a reservation when admission fails, and settle a terminal failed/unavailable/rejected action when post-admission launch or scheduling fails.
-- [ ] Step 3: Give each actual subprocess invocation a unique lifecycle `attempt_id` under one logical `action_id`, admit immediately before launch, and settle every attempt. Account first attempts, retries, verifier actions, and reserve-company actions in the same durable budget; reduce `DispatchBudget` to deadline/concurrency enforcement or a derived cache rather than an independent attempt ledger.
-- [ ] Step 4: Keep worker wrappers responsible for subprocess deadline, cancellation, descendant cleanup, and output receipts; keep lifecycle responsible for authorization, settlement, and finalization eligibility.
+- [x] Step 1: Route every production queue item through the shared lifecycle adapter. Add an explicit durable rejection transition for schema/validation failures that records validation errors plus canonical/raw-artifact hash provenance, settles terminal `Rejected` with zero coverage, and remains replayable and idempotent; do not weaken `WorkerResult` validation to accept malformed results.
+- [x] Step 2: Seal execution authorization after queues and runtime policy are materialized but before the first subprocess. Make runtime reservation and durable admission use one bounded helper; release a reservation when admission fails, and settle a terminal failed/unavailable/rejected action when post-admission launch or scheduling fails.
+- [x] Step 3: Give each actual subprocess invocation a unique lifecycle `attempt_id` under one logical `action_id`, admit immediately before launch, and settle every attempt. Account first attempts, retries, verifier actions, and reserve-company actions in the same durable budget; reduce `DispatchBudget` to deadline/concurrency enforcement or a derived cache rather than an independent attempt ledger.
+- [x] Step 4: Keep worker wrappers responsible for subprocess deadline, cancellation, descendant cleanup, and output receipts; keep lifecycle responsible for authorization, settlement, and finalization eligibility.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_native_adapters tests.test_action_lifecycle -v`
@@ -222,6 +222,8 @@ Task 1 evidence: the factory-created manifest records accepted companies, lane s
 
 **Exit Criteria:**
 - The production dispatch path can reach a settled terminal state for success and all important failure paths without a second budget ledger disagreeing with the lifecycle journal.
+
+Task 2 evidence: `WorkerResult` remains strict; malformed/invalid outcomes can be recorded through the explicit `result_rejected` lifecycle transition with validation errors and raw-result hash provenance, then settled as terminal `Rejected` with zero coverage. Production-shaped native dispatch now seals runtime execution authorization, admits each subprocess attempt under one logical action, releases reservations on admission failure, and settles completed, failed, and unavailable attempts. Fresh proof passed 39 tests, including a two-attempt failure-to-success trace with two admissions, two settlements, and two consumed budget units.
 
 ### Task 3: Make QA and finalization validate one artifact contract and durable readiness
 

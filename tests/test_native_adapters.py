@@ -16,7 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from orchestrate_enrichment import _native_command_builder, build_verifier_queue
 from lead_contract import candidate_claim_id, candidate_sha256
 from promote_evidence import promote_verified_claims
+from action_lifecycle import replay_lifecycle
 from worker_dispatch import DispatchBudget, NativeExecutorConfig, _execution_fingerprints, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
+from run_manifest import atomic_write
 
 
 class NativeAdapterTests(unittest.TestCase):
@@ -82,6 +84,51 @@ class NativeAdapterTests(unittest.TestCase):
             second = dispatch_native_lane([{**item, "company_id": "C2"}], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default", max_retries=1), command_builder=deterministic_command, budget=budget)
             self.assertEqual(first[0]["failure_class"], "deterministic")
             self.assertEqual(second[0]["failure_class"], "budget_exhausted")
+
+    def test_lifecycle_bound_dispatch_settles_each_retry_attempt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            atomic_write(manifest_path, {
+                "run_id": "run-1",
+                "budget_limit": 3,
+                "authorization": {
+                    "accepted_company_ids": ["C1"],
+                    "allowed_action_types": ["signals"],
+                    "scope_prefixes": {"signals": "signals:"},
+                    "campaign_id": "campaign-1",
+                    "campaign_version": "v1",
+                    "scope_version": "admitted-work-item-v1",
+                    "contract_version": "1",
+                    "strategy_version": "1",
+                    "profile_versions": {"signals": "signals-v1"},
+                },
+            })
+            output_dir = root / "evidence" / "candidate" / "run-1" / "signals"
+            attempts = {"count": 0}
+
+            def command_builder(item, output_path, config):
+                attempts["count"] += 1
+                if attempts["count"] < 2:
+                    return [sys.executable, "-c", "raise SystemExit(1)"]
+                return [sys.executable, "-c", "from pathlib import Path; Path(__import__('sys').argv[1]).write_text('{}')", str(output_path)]
+
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "admitted-work-item-v1", "scope_hash": "0" * 64}
+            records = dispatch_native_lane(
+                [item], "run-1", "signals", output_dir,
+                NativeExecutorConfig(sys.executable, "default", max_retries=1, max_workers=1),
+                command_builder=command_builder,
+                budget=DispatchBudget(60, 3),
+                lifecycle_root=root,
+                manifest_path=manifest_path,
+            )
+            replay = replay_lifecycle(root, "run-1")
+            self.assertEqual(records[0]["status"], "succeeded")
+            self.assertEqual(attempts["count"], 2)
+            self.assertEqual(replay["action_count"], 2)
+            self.assertEqual(replay["budget_reserved"], 2)
+            self.assertEqual(replay["budget_settled"], 2)
+            self.assertTrue(all(action["settled"] for action in replay["actions"]))
 
     def test_shared_budget_reserves_verifier_capacity_until_released(self):
         budget = DispatchBudget(60, 120, reserved_attempts=30)

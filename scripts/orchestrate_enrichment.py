@@ -207,11 +207,11 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
             "campaign_id": campaign.campaign_id,
             "campaign_version": campaign.version,
             "scope_version": "admitted-work-item-v1",
-            "allowed_action_types": list(campaign.lanes),
-            "scope_prefixes": {lane: f"{lane}:" for lane in campaign.lanes},
+            "allowed_action_types": [*campaign.lanes, "verifier"],
+            "scope_prefixes": {lane: f"{lane}:" for lane in [*campaign.lanes, "verifier"]},
             "contract_version": "1",
             "strategy_version": "1",
-            "profile_versions": {lane: f"{lane}-v1" for lane in campaign.lanes},
+            "profile_versions": {lane: f"{lane}-v1" for lane in [*campaign.lanes, "verifier"]},
         },
         "campaign_inputs": manifest_inputs,
         "inputs": manifest_inputs,
@@ -745,6 +745,17 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     config_errors = runtime_config.validate()
     if config_errors:
         raise ValueError("runtime configuration is invalid: " + "; ".join(config_errors))
+    update_manifest_file(
+        manifest_path,
+        root,
+        registries={"execution_authorization": {
+            "sealed": True,
+            "budget_limit": runtime_config.max_total_attempts,
+            "queued_action_count": len(admitted_items),
+            "max_total_attempts": runtime_config.max_total_attempts,
+            "deadline_seconds": runtime_config.run_deadline_seconds,
+        }},
+    )
     dispatch_budget = None if fixture else DispatchBudget(runtime_config.run_deadline_seconds, runtime_config.max_total_attempts, reserved_attempts=len(active_ids))
 
     def dispatch_lane_items(queue: list[dict[str, object]], lane: str, output_dir: Path) -> list[dict[str, object]]:
@@ -752,7 +763,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         if fixture:
             fresh = dispatch_fixture_lanes({lane: pending}, run_id, output_dir.parent).get(lane, [])
         else:
-            fresh = dispatch_native_lane(queue=pending, run_id=run_id, lane=lane, output_dir=output_dir, config=worker_config, command_builder=_native_command_builder, budget=dispatch_budget)
+            fresh = dispatch_native_lane(queue=pending, run_id=run_id, lane=lane, output_dir=output_dir, config=worker_config, command_builder=_native_command_builder, budget=dispatch_budget, lifecycle_root=root, manifest_path=manifest_path)
         return reused + fresh
 
     if fixture:
@@ -878,7 +889,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         if dispatch_budget is not None:
             dispatch_budget.release_reserved_attempts()
         verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir, config=verifier_config)
-        verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder, budget=dispatch_budget)
+        verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder, budget=dispatch_budget, lifecycle_root=root, manifest_path=manifest_path)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
         decisions = []
         for record in verifier_results:

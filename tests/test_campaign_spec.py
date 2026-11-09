@@ -88,11 +88,11 @@ class CampaignSpecTests(unittest.TestCase):
                 "campaign_id": "test-campaign",
                 "campaign_version": "2026-11-08",
                 "scope_version": "admitted-work-item-v1",
-                "allowed_action_types": ["signals", "portfolio"],
-                "scope_prefixes": {"signals": "signals:", "portfolio": "portfolio:"},
+                "allowed_action_types": ["signals", "portfolio", "verifier"],
+                "scope_prefixes": {"signals": "signals:", "portfolio": "portfolio:", "verifier": "verifier:"},
                 "contract_version": "1",
                 "strategy_version": "1",
-                "profile_versions": {"signals": "signals-v1", "portfolio": "portfolio-v1"},
+                "profile_versions": {"signals": "signals-v1", "portfolio": "portfolio-v1", "verifier": "verifier-v1"},
             })
 
     def test_manifest_binds_inputs_by_campaign_alias(self):
