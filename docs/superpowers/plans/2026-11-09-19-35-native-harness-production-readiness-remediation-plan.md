@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: active
+status: completed
 template_id: implementation-plan
 contract_version: "1"
 name: native-harness-production-readiness-remediation
@@ -88,7 +88,7 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 - Branch: `codex/native-harness-remediation`
 - Base commit: `d70d56bdf3a368961227f167d9ae13a4357687c4`
 - Expected workspace: clean at plan creation; preserve any later unrelated user changes
-- Next action: implement Task 6 hermetic production-mode E2E trace
+- Next action: commit and push the verified branch, open the pull request, and complete the authorized independent review cycle
 - Blockers: none
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
@@ -98,7 +98,7 @@ Focused backend tests cover lifecycle authorization, budget/retry settlement, ar
 | Task 3 | `completed` | current | `codex` | Tasks 1-2 | QA/finalization boundary tests | `py -3 -m unittest tests.test_harness_tools tests.test_artifact_manifest_side_effects -v` — 40 tests passed; `git diff --check` passed |
 | Task 4 | `completed` | current | `codex` | Task 3 | typed round trip and assurance/ranking tests | `py -3 -m unittest tests.test_typed_contracts tests.test_canonical_projection tests.test_account_intelligence tests.test_scoring tests.test_harness_tools -v` — 49 tests passed; native worker/verifier subprocess round trip passed; `git diff --check` passed |
 | Task 5 | `completed` | current | `codex` | Tasks 1-4 | scaling and signal/corroboration tests | `py -3 -m unittest tests.test_action_lifecycle tests.test_native_adapters -v` — 36 tests passed; 1,000-admission snapshot/journal equivalence and capacity reconciliation passed; `git diff --check` passed |
-| Task 6 | `active` | current | `codex` | Tasks 1-5 | production-mode E2E and full suite | Task 5 checkpoint accepted; hermetic integration trace in progress |
+| Task 6 | `completed` | current | `codex` | Tasks 1-5 | production-mode E2E and full suite | `tests.test_harness_e2e` — 3 tests passed; disposable committed Git fixture, non-fixture `run_pipeline`, local worker/verifier stubs, artifact/replay/failure-boundary assertions; final focused suite 97 passed and full suite 202 passed |
 
 ## Review Consolidation (2026-11-09)
 
@@ -427,21 +427,23 @@ Task 5 evidence: lifecycle transitions now append and fsync the journal before a
 - Stop for: live external provider or CRM writes, publication, unrelated documentation rewrites, or accepting a green fixture-only trace as production proof.
 
 **Steps:**
-- [ ] Step 1: Keep `_trace` as a fixture/replay smoke test, but add a production-mode integration test inside a disposable temporary Git repository/worktree. Populate and commit the minimal campaign/input fixture tree, call the actual manifest factory with `require_clean=True`, run `run_pipeline` with deterministic local worker/verifier stubs at the adapter boundary, and assert no writes escape the temporary root.
-- [ ] Step 2: Assert the real output artifacts: lifecycle journal, candidate/verifier records, promoted evidence, scores, priority rows, QA CSV/report, workbook hash, finalization proof, publication marker, and replay after a simulated restart.
-- [ ] Step 3: Add failure-path assertions for QA format mismatch, failed/unavailable worker result, rejected evidence, forged admission, stale artifact hash, incomplete coverage, and ranked/delivery mismatch.
-- [ ] Step 4: Update the prior remediation plan's proof ledger and deferred-capability notes so documentation distinguishes fixture proof, mocked provider proof, and unperformed live provider/CRM proof.
+- [x] Step 1: Keep `_trace` as a fixture/replay smoke test, and add `test_production_mode_trace_is_hermetic_and_replayable` inside a disposable temporary Git repository. The test commits the minimal campaign/input fixture tree, calls the actual manifest factory with `require_clean=True`, runs non-fixture `run_pipeline` with deterministic local worker/verifier stubs at the adapter boundary, and snapshots the implementation checkout to prove no writes escape the temporary root.
+- [x] Step 2: Assert the real lifecycle journal, candidate/verifier records, promoted evidence, scores, priority rows, QA CSV/report, workbook hash, finalization readiness proof, transient publication-marker creation/removal, terminal lifecycle state, and restart/replay equivalence.
+- [x] Step 3: Assert unresolved readiness, path escape/direct-publication rejection, stale workbook hash, incomplete policy coverage, and ranked/delivery mismatch in the E2E boundary test; retain the dedicated QA format, worker unavailable, rejected evidence, forged admission, and artifact-hash regressions in `tests.test_harness_tools`, `tests.test_native_adapters`, `tests.test_evidence_promotion`, `tests.test_action_lifecycle`, and `tests.test_artifact_manifest_side_effects`.
+- [x] Step 4: Update the prior remediation plan's proof ledger and deferred-capability notes so documentation distinguishes fixture proof, mocked-provider proof, and unperformed live provider/CRM proof.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_e2e tests.test_harness_tools tests.test_artifact_manifest_side_effects -v`
+- [x] `py -3 -m unittest tests.test_harness_e2e tests.test_harness_tools tests.test_artifact_manifest_side_effects -v`
 - Expected: the production-mode mocked trace reaches final publication only through the lifecycle and artifact barriers; every listed failure is rejected with an actionable error and leaves replayable state.
-- [ ] `py -3 -m unittest discover -s tests -p "test_*.py" -v`
+- [x] `py -3 -m unittest discover -s tests -p "test_*.py" -v` — 202 tests passed
 - Expected: the full suite passes with no test relying on hand-written production artifacts for the production-mode path.
-- [ ] `git diff --check`
+- [x] `git diff --check` — passed; only Git's LF/CRLF normalization warnings were emitted
 - Expected: no whitespace errors.
 
 **Exit Criteria:**
 - The repository has fresh direct-boundary, failure-path, final-state, idempotency/replay, and full-suite evidence for the repaired production path, with no unrecorded deferral or fixture-only readiness claim.
+
+Task 6 implementation evidence: `tests.test_harness_e2e` passes a production-shaped non-fixture run entirely inside a committed temporary Git repository. The worker and verifier are deterministic local adapter stubs; the repository's manifest factory, lifecycle admission/validation/settlement, promotion, canonical projection, scoring, ranking, workbook builder, QA, finalization, and replay code execute unchanged. The test observes the transient publication marker through `atomic_write`, confirms it is removed only after successful completion, and confirms the source checkout is byte/mtime unchanged. A replay-projection compatibility regression preserves legacy fixture score values without adding source assurance, while structural claims remain visible but unscored. Focused proof is 97 tests and full proof is 202 tests. Live provider latency/credentials, real external source fetches, and CRM writes remain deferred and were not claimed as proof.
 
 ## Verification
 
@@ -467,4 +469,4 @@ The plan is ready for completion verification when:
 8. the full test suite and `git diff --check` pass
 9. documentation records fixture, mocked-provider, and deferred live-provider/CRM proof separately
 
-This proposed plan must not be marked `completed` until `skill-verification-before-completion` returns `verified` against fresh repository evidence.
+`skill-verification-before-completion` returned `verified` against the fresh focused/full suite, diff check, plan reconciliation, and explicit deferred live-provider/CRM proof boundary. Plan completion does not imply commit, push, merge, or publication.

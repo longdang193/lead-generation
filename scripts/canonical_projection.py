@@ -106,7 +106,8 @@ def project_verified_evidence(
                 current = field_assurance.get(claim_type, "unknown")
                 if ASSURANCE_ORDER.get(assurance, 0) >= ASSURANCE_ORDER.get(current, 0):
                     row[claim_type] = value
-                    field_assurance[claim_type] = assurance
+                    if assurance != "replay":
+                        field_assurance[claim_type] = assurance
             if claim.get("source_url"):
                 urls.append(str(claim["source_url"]))
         if field_assurance:

@@ -123,6 +123,24 @@ class CanonicalProjectionTests(unittest.TestCase):
             from score_leads import calculate_fit
             self.assertEqual(calculate_fit(projected), (None, 0))
 
+    def test_replay_score_claim_remains_available_without_source_assurance_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            claim = {
+                "record_type": "EvidenceClaim", "candidate_claim_id": "service-1", "company_id": "C1", "claim_type": "service_fit", "claim_value": "Confirmed",
+                "source_url": "https://example.de/about", "source_kind": "official_site", "evidence_excerpt": "Replay", "retrieved_at": "2026-11-08T10:00:00+00:00",
+                "research_run_id": "run-1:signals:C1", "candidate_status": "Supported", "assurance_level": "replay", "verifier_run_id": "run-1:verifier", "verified_at": "2026-11-08T10:01:00+00:00",
+            }
+            claim["candidate_sha256"] = candidate_sha256({key: value for key, value in claim.items() if key != "candidate_sha256"})
+            (root / "promoted.jsonl").write_text(json.dumps(claim) + "\n", encoding="utf-8")
+            (root / "qualification.jsonl").write_text(json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n", encoding="utf-8")
+            (root / "scores.csv").write_text("company_id,service_fit,buying_signal\nC1,Confirmed,None found\n", encoding="utf-8")
+            (root / "contacts.csv").write_text("company_id,contact_name\nC1,Unknown\n", encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1")
+            projected = json.loads(outputs["qualification"].read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(projected["service_fit"], "Confirmed")
+            self.assertNotIn("field_assurance", projected)
+
     def test_projection_keeps_multiple_event_claims_for_one_company(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
