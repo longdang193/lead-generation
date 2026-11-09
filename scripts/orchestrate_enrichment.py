@@ -23,7 +23,7 @@ def stamp() -> str:
 
 
 def git_output(root: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True, text=True).stdout.rstrip("\r\n")
 
 
 RUNTIME_ARTIFACT_PREFIXES = (
@@ -558,16 +558,27 @@ def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
             handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
-def _write_promoted_website_evidence(claims: list[dict[str, object]], output: Path) -> None:
+def _write_promoted_website_evidence(claims: list[dict[str, object]], output: Path, *, baseline_path: Path | None = None) -> None:
     allowed_fields = {"service_fit", "residential_weg", "berlin_relevance", "management_type", "portfolio_size"}
     by_company: dict[str, dict[str, object]] = {}
+    claims_by_field: dict[str, dict[str, list[dict[str, object]]]] = {}
+    if baseline_path is not None and baseline_path.exists():
+        for record in _load_records_jsonl(baseline_path):
+            company_id = str(record.get("company_id") or "")
+            if not company_id:
+                continue
+            baseline_claims = [claim for claim in record.get("claims", []) if isinstance(claim, dict) and str(claim.get("field") or "") in allowed_fields]
+            if baseline_claims:
+                by_company[company_id] = {"record_type": "WebsiteEvidence", "company_id": company_id, "claims": baseline_claims}
+                claims_by_field[company_id] = {}
+                for claim in baseline_claims:
+                    claims_by_field[company_id].setdefault(str(claim["field"]), []).append(claim)
     for claim in claims:
         field = str(claim.get("claim_type") or "")
         company_id = str(claim.get("company_id") or "")
         if field not in allowed_fields or not company_id:
             continue
-        record = by_company.setdefault(company_id, {"record_type": "WebsiteEvidence", "company_id": company_id, "claims": []})
-        record["claims"].append({
+        promoted_claim = {
             "field": field,
             "value": claim.get("claim_value"),
             "evidence_url": claim.get("source_url"),
@@ -575,7 +586,11 @@ def _write_promoted_website_evidence(claims: list[dict[str, object]], output: Pa
             "confidence": claim.get("confidence"),
             "assurance_level": claim.get("assurance_level", "unknown"),
             "retrieved_at": claim.get("retrieved_at"),
-        })
+        }
+        record = by_company.setdefault(company_id, {"record_type": "WebsiteEvidence", "company_id": company_id, "claims": []})
+        fields = claims_by_field.setdefault(company_id, {})
+        fields[field] = [promoted_claim]
+        record["claims"] = [item for values in fields.values() for item in values]
     _write_jsonl(output, [by_company[key] for key in sorted(by_company)])
 
 
@@ -701,7 +716,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     config_errors = runtime_config.validate()
     if config_errors:
         raise ValueError("runtime configuration is invalid: " + "; ".join(config_errors))
-    dispatch_budget = None if fixture else DispatchBudget(runtime_config.run_deadline_seconds, runtime_config.max_total_attempts)
+    dispatch_budget = None if fixture else DispatchBudget(runtime_config.run_deadline_seconds, runtime_config.max_total_attempts, reserved_attempts=len(active_ids))
 
     def dispatch_lane_items(queue: list[dict[str, object]], lane: str, output_dir: Path) -> list[dict[str, object]]:
         pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir, config=None if fixture else worker_config)
@@ -831,6 +846,8 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
         verifier_output_dir = root / "evidence" / "verifier" / run_id / "outputs"
+        if dispatch_budget is not None:
+            dispatch_budget.release_reserved_attempts()
         verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir, config=verifier_config)
         verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder, budget=dispatch_budget)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
@@ -858,7 +875,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     update_manifest_file(manifest_path, root, outputs={"verified_evidence": verified_path}, status="evidence_promoted", barriers={"verified_evidence": True})
     promoted_claims = _load_records_jsonl(verified_path)
     promoted_website_evidence = root / "evidence" / "verified" / run_id / "website_evidence.jsonl"
-    _write_promoted_website_evidence(promoted_claims, promoted_website_evidence)
+    _write_promoted_website_evidence(promoted_claims, promoted_website_evidence, baseline_path=fixture_inputs.get("qualification"))
     update_manifest_file(manifest_path, root, supporting_inputs={"website_evidence": promoted_website_evidence})
     from canonical_projection import project_verified_evidence
     canonical = project_verified_evidence(verified_path, fixture_inputs["qualification"], fixture_inputs["scores"], fixture_inputs["contacts"], root / "data" / "processed" / run_id, run_id=run_id, manifest_path=manifest_path, root=root, delivery_policy=campaign.delivery_policy)

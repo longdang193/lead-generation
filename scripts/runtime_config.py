@@ -7,6 +7,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+ENV_NAMES = {
+    "APIFY_API_TOKEN",
+    "HUNTER_API_KEY",
+    "TED_API_BASE_URL",
+    "OVERPASS_API_URL",
+    "REQUEST_TIMEOUT_SECONDS",
+    "MAX_PAGES_PER_COMPANY",
+    "MAX_FETCH_RETRIES",
+    "RUN_DEADLINE_SECONDS",
+    "MAX_TOTAL_ATTEMPTS",
+    "APIFY_MAX_SPEND_USD",
+    "MAX_PRIORITY_ACCOUNTS",
+}
 
 
 def load_dotenv(path: Path | None = None) -> dict[str, str]:
@@ -33,15 +46,15 @@ class RuntimeConfig:
     max_pages_per_company: int = 10
     max_fetch_retries: int = 2
     run_deadline_seconds: int = 900
-    max_total_attempts: int = 100
+    max_total_attempts: int = 120
     apify_max_spend_usd: float = 5.0
     max_priority_accounts: int = 30
 
     @classmethod
     def from_env(cls, path: Path | None = None) -> "RuntimeConfig":
         values = load_dotenv(path)
-        merged = {key: os.environ[key] for key in values if key in os.environ}
-        merged.update(values)
+        merged = dict(values)
+        merged.update({key: os.environ[key] for key in ENV_NAMES if key in os.environ})
         def number(name: str, default: int) -> int:
             raw = merged.get(name, default)
             try:

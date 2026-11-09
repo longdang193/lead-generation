@@ -86,9 +86,11 @@ class CanonicalProjectionTests(unittest.TestCase):
             }), encoding="utf-8")
             outputs = project_verified_evidence(promoted, qualification, scores, contacts, root / "canonical", run_id="run-1", manifest_path=manifest, root=root)
             audit = next(csv.DictReader(outputs["signal_audit"].open(encoding="utf-8")))
+            score = next(csv.DictReader(outputs["scores"].open(encoding="utf-8")))
             self.assertEqual(audit["research_status"], "Unavailable")
             self.assertEqual(audit["search_status"], "Unavailable")
             self.assertEqual(audit["signal_state"], "Unknown")
+            self.assertEqual(score["buying_signal"], "Unknown")
 
     def test_projection_keeps_multiple_event_claims_for_one_company(self):
         with tempfile.TemporaryDirectory() as directory:

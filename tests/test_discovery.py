@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -20,6 +21,19 @@ class DiscoveryTests(unittest.TestCase):
             env.write_text("REQUEST_TIMEOUT_SECONDS=not-an-integer\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "REQUEST_TIMEOUT_SECONDS must be an integer"):
                 RuntimeConfig.from_env(env)
+
+    def test_process_environment_overrides_dotenv_and_works_without_dotenv(self):
+        with TemporaryDirectory() as directory:
+            env = Path(directory) / ".env"
+            env.write_text("RUN_DEADLINE_SECONDS=900\nMAX_TOTAL_ATTEMPTS=100\n", encoding="utf-8")
+            with patch.dict(os.environ, {"RUN_DEADLINE_SECONDS": "1", "MAX_TOTAL_ATTEMPTS": "1"}, clear=False):
+                configured = RuntimeConfig.from_env(env)
+            self.assertEqual(configured.run_deadline_seconds, 1)
+            self.assertEqual(configured.max_total_attempts, 1)
+            with patch.dict(os.environ, {"RUN_DEADLINE_SECONDS": "2", "MAX_TOTAL_ATTEMPTS": "3"}, clear=False):
+                no_file = RuntimeConfig.from_env(Path(directory) / "missing.env")
+            self.assertEqual(no_file.run_deadline_seconds, 2)
+            self.assertEqual(no_file.max_total_attempts, 3)
 
     def test_fetch_provider_outputs_have_safe_defaults(self):
         apify, overpass = provider_output_paths(None, None, root=Path("C:/tmp/run"))

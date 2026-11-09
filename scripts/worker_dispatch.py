@@ -58,11 +58,14 @@ class NativeExecutorConfig:
 
 
 class DispatchBudget:
-    def __init__(self, deadline_seconds: int, max_attempts: int) -> None:
+    def __init__(self, deadline_seconds: int, max_attempts: int, reserved_attempts: int = 0) -> None:
         if deadline_seconds <= 0 or max_attempts <= 0:
             raise ValueError("dispatch budget must be positive")
+        if reserved_attempts < 0 or reserved_attempts > max_attempts:
+            raise ValueError("reserved dispatch attempts must be between zero and the total budget")
         self.deadline = time.monotonic() + deadline_seconds
         self.remaining_attempts = max_attempts
+        self.reserved_attempts = reserved_attempts
         self._lock = threading.Lock()
 
     def remaining_seconds(self) -> float:
@@ -70,10 +73,14 @@ class DispatchBudget:
 
     def reserve_attempt(self) -> bool:
         with self._lock:
-            if self.remaining_attempts <= 0 or self.remaining_seconds() <= 0:
+            if self.remaining_attempts <= self.reserved_attempts or self.remaining_seconds() <= 0:
                 return False
             self.remaining_attempts -= 1
             return True
+
+    def release_reserved_attempts(self) -> None:
+        with self._lock:
+            self.reserved_attempts = 0
 
 
 def _terminal(status: str) -> str:

@@ -83,6 +83,14 @@ class NativeAdapterTests(unittest.TestCase):
             self.assertEqual(first[0]["failure_class"], "deterministic")
             self.assertEqual(second[0]["failure_class"], "budget_exhausted")
 
+    def test_shared_budget_reserves_verifier_capacity_until_released(self):
+        budget = DispatchBudget(60, 120, reserved_attempts=30)
+        self.assertTrue(all(budget.reserve_attempt() for _ in range(90)))
+        self.assertFalse(budget.reserve_attempt())
+        budget.release_reserved_attempts()
+        self.assertTrue(all(budget.reserve_attempt() for _ in range(30)))
+        self.assertFalse(budget.reserve_attempt())
+
     def test_material_gap_queue_omits_only_valid_terminal_output(self):
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory) / "candidate"

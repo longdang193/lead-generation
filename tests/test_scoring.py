@@ -38,6 +38,12 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(account_research_state(configured=True, successful_terms=4, required_terms=4, event_count=0, account_scoped=False), ("Partial", "Unknown"))
         self.assertEqual(derive_account_signal({}, [], "Searched"), ("Unknown", "Unknown"))
 
+    def test_positive_audit_without_verified_event_link_stays_unknown(self):
+        self.assertEqual(
+            derive_account_signal({"research_status": "Completed", "signal_state": "Strong"}, [], "Searched"),
+            ("Unknown", "Searched"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

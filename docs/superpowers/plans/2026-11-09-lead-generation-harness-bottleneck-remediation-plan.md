@@ -49,17 +49,13 @@ ambiguous, or was retried or resubmitted.
 - Reviewed branch: `main`.
 - Reviewed commit: `d7ca76219ea9e280b5a48689f94e060ae41c87df`.
 - Context: `longdang193-lead-generation-d7ca7621-fragile-bottlenecks`.
-- `GPT-5.6-Sol`, `High`: run `run-ZPvBXF`, conversation
-  `6af132b8-82c0-83ed-9672-94691a002b8d`, visible assistant turn `0`,
-  completion `confirmed`; response:
-  `C:\tmp\lead-generation-github-review-20261109\run-ZPvBXF\response.md`.
-- `GPT-6`, `High`: run `run-vAYsF2`, conversation
-  `6af13386-d48c-83eb-b565-81b3f516f02d`, visible assistant turn `0`,
-  completion `confirmed`; response:
-  `C:\tmp\lead-generation-github-review-20261109\run-vAYsF2\response.md`.
-- Dedicated profile: `C:\Users\HOANG PHI LONG DANG\.codex\profiles\github-review\longdang193-lead-generation`.
-- Profile marker matched `longdang193/lead-generation` and
-  `longdang193-lead-generation`.
+- `GPT-5.6-Sol`, `High`: repository-bound dedicated review chat, fresh tab,
+  visible assistant turn `0`, bounded runner completion `confirmed`.
+- `GPT-6`, `High`: repository-bound dedicated review chat, fresh tab, visible
+  assistant turn `0`, bounded runner completion `confirmed`.
+- Dedicated profile marker matched `longdang193/lead-generation` and
+  `longdang193-lead-generation`; no private profile or chat identifiers are
+  stored in this public plan.
 - Publication: `no publication required`; the reviewed full SHA was reachable
   from GitHub.
 

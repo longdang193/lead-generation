@@ -182,7 +182,10 @@ def project_verified_evidence(
             "Partial": "Unknown",
             "Needs review": "Unknown",
         }.get(research_status, "Unknown")
+        if research_status == "Completed" and str(research_run.get("adapter_capability") or "") != "live_research":
+            search_status = "Unknown"
         signal_audit.append({"company_id": company_id, "research_status": research_status, "signal_state": signal_value, "search_status": search_status, "verified_claim_count": len(signal_claims), "run_id": run_id})
+        row["buying_signal"] = signal_value
         row["projection_run_id"] = run_id
 
     contacts = sorted(load_records(base_contacts_path), key=lambda row: str(row.get("company_id") or ""))

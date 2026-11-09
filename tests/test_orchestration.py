@@ -11,14 +11,33 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from lead_contract import candidate_claim_id, candidate_sha256
-from orchestrate_enrichment import _delivery_payload_is_complete, _native_command_builder, _worker_payloads, build_verifier_queue, complete_company_ids, create_run_manifest, delivery_summary, implementation_status, validate_final_priority_rows, validate_lane_output, verify_production_gate, write_lane_queue
+from orchestrate_enrichment import _delivery_payload_is_complete, _native_command_builder, _worker_payloads, _write_promoted_website_evidence, build_verifier_queue, complete_company_ids, create_run_manifest, delivery_summary, implementation_status, validate_final_priority_rows, validate_lane_output, verify_production_gate, write_lane_queue
 from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
     def test_campaign_input_churn_is_not_implementation_dirty(self):
-        with patch("orchestrate_enrichment.git_output", return_value=" M data/intermediate/companies_normalized_2026-11-07.csv"), patch("orchestrate_enrichment.is_campaign_input", return_value=True):
+        completed = type("Completed", (), {"stdout": " M data/intermediate/companies_normalized_2026-11-07.csv\n"})()
+        with patch("orchestrate_enrichment.subprocess.run", return_value=completed), patch("orchestrate_enrichment.is_campaign_input", side_effect=lambda _, path: path == "data/intermediate/companies_normalized_2026-11-07.csv"):
             self.assertEqual(implementation_status(Path.cwd()), "")
+
+    def test_promoted_website_evidence_retains_untouched_baseline_companies(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            baseline = root / "baseline.jsonl"
+            output = root / "promoted.jsonl"
+            baseline.write_text("\n".join([
+                json.dumps({"company_id": "C1", "claims": [{"field": "service_fit", "value": "Confirmed", "evidence_url": "https://c1.example/services"}]}),
+                json.dumps({"company_id": "C2", "claims": [{"field": "service_fit", "value": "Confirmed", "evidence_url": "https://c2.example/services"}]}),
+            ]) + "\n", encoding="utf-8")
+            _write_promoted_website_evidence([
+                {"company_id": "C1", "claim_type": "service_fit", "claim_value": "Confirmed", "source_url": "https://c1.example/new-services", "evidence_excerpt": "Updated evidence", "assurance_level": "source"},
+            ], output, baseline_path=baseline)
+            records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+            by_company = {record["company_id"]: record for record in records}
+            self.assertEqual(set(by_company), {"C1", "C2"})
+            self.assertEqual(by_company["C1"]["claims"][0]["evidence_url"], "https://c1.example/new-services")
+            self.assertEqual(by_company["C2"]["claims"][0]["evidence_url"], "https://c2.example/services")
 
     def test_production_gate_rejects_inconsistent_blocker_count(self):
         source = Path("evidence/manifests/production-gate-blocked-2026-11-08.json")
