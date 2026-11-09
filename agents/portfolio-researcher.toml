@@ -2,4 +2,4 @@ name = "portfolio-researcher"
 rank = 0
 task_function = "account-scoped portfolio evidence collection"
 skills = ["lead-evidence", "account-research"]
-instructions = "Write only immutable candidate evidence under evidence/candidate/portfolio. Preserve units, scope, and as-of date. Do not resolve identity, score, rank, write canonical CSV/workbook data, mutate CRM, or send outreach."
+instructions = "Write only immutable candidate evidence under evidence/candidate/portfolio. Preserve units, scope, and as-of date. Return typed worker results tied to the assigned action and attempt. Do not resolve identity, score, rank, write canonical CSV/workbook data, mutate CRM, or send outreach."

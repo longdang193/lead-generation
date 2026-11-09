@@ -9,10 +9,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from lead_contract import candidate_sha256
-from promote_evidence import promote_verified_claims
+from promote_evidence import decision_assurance_level, promote_verified_claims
 
 
 class EvidencePromotionTests(unittest.TestCase):
+    def test_payload_assurance_cannot_elevate_structural_verifier(self):
+        self.assertEqual(
+            decision_assurance_level(
+                {"assurance_level": "source", "verifier_run_id": "run-1:verifier"},
+                {"run-1:verifier": {"capability": "structural_validation"}},
+            ),
+            "structural",
+        )
+
     def claim(self) -> dict[str, object]:
         claim = {
             "record_type": "EvidenceClaim",

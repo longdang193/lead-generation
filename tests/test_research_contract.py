@@ -98,6 +98,8 @@ class ResearchContractTests(unittest.TestCase):
 
     def test_none_found_requires_complete_account_run(self):
         base = {
+            "company_id": "C1",
+            "scope": "signals:C1",
             "status": "Completed",
             "provider_status": "Available",
             "truncated": False,
@@ -108,6 +110,8 @@ class ResearchContractTests(unittest.TestCase):
         self.assertFalse(none_found_allowed(partial, []))
         unavailable = dict(base, provider_status="Unavailable")
         self.assertFalse(none_found_allowed(unavailable, []))
+        self.assertFalse(none_found_allowed(dict(base, scope="signals:C2"), []))
+        self.assertFalse(none_found_allowed(dict(base, scope="signals:C10"), []))
 
     def test_positive_const_condition_is_evaluated_as_json_schema_requires(self):
         errors: list[str] = []

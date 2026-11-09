@@ -45,8 +45,6 @@ def validate_verifier_decision(decision: dict[str, object], claims: dict[str, di
 
 def decision_assurance_level(decision: dict[str, object], verifier_registry: dict[str, object]) -> str:
     explicit = str(decision.get("assurance_level") or "")
-    if explicit in {"replay", "structural", "source", "unknown"}:
-        return explicit
     registration = verifier_registry.get(str(decision.get("verifier_run_id") or ""))
     capability = registration.get("capability") if isinstance(registration, dict) else None
     if capability == "replay":
@@ -55,6 +53,10 @@ def decision_assurance_level(decision: dict[str, object], verifier_registry: dic
         return "source"
     if capability == "structural_validation":
         return "structural"
+    if registration is not None:
+        return "unknown"
+    if verifier_registry and explicit in {"replay", "structural", "source"}:
+        return "unknown"
     reason_codes = {str(value) for value in decision.get("reason_codes", []) if value}
     if "native_contract" in reason_codes:
         return "structural"
@@ -238,6 +240,12 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
         if run_manifest:
             update_run_manifest(run_manifest, inputs={"quarantined_candidate_evidence": quarantine_path}, outputs={"quarantine": quarantine_path})
     return promoted
+
+
+def verify_and_promote(candidates_path: Path, decisions_path: Path, output_path: Path, run_manifest: Path | None = None) -> list[dict[str, object]]:
+    """Typed-kernel boundary retained separately from CLI orchestration."""
+
+    return promote_verified_claims(candidates_path, decisions_path, output_path, run_manifest)
 
 
 def main() -> int:

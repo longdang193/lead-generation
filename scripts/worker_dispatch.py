@@ -14,8 +14,10 @@ from typing import Callable, Iterable
 
 import jsonschema
 
-from orchestrate_enrichment import validate_lane_output
+from dispatch_contracts import validate_lane_output
+from action_receipts import append_receipt
 from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
+from typed_contracts import ActionReceipt, NativeActionRequest, WorkerResult
 
 
 TERMINAL = {"succeeded", "failed", "cancelled", "timed_out"}
@@ -81,6 +83,23 @@ class DispatchBudget:
     def release_reserved_attempts(self) -> None:
         with self._lock:
             self.reserved_attempts = 0
+
+
+def admit_research_action(request: NativeActionRequest | dict[str, object], budget: DispatchBudget | None = None) -> NativeActionRequest:
+    """Validate a native action and optionally reserve one shared attempt."""
+
+    admitted = request if isinstance(request, NativeActionRequest) else NativeActionRequest.model_validate(request)
+    if budget is not None and admitted.budget_units and not budget.reserve_attempt():
+        raise ValueError("shared dispatch budget exhausted")
+    return admitted
+
+
+def record_worker_result(result: WorkerResult | dict[str, object]) -> WorkerResult:
+    return result if isinstance(result, WorkerResult) else WorkerResult.model_validate(result)
+
+
+def settle_action_receipt(root: Path, receipt: ActionReceipt | dict[str, object]) -> ActionReceipt:
+    return append_receipt(root, receipt)
 
 
 def _terminal(status: str) -> str:

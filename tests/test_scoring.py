@@ -21,6 +21,9 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(classify_signal([{"publication_date": (today - timedelta(days=500)).isoformat(), "deadline": "Unknown"}]), "Weak")
         self.assertEqual(classify_signal([{"publication_date": "Unknown", "deadline": "Unknown"}]), "Unknown")
 
+    def test_signal_classification_accepts_manifest_bound_as_of_date(self):
+        self.assertEqual(classify_signal([{"publication_date": "2026-01-01", "deadline": "Unknown"}], date(2026, 11, 9)), "Medium")
+
     def test_ordinary_weg_word_is_not_condominium_evidence(self):
         value, _, _ = claim("Wir weisen den Weg zu guter Verwaltung.", [r"wohnungseigent[üu]mergemeinschaft", r"\bweg[- ]verwaltung\b", r"eigent[üu]mergemeinschaft"])
         self.assertEqual(value, "Unknown")
@@ -43,6 +46,15 @@ class ScoringTests(unittest.TestCase):
             derive_account_signal({"research_status": "Completed", "search_status": "Searched", "signal_state": "Strong"}, [], "Searched"),
             ("Unknown", "Unknown"),
         )
+
+    def test_verified_event_survives_partial_signal_research(self):
+        signal, status = derive_account_signal(
+            {"research_status": "Partial", "signal_state": "Unknown"},
+            [{"publication_date": date.today().isoformat(), "deadline": "Unknown"}],
+            "Searched",
+        )
+        self.assertEqual(signal, "Strong")
+        self.assertEqual(status, "Unknown")
 
     def test_structural_event_without_verified_link_stays_unknown(self):
         self.assertEqual(

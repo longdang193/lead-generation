@@ -601,6 +601,25 @@ The plan is ready for completion verification when:
   coverage/replay, harness adapters, and E2E proof are separate vertical
   outcomes with ordered dependencies.
 
+## Review Hardening
+
+- Publication and crash recovery must share one mandatory, manifest-bound
+  finalization gate; native publication cannot replace staged bytes when policy,
+  barriers, coverage, delivery, or identity checks fail.
+- The recovery marker must carry terminal status, delivery policy, registry
+  updates, and barrier updates so replay settles the same durable state as the
+  original publication attempt.
+- Promoted evidence envelopes must adapt into the typed claim contract without
+  dropping research, candidate-hash, verification, or verifier-run lineage.
+- Account theses must reject foreign-company claims and hypotheses, and fact
+  scoring must ignore rejected/negative/unknown claims while reusing canonical
+  lead-fit semantics.
+- Strict finalization must reject missing or malformed delivery evidence and
+  validate policy, target count, delivered count, and shortfall consistency.
+- Receipt contracts must round-trip JSON with an omitted artifact hash.
+- Regression coverage must prove each item above through the native tool,
+  recovery, promotion, account-intelligence, scoring, and full harness paths.
+
 ## Execution Record
 
 - 2026-11-09: completed sequential `GPT-5.6-Sol` High and `GPT-6` High reviews
@@ -618,6 +637,16 @@ The plan is ready for completion verification when:
   `C:\tmp\github-review-longdang193-lead-generation-57cfbcc-codex-native-direction-review-20261109\run-ObS9mB\response.md`, bounded result `completed`, visible response final/actionable and pinned to the reviewed SHA.
 - 2026-11-09: completed the follow-up sequential `GPT-5.6-Sol` High and `GPT-6` High review of commit `86ae2aa763734605b23005e60b00ed930138c7ad`; both remained `FAIL` and independently validated the legacy-runtime, durable-receipt, policy-aware-finalization, and native-acceptance gaps. The follow-up response artifacts remain under `C:\tmp\github-review-longdang193-lead-generation-86ae2aa-plan-verdict-review-20261109`.
 - 2026-11-09: patched this plan before execution to make those justified blockers executable acceptance conditions; no implementation code has been changed yet.
+- 2026-11-09: review cycle 1 of PR `#13` reproduced seven issues; patched the
+  publication/recovery gate, promoted-envelope adapter, account scope checks,
+  canonical fit scoring, strict delivery validation, terminal-state persistence,
+  receipt round-trip, and regression tests. Full suite: `161` tests passed.
+- 2026-11-09: final review cycle 2 reproduced six additional edge cases;
+  patched manifest-bound artifact hashes, complete promoted portfolio/contact
+  fields, wrapped claim-value normalization, exact account scope parsing,
+  strict integer delivery counts, terminal publication status validation, and
+  added targeted regression coverage. Two review cycles are complete; no third
+  review was run.
 - 2026-11-09: saved this proposed plan only; no implementation code, runtime
   artifacts, provider calls, or external publication were performed.
 
