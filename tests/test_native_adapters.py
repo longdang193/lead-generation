@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import subprocess
 import sys
@@ -12,7 +13,7 @@ import jsonschema
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import _native_command_builder
+from orchestrate_enrichment import _native_command_builder, build_verifier_queue
 from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
 
@@ -21,6 +22,34 @@ class NativeAdapterTests(unittest.TestCase):
         schema = json.loads((Path(__file__).resolve().parents[1] / "config" / "research_evidence_schema.json").read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator(schema).validate(research_run)
 
+    def write_cache_evidence(self, output: Path, item: dict[str, object], *, lane: str = "signals", claims_input: Path | None = None) -> None:
+        evidence = {"run_id": "run-1", "lane": lane, "company_id": item["company_id"], "output_sha256": hashlib.sha256(output.read_bytes()).hexdigest()}
+        if claims_input is not None:
+            evidence["claims_input_sha256"] = hashlib.sha256(claims_input.read_bytes()).hexdigest()
+        output.with_name(output.name + ".meta.json").write_text(json.dumps(evidence), encoding="utf-8")
+
+    def valid_research_payload(self, item: dict[str, object], run_id: str = "run-1") -> dict[str, object]:
+        return {"research_run": {
+            "record_type": "ResearchRun",
+            "run_id": f"{run_id}:signals:{item['company_id']}",
+            "campaign_id": item["campaign_id"],
+            "company_id": item["company_id"],
+            "research_type": "signals",
+            "source": "fixture",
+            "scope": item["scope"],
+            "status": "Completed",
+            "started_at": "2026-11-08T00:00:00+00:00",
+            "completed_at": "2026-11-08T00:00:01+00:00",
+            "result_count": 0,
+            "truncated": False,
+            "provider_status": "Available",
+            "adapter_capability": "replay",
+            "assurance_level": "replay",
+            "scope_version": item["scope_version"],
+            "scope_hash": item["scope_hash"],
+            "attempts": [{"attempt_id": "attempt-1", "query_or_source": "fixture", "status": "Completed", "truncated": False}],
+        }, "claims": []}
+
     def test_dispatch_reuses_valid_terminal_output_without_rerunning(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -28,7 +57,8 @@ class NativeAdapterTests(unittest.TestCase):
             output_dir.mkdir(parents=True)
             item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}
             output = output_dir / "signals-C1.json"
-            output.write_text(json.dumps({"research_run": {"run_id": "run-1:signals:C1", "campaign_id": "campaign-1", "company_id": "C1", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}, "claims": []}), encoding="utf-8")
+            output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
+            self.write_cache_evidence(output, item)
             def should_not_run(*args):
                 raise AssertionError("valid terminal output was not reused")
             records = dispatch_native_lane([item], "run-1", "signals", output_dir, NativeExecutorConfig(sys.executable, "default"), command_builder=should_not_run)
@@ -41,11 +71,43 @@ class NativeAdapterTests(unittest.TestCase):
             output_dir = Path(directory) / "candidate"
             output_dir.mkdir(parents=True)
             item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}
-            (output_dir / "signals-C1.json").write_text(json.dumps({"research_run": {"run_id": "run-1:signals:C1", "campaign_id": "campaign-1", "company_id": "C1", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "hash"}, "claims": []}), encoding="utf-8")
+            output = output_dir / "signals-C1.json"
+            output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
+            self.write_cache_evidence(output, item)
             pending, reused = split_material_gap_queue([item, {**item, "company_id": "C2", "scope": "signals:C2"}], "run-1", "signals", output_dir)
             self.assertEqual([row["company_id"] for row in pending], ["C2"])
             self.assertEqual([row["company_id"] for row in reused], ["C1"])
             self.assertTrue(reused[0]["reused_terminal"])
+
+    def test_mutated_terminal_output_requires_reexecution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output_dir = root / "candidate"
+            output_dir.mkdir(parents=True)
+            item = {"campaign_id": "campaign-1", "company_id": "C1", "lane": "signals", "scope": "signals:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            output = output_dir / "signals-C1.json"
+            output.write_text(json.dumps(self.valid_research_payload(item)), encoding="utf-8")
+            self.write_cache_evidence(output, item)
+            output.write_text(json.dumps({**self.valid_research_payload(item), "claims": [{"tampered": True}]}), encoding="utf-8")
+            pending, reused = split_material_gap_queue([item], "run-1", "signals", output_dir)
+            self.assertEqual([row["company_id"] for row in pending], ["C1"])
+            self.assertEqual(reused, [])
+
+    def test_stale_verifier_claims_input_requires_reexecution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output_dir = root / "verifier"
+            output_dir.mkdir(parents=True)
+            claims = root / "claims.jsonl"
+            claims.write_text("{\"candidate_claim_id\": \"claim-1\", \"candidate_sha256\": \"a\"}\n", encoding="utf-8")
+            item = {"campaign_id": "campaign-1", "company_id": "C1", "lane": "verifier", "scope": "verifier:C1", "scope_version": "v1", "scope_hash": "0" * 64, "claims_path": claims}
+            output = output_dir / "verifier-C1.json"
+            output.write_text(json.dumps({"run_id": "run-1", "lane": "verifier", "campaign_id": "campaign-1", "company_id": "C1", "scope": "verifier:C1", "scope_version": "v1", "scope_hash": "0" * 64, "claims_input_sha256": hashlib.sha256(claims.read_bytes()).hexdigest(), "decisions": []}), encoding="utf-8")
+            self.write_cache_evidence(output, item, lane="verifier", claims_input=claims)
+            claims.write_text("{\"candidate_claim_id\": \"claim-2\", \"candidate_sha256\": \"b\"}\n", encoding="utf-8")
+            pending, reused = split_material_gap_queue([item], "run-1", "verifier", output_dir)
+            self.assertEqual([row["company_id"] for row in pending], ["C1"])
+            self.assertEqual(reused, [])
 
     def test_deterministic_failure_is_attempted_once(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -215,6 +277,23 @@ class NativeAdapterTests(unittest.TestCase):
             result = subprocess.run(command, check=False, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(output.read_text(encoding="utf-8"))["decisions"], [])
+
+    def test_native_verifier_reconciles_generated_verifier_scope(self):
+        repository_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            verifier_input = root / "inputs"
+            output_dir = root / "outputs"
+            item = {"run_id": "run-1", "campaign_id": "campaign-1", "company_id": "C1", "company_name": "Company", "trusted_domain": "example.de", "location": "Berlin", "lane": "contacts", "scope": "contacts:C1", "scope_version": "v1", "scope_hash": "0" * 64}
+            queue, _ = build_verifier_queue(accepted_ids={"C1"}, admitted_items=[item], claims_by_company={"C1": []}, claims_dir=verifier_input, run_id="run-1", delivery_policy="personal")
+            verifier_item = queue[0]
+            config = NativeExecutorConfig(sys.executable, "evidence-verifier", adapter_args=(str(repository_root / "scripts" / "native_verifier.py"), "--repo-root", str(root)))
+
+            def command_builder(current_item, output_path, current_config):
+                return _native_command_builder(current_item, output_path, current_config) + ["--claims", str(current_item["claims_path"])]
+
+            records = dispatch_native_lane([verifier_item], "run-1", "verifier", output_dir, config, command_builder=command_builder)
+            reconcile_lane_outputs(records, queue, "run-1", "verifier")
 
 
 if __name__ == "__main__":

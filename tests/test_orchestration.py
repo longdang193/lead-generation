@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from orchestrate_enrichment import _native_command_builder, build_verifier_queue, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
+from orchestrate_enrichment import _native_command_builder, build_verifier_queue, complete_company_ids, create_run_manifest, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
 
 class OrchestrationTests(unittest.TestCase):
     def test_verifier_queue_is_limited_to_dispatched_scope(self):
         admitted_items = [
-            {"company_id": f"R{index:02d}", "lane": "signals", "scope_hash": f"hash-{index:02d}"}
+            {"company_id": f"R{index:02d}", "lane": "signals", "scope": f"signals:R{index:02d}", "scope_hash": f"hash-{index:02d}"}
             for index in range(30)
         ]
         claims_by_company = {item["company_id"]: [] for item in admitted_items}
@@ -30,6 +30,31 @@ class OrchestrationTests(unittest.TestCase):
         )
         self.assertEqual([item["company_id"] for item in queue], [f"R{index:02d}" for index in range(30)])
         self.assertEqual(dispatched_ids, {f"R{index:02d}" for index in range(30)})
+        self.assertTrue(all(item["lane"] == "verifier" for item in queue))
+        self.assertTrue(all(item["scope"] == f"verifier:{item['company_id']}" for item in queue))
+
+    def test_verifier_queue_preserves_source_scope_as_verifier_scope(self):
+        item = {"company_id": "C1", "lane": "contacts", "scope": "contacts:C1", "scope_version": "v1", "scope_hash": "a" * 64}
+        queue, _ = build_verifier_queue(
+            accepted_ids={"C1"},
+            admitted_items=[item],
+            claims_by_company={"C1": []},
+            claims_dir=Path("claims"),
+            run_id="run-1",
+            delivery_policy="personal",
+        )
+        self.assertEqual(queue[0]["lane"], "verifier")
+        self.assertEqual(queue[0]["scope"], "verifier:C1")
+        self.assertEqual(queue[0]["scope_version"], "v1")
+        self.assertEqual(queue[0]["scope_hash"], "a" * 64)
+
+    def test_unavailable_research_is_not_delivered(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "signals-C1.json"
+            output.write_text(json.dumps({"research_run": {"status": "Not searched", "provider_status": "Unavailable"}, "claims": []}), encoding="utf-8")
+            results = {"signals": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}], "portfolio": [{"company_id": "C1", "status": "succeeded", "output_path": output.as_posix()}]}
+            queues = {"signals": [{"company_id": "C1"}], "portfolio": [{"company_id": "C1"}]}
+            self.assertEqual(complete_company_ids(results, queues), set())
 
     def test_queue_is_deterministic_and_scoped_to_shortlist(self):
         with tempfile.TemporaryDirectory() as directory:

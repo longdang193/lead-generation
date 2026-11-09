@@ -224,7 +224,12 @@ def build_verifier_queue(
             raise ValueError(f"dispatched company lacks admitted work item: {company_id}")
         claims_path = claims_dir / f"{company_id}.jsonl"
         _write_jsonl(claims_path, claims_by_company.get(company_id, []))
-        verifier_queue.append({**admitted, "lane": "verifier", "claims_path": claims_path})
+        verifier_queue.append({
+            **admitted,
+            "lane": "verifier",
+            "scope": f"verifier:{company_id}",
+            "claims_path": claims_path,
+        })
     return verifier_queue, verifier_ids
 
 
@@ -234,12 +239,24 @@ def complete_company_ids(results: dict[str, list[dict[str, object]]], queues: di
         successful = {
             str(record["company_id"])
             for record in results.get(lane, [])
-            if str(record.get("status") or "") == "succeeded"
+            if str(record.get("status") or "") == "succeeded" and _delivery_payload_is_complete(record, lane)
         }
         lane_ids.append({str(item["company_id"]) for item in queue} & successful)
     if not lane_ids:
         return set()
     return set.intersection(*lane_ids)
+
+
+def _delivery_payload_is_complete(record: dict[str, object], lane: str) -> bool:
+    if lane == "verifier":
+        return True
+    output_path = Path(str(record.get("output_path") or ""))
+    try:
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    research_run = payload.get("research_run", payload)
+    return isinstance(research_run, dict) and research_run.get("status") == "Completed" and research_run.get("provider_status") == "Available"
 
 
 def validate_lane_output(records: list[dict[str, object]], queue: list[dict[str, object]], run_id: str, lane: str) -> None:

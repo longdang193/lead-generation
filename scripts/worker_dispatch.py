@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from orchestrate_enrichment import validate_lane_output
-from lead_contract import candidate_claim_id, candidate_sha256
+from lead_contract import candidate_claim_id, candidate_sha256, claim_requirements_met
 
 
 TERMINAL = {"succeeded", "failed", "cancelled", "timed_out"}
@@ -35,12 +35,50 @@ def _terminal(status: str) -> str:
     return status
 
 
+def _terminal_evidence_path(path: Path) -> Path:
+    return path.with_name(path.name + ".meta.json")
+
+
+def _write_terminal_evidence(path: Path, item: dict[str, object], run_id: str, lane: str) -> None:
+    evidence: dict[str, object] = {
+        "run_id": run_id,
+        "lane": lane,
+        "company_id": item["company_id"],
+        "output_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+    claims_path = item.get("claims_path")
+    if lane == "verifier" and claims_path:
+        claims_file = Path(str(claims_path))
+        if claims_file.exists():
+            evidence["claims_input_sha256"] = hashlib.sha256(claims_file.read_bytes()).hexdigest()
+    _terminal_evidence_path(path).write_text(json.dumps(evidence, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _valid_terminal_evidence(path: Path, item: dict[str, object], run_id: str, lane: str) -> bool:
+    try:
+        evidence = json.loads(_terminal_evidence_path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(evidence, dict):
+        return False
+    expected = {"run_id": run_id, "lane": lane, "company_id": item["company_id"]}
+    if any(evidence.get(field) != value for field, value in expected.items()):
+        return False
+    if lane == "verifier":
+        claims_path = Path(str(item.get("claims_path") or ""))
+        if not claims_path.exists() or evidence.get("claims_input_sha256") != hashlib.sha256(claims_path.read_bytes()).hexdigest():
+            return False
+    return evidence.get("output_sha256") == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lane: str) -> bool:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
     if not isinstance(payload, dict):
+        return False
+    if not _valid_terminal_evidence(path, item, run_id, lane):
         return False
     if lane == "verifier":
         expected = {
@@ -52,6 +90,9 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
             "scope_version": item.get("scope_version"),
             "scope_hash": item.get("scope_hash"),
         }
+        claims_path = Path(str(item.get("claims_path") or ""))
+        if not claims_path.exists() or payload.get("claims_input_sha256") != hashlib.sha256(claims_path.read_bytes()).hexdigest():
+            return False
         return all(payload.get(field) == value for field, value in expected.items()) and isinstance(payload.get("decisions"), list)
     research_run = payload.get("research_run", payload)
     if not isinstance(research_run, dict):
@@ -64,7 +105,19 @@ def _valid_terminal_output(path: Path, item: dict[str, object], run_id: str, lan
         "scope_version": item.get("scope_version"),
         "scope_hash": item.get("scope_hash"),
     }
-    return all(research_run.get(field) == value for field, value in expected.items()) and isinstance(payload.get("claims", []), list)
+    claims = payload.get("claims", [])
+    if not all(research_run.get(field) == value for field, value in expected.items()):
+        return False
+    if research_run.get("record_type") != "ResearchRun" or research_run.get("status") not in {"Not searched", "Completed", "Partial", "Unavailable", "Needs review"}:
+        return False
+    if research_run.get("provider_status") not in {"Available", "Unavailable", "Unknown"} or not isinstance(research_run.get("attempts"), list):
+        return False
+    if not isinstance(claims, list):
+        return False
+    for claim in claims:
+        if not isinstance(claim, dict) or not claim_requirements_met(claim)[0] or claim.get("candidate_claim_id") != candidate_claim_id(claim) or claim.get("candidate_sha256") != candidate_sha256(claim):
+            return False
+    return True
 
 
 def split_material_gap_queue(
@@ -130,6 +183,8 @@ def dispatch_native_lane(
             }
         if item_output.exists():
             item_output.unlink()
+        if _terminal_evidence_path(item_output).exists():
+            _terminal_evidence_path(item_output).unlink()
         attempts = 0
         status = "failed"
         exit_code: int | None = None
@@ -152,6 +207,7 @@ def dispatch_native_lane(
                 exit_code = completed.returncode
                 if exit_code == 0 and attempt_output.exists():
                     os.replace(attempt_output, item_output)
+                    _write_terminal_evidence(item_output, item, run_id, lane)
                     status = "succeeded"
                     attempt_history.append({"attempt": attempts, "status": status})
                     break
