@@ -1,0 +1,24 @@
+{
+  "record_type": "BoundedLiveProviderProbe",
+  "evaluated_at": "2026-11-09T21:39:17+00:00",
+  "campaign_id": "berlin-hausverwaltung",
+  "queries": [
+    "Hausverwaltung Berlin WEG Verwaltung",
+    "Immobilienverwaltung Berlin Mietverwaltung"
+  ],
+  "apify": {
+    "actor_id": "apify/google-search-scraper",
+    "actor_run_id": "Gs7GYLct6o8H6t9Wz",
+    "records": 20,
+    "max_spend_usd": 3.0,
+    "usage_total_usd": 0.00455,
+    "status": "available"
+  },
+  "overpass": {
+    "records": 0,
+    "status": "unavailable",
+    "error": "Overpass query failed after retries; last HTTP status 502"
+  },
+  "qualification_boundary": "Live discovery candidates were not promoted into the qualified workbook without normalization, official-site evidence, and verifier gates.",
+  "crm_boundary": "No CRM write was attempted; no CRM integration was authorized for this run."
+}

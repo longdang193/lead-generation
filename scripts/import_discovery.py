@@ -33,11 +33,13 @@ def now() -> str:
 def read_rows(path: Path, source: str) -> list[dict[str, str]]:
     if not path.exists() or path.stat().st_size == 0:
         return []
+    metadata: dict[str, object] = {}
     if path.suffix.lower() == ".csv":
         with path.open(encoding="utf-8-sig", newline="") as handle:
             return [dict(row) for row in csv.DictReader(handle)]
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
+        metadata = payload
         payload = payload.get("items") or payload.get("results") or payload.get("data") or payload.get("elements") or []
     rows = []
     for item in payload:
@@ -61,7 +63,7 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
                 "email": str(item.get("email") or tags.get("contact:email") or ""),
                 "source_type": source,
                 "source_record_id": str(item.get("source_record_id") or item.get("id") or ""),
-                "source_reuse_status": str(item.get("source_reuse_status") or "Existing export"),
+                "source_reuse_status": str(item.get("source_reuse_status") or metadata.get("source_reuse_status") or "Existing export"),
                 "extraction_method": str(item.get("extraction_method") or "Provider export"),
                 "actor_id": str(item.get("actor_id") or ""),
                 "actor_run_id": str(item.get("actor_run_id") or ""),
@@ -203,7 +205,7 @@ def main() -> int:
                 "email": row.get("email", ""),
                 "identity_status": row.get("identity_status", "Accepted" if name else "Review"),
                 "retrieved_at": now(),
-                "source_reuse_status": "Existing export" if source != "VDIV" else "New retrieval",
+                "source_reuse_status": row.get("source_reuse_status") or ("New retrieval" if source == "VDIV" else "Existing export"),
                 "extraction_method": row.get("extraction_method", "manual/public export"),
                 "actor_id": row.get("actor_id", ""),
                 "actor_run_id": row.get("actor_run_id", ""),

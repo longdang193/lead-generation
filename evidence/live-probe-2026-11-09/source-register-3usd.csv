@@ -1,0 +1,4 @@
+source_type,retrieved_at,query_or_export_id,access_limitation,actor_id,actor_run_id,extraction_method,source_reuse_status,source_url
+VDIV,2026-11-09T21:39:17+00:00,not supplied,optional provider unavailable,,,bounded local import,New retrieval,https://vdiv-bb.de/mitglieder/
+Apify,2026-11-09T21:39:17+00:00,apify-3usd.json,,apify/google-search-scraper,Gs7GYLct6o8H6t9Wz,apify/google-search-scraper,New retrieval,
+Overpass,2026-11-09T21:39:17+00:00,overpass-3usd.json,Overpass query failed after retries; last HTTP status 502,,,bounded local import,Existing export,https://overpass-api.de/api/interpreter

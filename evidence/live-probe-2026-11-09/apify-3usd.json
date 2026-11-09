@@ -1,0 +1,207 @@
+{
+  "items": [
+    {
+      "source_record_id": "1",
+      "company_name": "Hausverwaltung Berlin – Digital, Persönlich & Transparent",
+      "source_url": "https://www.processcie.com/hausverwaltung-berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "2",
+      "company_name": "mittenmang Hausverwaltung GmbH | Miethaus- und WEG ...",
+      "source_url": "https://mittenmang-hausverwaltung.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "3",
+      "company_name": "Hausverwaltung Berlin · Mietverwaltung seit 2004 | Martina ...",
+      "source_url": "https://www.hausverwaltung-berlin.berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "4",
+      "company_name": "Findus Hausverwaltung: Hausverwaltung Berlin & Brandenburg",
+      "source_url": "https://findus-hv.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "5",
+      "company_name": "WEG-Verwaltung Berlin | Zuverlässige Betreuung",
+      "source_url": "https://citysense-immobilien.de/weg-verwaltung-berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "6",
+      "company_name": "Hausverwaltung Berlin Lichterfelde - Startseite",
+      "source_url": "http://dieweg.berlin/Startseite/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "7",
+      "company_name": "WEG Hausverwaltung in Berlin für Wohnungseigentum",
+      "source_url": "https://www.immobiliengesellschaft-berlin.de/hausverwaltung/weg-hausverwaltung/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "8",
+      "company_name": "Hausverwaltung Berlin – WVG | Persönlich & zuverlässig",
+      "source_url": "https://www.wvg-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "9",
+      "company_name": "WEG-Verwaltung & Mietverwaltung in Berlin",
+      "source_url": "https://www.walter360.de/hausverwaltung-berlin",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "10",
+      "company_name": "Hausverwaltung Spandau",
+      "source_url": "https://www.hausverwaltung-piechowski-berlin.de/hausverwalter,,,hausverwaltung-spandau.html",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "11",
+      "company_name": "TOPCON Hausverwaltung - Immobilienverwaltung Berlin",
+      "source_url": "https://www.topcon-hausverwaltung.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "12",
+      "company_name": "Allee Hausverwaltung und Immobilien GmbH - Berlin",
+      "source_url": "https://www.allee-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "13",
+      "company_name": "Hermes Hausverwaltung - Berlin",
+      "source_url": "https://www.hermes-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "14",
+      "company_name": "Hausverwaltung Berlin – WVG | Persönlich & zuverlässig",
+      "source_url": "https://www.wvg-berlin.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "15",
+      "company_name": "Hausverwaltung in Berlin - Bewertungen, Preise & Kosten",
+      "source_url": "https://www.kennstdueinen.de/ergebnis-hausverwaltung-in-berlin-821-228.html",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "16",
+      "company_name": "ImmoArt Immobilienverwaltung Startseite",
+      "source_url": "https://www.immoart.berlin/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "17",
+      "company_name": "Hausverwaltung - Agas Immobilien - Ihre 1. Wahl vor Ort",
+      "source_url": "https://www.agas-immobilien.de/hausverwaltung/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "18",
+      "company_name": "DK Management & Hausverwaltung |",
+      "source_url": "https://dk-hausverwaltung.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "19",
+      "company_name": "Beste Hausverwaltung Berlin – 18 Top-Angebote im Vergleich ...",
+      "source_url": "https://www.hausverwaltersuche.de/ort/hausverwaltung-berlin_ber/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    },
+    {
+      "source_record_id": "20",
+      "company_name": "Über uns – Frank Behrend Wohnungsverwaltung",
+      "source_url": "https://verwaltung-behrend.de/",
+      "source_type": "Apify",
+      "source_reuse_status": "New retrieval",
+      "extraction_method": "apify/google-search-scraper",
+      "actor_id": "apify/google-search-scraper",
+      "actor_run_id": "Gs7GYLct6o8H6t9Wz"
+    }
+  ],
+  "actor_id": "apify/google-search-scraper",
+  "actor_run_id": "Gs7GYLct6o8H6t9Wz",
+  "usage_total_usd": 0.004549999999999999
+}
