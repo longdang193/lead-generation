@@ -75,6 +75,20 @@ class CampaignSpecTests(unittest.TestCase):
             path.write_text(json.dumps({**self.valid_spec(), "target_count": 6}), encoding="utf-8")
             self.assertTrue(any("campaign hash mismatch" in error for error in verify_manifest(manifest_path, root)))
 
+    def test_manifest_binds_inputs_by_campaign_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self.valid_spec()
+            spec["input_bindings"] = {"qualification": "data/raw/site-evidence.jsonl"}
+            campaign_path = self.write_spec(root, spec)
+            input_path = root / "data" / "raw" / "site-evidence.jsonl"
+            input_path.parent.mkdir(parents=True)
+            input_path.write_text("{}\n", encoding="utf-8")
+            manifest_path = root / "evidence" / "manifests" / "run.json"
+            with patch("orchestrate_enrichment.git_output", side_effect=["a" * 40, "", "main"]):
+                manifest = create_run_manifest(root, manifest_path, "run-1", [input_path], [], campaign_config=campaign_path, require_clean=True)
+            self.assertEqual(manifest["inputs"]["qualification"]["path"], "data/raw/site-evidence.jsonl")
+
     def test_manifest_lifecycle_allows_runtime_artifacts_in_real_git_checkout(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
-from lead_contract import candidate_sha256, run_scope_matches
+from lead_contract import candidate_claim_id, candidate_sha256, run_scope_matches
 from run_manifest import atomic_write, entry, load as load_manifest, portable_path, publication_marker_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
 
 
@@ -101,6 +101,12 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         raise ValueError("implementation worktree must be clean before opening research queues")
     campaign = load_campaign_spec(root, campaign_config or _default_campaign_config(root))
     run_id = run_id or f"lead-{uuid.uuid4().hex[:16]}"
+    manifest_inputs: dict[str, dict[str, str]] = {}
+    for path in inputs:
+        key = next((name for name, relative_path in campaign.input_bindings.items() if (root / relative_path).resolve() == path.resolve()), path.stem)
+        if key in manifest_inputs:
+            raise ValueError(f"duplicate manifest input key: {key}")
+        manifest_inputs[key] = manifest_entry(root, path)
     manifest = {
         "run_id": run_id,
         "generated_at": stamp(),
@@ -112,7 +118,7 @@ def create_run_manifest(root: Path, output: Path, run_id: str | None, inputs: li
         "delivery_policy": campaign.delivery_policy,
         "campaign": campaign.manifest_record(),
         "accepted_company_ids": sorted(accepted_company_ids or set()),
-        "inputs": {path.stem: manifest_entry(root, path) for path in inputs},
+        "inputs": manifest_inputs,
         "supporting_inputs": {path.stem: manifest_entry(root, path) for path in supporting_inputs},
         "queues": {},
         "barriers": {"accepted_identity": True, "provisional_shortlist": False, "research": False, "verifier": False, "verified_evidence": False, "projection": False, "ranking": False, "readiness": False, "published": False},
@@ -388,6 +394,8 @@ def _fixture_inputs(root: Path, shortlist: list[dict[str, str]], run_id: str) ->
 
 
 def _worker_payloads(records: dict[str, list[dict[str, object]]], queues: dict[str, list[dict[str, object]]] | None = None) -> tuple[list[dict[str, object]], list[dict[str, object]], list[dict[str, object]]]:
+    from promote_evidence import VALIDATOR
+
     research_runs: list[dict[str, object]] = []
     claims: list[dict[str, object]] = []
     quarantined: list[dict[str, object]] = []
@@ -416,10 +424,32 @@ def _worker_payloads(records: dict[str, list[dict[str, object]]], queues: dict[s
             if not isinstance(output_claims, list):
                 raise ValueError(f"worker claims are not a list: {output_path}")
             for claim in output_claims:
-                if isinstance(claim, dict):
-                    claims.append(claim)
-                else:
-                    quarantined.append({"lane": record.get("lane"), "company_id": record.get("company_id"), "reason": "malformed_claim", "claim": claim})
+                quarantine = {"lane": record.get("lane"), "company_id": record.get("company_id"), "reason": "malformed_claim", "claim": claim}
+                if not isinstance(claim, dict):
+                    quarantined.append(quarantine)
+                    continue
+                schema_errors = sorted(error.message for error in VALIDATOR.iter_errors(claim))
+                if schema_errors:
+                    quarantine["errors"] = schema_errors
+                    quarantined.append(quarantine)
+                    continue
+                if claim.get("candidate_claim_id") != candidate_claim_id(claim):
+                    quarantine["errors"] = ["candidate_claim_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if claim.get("candidate_sha256") != candidate_sha256(claim):
+                    quarantine["errors"] = ["candidate_sha256 mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if str(claim.get("company_id") or "") != str(record.get("company_id") or ""):
+                    quarantine["errors"] = ["company_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                if str(claim.get("research_run_id") or "") != str(research_run.get("run_id") or ""):
+                    quarantine["errors"] = ["research_run_id mismatch"]
+                    quarantined.append(quarantine)
+                    continue
+                claims.append(claim)
     return research_runs, claims, quarantined
 
 

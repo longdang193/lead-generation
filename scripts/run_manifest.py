@@ -129,8 +129,27 @@ def recover_publication(root: Path, manifest_path: Path) -> None:
     if not marker_path.exists():
         return
     marker = load(marker_path)
-    staging = root / str(marker.get("staging_path") or "")
-    final = root / str(marker.get("final_path") or "")
+    if str(marker.get("run_id") or "") != run_id:
+        raise ValueError("publication recovery marker run_id mismatch")
+    marker_head_sha = str(marker.get("head_sha") or "")
+    if marker_head_sha and marker_head_sha != str(manifest.get("head_sha") or ""):
+        raise ValueError("publication recovery marker head_sha mismatch")
+    revision_errors = validate_manifest_revision(root, manifest)
+    if revision_errors:
+        raise ValueError("publication recovery revision validation failed: " + "; ".join(revision_errors))
+    root_resolved = root.resolve()
+    def marker_path_value(name: str) -> Path:
+        raw = str(marker.get(name) or "")
+        if not raw:
+            raise ValueError(f"publication recovery marker is missing {name}")
+        resolved = (root / raw).resolve()
+        try:
+            resolved.relative_to(root_resolved)
+        except ValueError as exc:
+            raise ValueError(f"publication recovery {name} escapes repository root") from exc
+        return resolved
+    staging = marker_path_value("staging_path")
+    final = marker_path_value("final_path")
     expected = str(marker.get("staging_sha256") or "")
     if staging.exists():
         if file_sha256(staging) != expected:

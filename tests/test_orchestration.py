@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
+from lead_contract import candidate_claim_id, candidate_sha256
 from orchestrate_enrichment import _native_command_builder, _worker_payloads, build_verifier_queue, complete_company_ids, create_run_manifest, delivery_summary, validate_final_priority_rows, validate_lane_output, write_lane_queue
 from run_manifest import update
 
@@ -18,10 +19,13 @@ class OrchestrationTests(unittest.TestCase):
     def test_malformed_claims_are_quarantined_without_aborting_other_lanes(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "signals.json"
-            output.write_text(json.dumps({"research_run": {"record_type": "ResearchRun", "company_id": "C1"}, "claims": [{"candidate_claim_id": "ok"}, "broken"]}), encoding="utf-8")
+            claim = {"record_type": "EvidenceClaim", "company_id": "C1", "claim_type": "company_fact", "claim_value": "Hausverwaltung", "source_url": "https://example.de", "source_kind": "official_site", "evidence_excerpt": "Hausverwaltung", "retrieved_at": "2026-11-08T00:00:00+00:00", "account_relationship": "direct", "confidence": "high", "research_run_id": "run-1:signals:C1", "candidate_status": "Candidate"}
+            claim["candidate_claim_id"] = candidate_claim_id(claim)
+            claim["candidate_sha256"] = candidate_sha256(claim)
+            output.write_text(json.dumps({"research_run": {"record_type": "ResearchRun", "run_id": "run-1:signals:C1", "company_id": "C1"}, "claims": [claim, {}]}), encoding="utf-8")
             runs, claims, quarantined = _worker_payloads({"signals": [{"lane": "signals", "company_id": "C1", "status": "succeeded", "output_path": str(output)}]})
             self.assertEqual(len(runs), 1)
-            self.assertEqual(claims, [{"candidate_claim_id": "ok"}])
+            self.assertEqual(claims, [claim])
             self.assertEqual(quarantined[0]["reason"], "malformed_claim")
 
     def test_personal_delivery_uses_successful_lane_union_and_explicit_shortfall(self):
@@ -266,6 +270,36 @@ class OrchestrationTests(unittest.TestCase):
             self.assertEqual(manifest["run_id"], "run-1")
             self.assertEqual(manifest["outputs"]["result"]["path"], "data/result.csv")
             self.assertEqual(manifest["status"], "ready")
+
+    def test_created_manifest_binds_all_campaign_inputs_before_non_fixture_admission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            campaign_path = root / "config" / "campaigns" / "campaign.json"
+            source_campaign = Path(__file__).resolve().parents[1] / "config" / "campaigns" / "berlin-hausverwaltung.json"
+            campaign = json.loads(source_campaign.read_text(encoding="utf-8"))
+            campaign["target_count"] = 1
+            campaign["delivery_policy"] = "personal"
+            campaign_path.parent.mkdir(parents=True)
+            campaign_path.write_text(json.dumps(campaign), encoding="utf-8")
+            input_paths = []
+            for name, relative_path in campaign["input_bindings"].items():
+                path = root / relative_path
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if name == "companies":
+                    path.write_text("company_id,company_name,domain,verified_company_domain,city,resolution_status\nC1,Company 1,company1.de,company1.de,Berlin,Accepted\n", encoding="utf-8")
+                elif path.suffix == ".csv":
+                    path.write_text("company_id\n", encoding="utf-8")
+                else:
+                    path.write_text("{}\n", encoding="utf-8")
+                input_paths.append(path)
+            shortlist = root / "shortlist.csv"
+            shortlist.write_text("company_id,company_name,domain,verified_company_domain,city,resolution_status\nC1,Company 1,company1.de,company1.de,Berlin,Accepted\n", encoding="utf-8")
+            manifest_path = root / "evidence" / "manifests" / "run.json"
+            with patch("orchestrate_enrichment.git_output", side_effect=["a" * 40, "", "main"]):
+                create_run_manifest(root, manifest_path, "run-1", [*input_paths, shortlist], [], accepted_company_ids={"C1"}, campaign_config=campaign_path, require_clean=True)
+            with patch("orchestrate_enrichment._write_lane_queue_rows", side_effect=RuntimeError("admission complete")):
+                with self.assertRaisesRegex(RuntimeError, "admission complete"):
+                    __import__("orchestrate_enrichment").run_pipeline(root, manifest_path, shortlist, campaign_config=campaign_path, worker_executable="worker")
 
     def test_lane_output_requires_exact_queue_coverage(self):
         queue = [{"company_id": "A"}, {"company_id": "B"}]
