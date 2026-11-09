@@ -40,6 +40,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(apify, Path("C:/tmp/run/data/raw/apify.json"))
         self.assertEqual(overpass, Path("C:/tmp/run/data/raw/overpass.json"))
 
+    def test_apify_budget_below_provider_minimum_is_rejected_before_calls(self):
+        config = RuntimeConfig(apify_max_spend_usd=0.01)
+        self.assertEqual(
+            config.validate(provider="apify"),
+            ["APIFY_MAX_SPEND_USD must be at least 0.50 for Apify"],
+        )
+
     def test_json_provider_fields_are_preserved(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "provider.json"

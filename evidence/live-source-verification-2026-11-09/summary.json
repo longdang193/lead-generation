@@ -1,0 +1,17 @@
+{
+  "record_type": "LiveSourceVerificationSummary",
+  "evaluated_at": "2026-11-09T08:03:41+00:00",
+  "git_revision": "8d7ae29be49d1b421513263c6d1f07d7271babb8",
+  "campaign_id": "berlin-hausverwaltung",
+  "input": "evidence/live-source-verification-2026-11-09/missing-city-input.csv",
+  "output": "evidence/live-source-verification-2026-11-09/website-evidence.jsonl",
+  "capture_index": "evidence/live-source-verification-2026-11-09/capture-index.csv",
+  "companies_attempted": 10,
+  "companies_fetched": 10,
+  "companies_fetch_failed": 0,
+  "berlin_relevance_confirmed_by_official_site": 10,
+  "limitations": [
+    "Website fetch/claim extraction is evidence, not an independent verifier decision.",
+    "No claim was promoted and the durable production gate remains blocked."
+  ]
+}

@@ -21,6 +21,8 @@ ENV_NAMES = {
     "MAX_PRIORITY_ACCOUNTS",
 }
 
+APIFY_MIN_SPEND_USD = 0.50
+
 
 def load_dotenv(path: Path | None = None) -> dict[str, str]:
     path = path or ROOT / ".env"
@@ -89,6 +91,8 @@ class RuntimeConfig:
             errors.append("runtime bounds must be positive")
         if self.apify_max_spend_usd < 0 or self.max_priority_accounts <= 0:
             errors.append("spend and priority bounds are invalid")
+        if provider == "apify" and 0 < self.apify_max_spend_usd < APIFY_MIN_SPEND_USD:
+            errors.append(f"APIFY_MAX_SPEND_USD must be at least {APIFY_MIN_SPEND_USD:.2f} for Apify")
         if provider == "apify" and require_secrets and not self.apify_api_token:
             errors.append("APIFY_API_TOKEN is required for Apify")
         if provider == "hunter" and require_secrets and not self.hunter_api_key:
