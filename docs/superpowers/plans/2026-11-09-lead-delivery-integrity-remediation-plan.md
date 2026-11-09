@@ -60,17 +60,14 @@ Those decisions require a separately authorized provider-backed live probe.
 
 ## Review Resolution
 
-Both requested runs completed in one authenticated, repository-bound profile;
+Both requested review runs completed against the published repository revision;
 neither was incomplete or ambiguous and neither was retried or resubmitted.
 
-- Repository: `longdang193/lead-generation`; branch: `main`.
-- Reviewed commit: `930851cdad1168d8381afe712c92d3f298bdaa5a`.
-- Context ID: `longdang193-lead-generation-930851cd-fragile-bottlenecks`.
-- Profile: `C:\Users\HOANG PHI LONG DANG\.codex\profiles\github-review\longdang193-lead-generation`.
-- Marker matched `{ "repository": "longdang193/lead-generation", "project_key": "longdang193-lead-generation" }`.
-- Publication: `no publication required`; the full SHA was reachable from GitHub.
-- `GPT-5.6-Sol`, `High`: run `run-m0qoy2`, conversation `6af115c8-bcd0-83eb-82bd-01a07b0554e5`, bounded result `completed`, visible final response verified in the fresh model tab; response `C:\tmp\lead-generation-github-review-0b425885ada142b3949cac6e12d6f00e\output\run-m0qoy2\response.md`, result `C:\tmp\lead-generation-github-review-0b425885ada142b3949cac6e12d6f00e\output\run-m0qoy2\result.json`.
-- `GPT-6`, `High`: run `run-iwzsUR`, conversation `6af1167f-be38-83ed-a21e-086b5643fe4c`, bounded result `completed`, visible final response verified in the fresh model tab; response `C:\tmp\lead-generation-github-review-0b425885ada142b3949cac6e12d6f00e\output\run-iwzsUR\response.md`, result `C:\tmp\lead-generation-github-review-0b425885ada142b3949cac6e12d6f00e\output\run-iwzsUR\result.json`.
+- Repository: `longdang193/lead-generation`; review branch: `main`.
+- Reviewed source revision: `930851cdad1168d8381afe712c92d3f298bdaa5a`.
+- `GPT-5.6-Sol`, `High`: visible final response verified and actionable.
+- `GPT-6`, `High`: visible final response verified and actionable.
+- Publication: no publication was required for the source review; the full SHA was reachable from GitHub.
 
 Validated findings, accepted only where visible review responses and source
 inspection agree:

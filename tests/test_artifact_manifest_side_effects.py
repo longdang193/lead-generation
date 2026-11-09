@@ -32,6 +32,21 @@ class ArtifactManifestSideEffectTests(unittest.TestCase):
             self.assertEqual(manifest["outputs"]["workbook"]["path"], "output/run-1.xlsx")
             self.assertFalse(publication_marker_path(root, "run-1").exists())
 
+    def test_publication_recovery_finishes_replacement_when_old_final_exists(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.json"
+            final = root / "output" / "run-1.xlsx"
+            staging = root / "output" / "run-1.staging.xlsx"
+            final.parent.mkdir(parents=True)
+            final.write_bytes(b"old workbook")
+            staging.write_bytes(b"new workbook")
+            manifest_path.write_text(json.dumps({"run_id": "run-1", "head_sha": "a" * 40, "status": "ready_for_validation", "outputs": {}, "inputs": {}, "supporting_inputs": {}}), encoding="utf-8")
+            atomic_write(publication_marker_path(root, "run-1"), {"run_id": "run-1", "final_path": "output/run-1.xlsx", "staging_path": "output/run-1.staging.xlsx", "staging_sha256": file_sha256(staging)})
+            recover_publication(root, manifest_path)
+            self.assertEqual(final.read_bytes(), b"new workbook")
+            self.assertFalse(staging.exists())
+
     def test_stale_reachable_revision_is_rejected_against_current_checkout(self):
         root = Path(__file__).resolve().parents[1]
         revisions = subprocess.run(["git", "rev-list", "--max-count=2", "HEAD"], cwd=root, check=True, capture_output=True, text=True).stdout.splitlines()

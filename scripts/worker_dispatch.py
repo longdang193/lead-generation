@@ -32,7 +32,8 @@ def _execution_fingerprints(item: dict[str, object], run_id: str, lane: str) -> 
         "campaign_id", "company_id", "scope", "scope_version", "scope_hash",
         "trusted_domain", "location", "adapter", "adapter_capability",
         "profile", "worker_profile", "provider", "provider_status",
-        "input_fingerprint", "claims_path",
+        "input_fingerprint", "claims_path", "executable", "adapter_args",
+        "head_sha", "campaign_sha256", "input_hashes", "verifier_profile",
     )
     identity = {field: item.get(field) for field in identity_fields if field in item}
     identity.update({"run_id": run_id, "lane": lane})
@@ -163,13 +164,17 @@ def split_material_gap_queue(
     run_id: str,
     lane: str,
     output_dir: Path,
+    config: NativeExecutorConfig | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     pending: list[dict[str, object]] = []
     reused: list[dict[str, object]] = []
     for item in queue:
         company_id = str(item["company_id"])
         output_path = output_dir / f"{lane}-{company_id}.json"
-        if not output_path.exists() or not _valid_terminal_output(output_path, item, run_id, lane):
+        cache_item = dict(item)
+        if config is not None:
+            cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
+        if not output_path.exists() or not _valid_terminal_output(output_path, cache_item, run_id, lane):
             pending.append(item)
             continue
         reused.append({
@@ -206,7 +211,9 @@ def dispatch_native_lane(
     def run_one(item: dict[str, object]) -> dict[str, object]:
         company_id = str(item["company_id"])
         item_output = output_dir / f"{lane}-{company_id}.json"
-        if item_output.exists() and _valid_terminal_output(item_output, item, run_id, lane):
+        cache_item = dict(item)
+        cache_item.update({"profile": config.profile, "executable": config.executable, "adapter_args": list(config.adapter_args)})
+        if item_output.exists() and _valid_terminal_output(item_output, cache_item, run_id, lane):
             return {
                 "run_id": run_id,
                 "lane": lane,
@@ -245,7 +252,7 @@ def dispatch_native_lane(
                 exit_code = completed.returncode
                 if exit_code == 0 and attempt_output.exists():
                     os.replace(attempt_output, item_output)
-                    _write_terminal_evidence(item_output, item, run_id, lane)
+                    _write_terminal_evidence(item_output, cache_item, run_id, lane)
                     status = "succeeded"
                     attempt_history.append({"attempt": attempts, "status": status})
                     break
@@ -476,5 +483,7 @@ def reconcile_lane_outputs(records: list[dict[str, object]], queue: list[dict[st
             if research_run.get(field) != expected_value:
                 raise ValueError(f"worker output scope mismatch for {output_path}: {field}")
         claims = payload.get("claims", [])
-        if not isinstance(claims, list) or any(not isinstance(claim, dict) for claim in claims):
+        if not isinstance(claims, list):
+            raise ValueError(f"worker output claims are not objects: {output_path}")
+        if any(not isinstance(claim, dict) for claim in claims) and not allow_partial:
             raise ValueError(f"worker output claims are not objects: {output_path}")

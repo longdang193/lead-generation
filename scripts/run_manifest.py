@@ -132,16 +132,17 @@ def recover_publication(root: Path, manifest_path: Path) -> None:
     staging = root / str(marker.get("staging_path") or "")
     final = root / str(marker.get("final_path") or "")
     expected = str(marker.get("staging_sha256") or "")
-    if final.exists():
-        if file_sha256(final) != expected:
-            raise ValueError("publication recovery found a mismatched final output")
-        update(path=manifest_path, root=root, outputs={"workbook": final}, status=str(manifest.get("status") or "ready_for_validation"), barriers={"published": True})
-        marker_path.unlink()
-        return
-    if staging.exists() and file_sha256(staging) == expected:
-        marker_path.unlink()
-        return
-    raise ValueError("publication recovery found neither a valid staging nor final output")
+    if staging.exists():
+        if file_sha256(staging) != expected:
+            raise ValueError("publication recovery found a mismatched staging output")
+        os.replace(staging, final)
+    elif not final.exists():
+        raise ValueError("publication recovery found neither a valid staging nor final output")
+    elif file_sha256(final) != expected:
+        raise ValueError("publication recovery found a mismatched final output")
+    update(path=manifest_path, root=root, outputs={"workbook": final}, status=str(manifest.get("status") or "ready_for_validation"), barriers={"published": True})
+    marker_path.unlink()
+    return
 
 
 def update(

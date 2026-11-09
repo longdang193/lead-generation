@@ -514,6 +514,12 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         "adapter_capability": "replay" if fixture else "live_research",
         "worker_profile": worker_profile,
         "provider": "fixture" if fixture else "configured",
+        "profile": worker_profile,
+        "executable": worker_executable or "fixture",
+        "adapter_args": list(worker_adapter_args),
+        "head_sha": str(manifest.get("head_sha") or ""),
+        "campaign_sha256": campaign.sha256,
+        "input_hashes": {name: file_digest(path) for name, path in fixture_inputs.items() if path.exists()},
     }
     if not fixture:
         for name, path in fixture_inputs.items():
@@ -549,7 +555,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     from worker_dispatch import NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
 
     def dispatch_lane_items(queue: list[dict[str, object]], lane: str, output_dir: Path) -> list[dict[str, object]]:
-        pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir)
+        pending, reused = split_material_gap_queue(queue, run_id, lane, output_dir, config=None if fixture else worker_config)
         if fixture:
             fresh = dispatch_fixture_lanes({lane: pending}, run_id, output_dir.parent).get(lane, [])
         else:
@@ -590,6 +596,7 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
                     require_qualification=True,
                     company_rows=company_rows,
                     required_location_evidence=required_location_evidence,
+                    execution_context=execution_context,
                 )
             if fixture:
                 reserve_results = {lane: dispatch_lane_items(reserve_queues[lane], lane, root / "evidence" / "candidate" / run_id / "reserve" / lane) for lane in reserve_queues}
@@ -654,11 +661,24 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
             run_id=run_id,
             delivery_policy=campaign.delivery_policy,
         )
+        verifier_execution_context = {
+            "adapter": "native_verifier",
+            "adapter_capability": verifier_capability,
+            "profile": verifier_profile,
+            "verifier_profile": verifier_profile,
+            "executable": verifier_executable or "fixture",
+            "adapter_args": list(verifier_adapter_args),
+            "head_sha": str(manifest.get("head_sha") or ""),
+            "campaign_sha256": campaign.sha256,
+            "input_hashes": {name: file_digest(path) for name, path in fixture_inputs.items() if path.exists()},
+        }
+        for item in verifier_queue:
+            item.update(verifier_execution_context)
         def verifier_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
             return _native_command_builder(item, output_path, config) + ["--claims", str(item["claims_path"])]
         verifier_config = NativeExecutorConfig(verifier_executable, verifier_profile, adapter_args=verifier_adapter_args)
         verifier_output_dir = root / "evidence" / "verifier" / run_id / "outputs"
-        verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir)
+        verifier_pending, verifier_reused = split_material_gap_queue(verifier_queue, run_id, "verifier", verifier_output_dir, config=verifier_config)
         verifier_results = verifier_reused + dispatch_native_lane(verifier_pending, run_id, "verifier", verifier_output_dir, verifier_config, command_builder=verifier_command_builder)
         reconcile_lane_outputs(verifier_results, verifier_queue, run_id, "verifier", allow_partial=campaign.delivery_policy == "personal")
         decisions = []
@@ -697,10 +717,11 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     selection_scope = delivered_ids
     priority_rows = select_accounts(projected_scores, qualification, campaign.target_count, selection_scope, campaign.delivery_policy)
     validate_final_priority_rows(priority_rows, selection_scope, campaign.target_count, campaign.delivery_policy)
+    final_delivery = delivery_summary({str(row.get("company_id") or "") for row in priority_rows}, campaign.target_count, campaign.delivery_policy)
     priority_path = root / "data" / "processed" / run_id / "priority.csv"
     shortlist_audit_path = root / "evidence" / "audits" / run_id / "shortlist.csv"
     write_provisional_shortlist(priority_rows, priority_path, shortlist_audit_path)
-    update_manifest_file(manifest_path, root, outputs={"priority": priority_path, "shortlist_audit": shortlist_audit_path}, status="ranked", barriers={"ranking": True})
+    update_manifest_file(manifest_path, root, outputs={"priority": priority_path, "shortlist_audit": shortlist_audit_path}, registries={"delivery": final_delivery}, status="ranked", barriers={"ranking": True})
     staging = root / "output" / f"{run_id}.staging.xlsx"
     final_output = root / "output" / f"{run_id}.xlsx"
     build_report = root / "evidence" / "reports" / run_id / "build.json"
@@ -737,7 +758,6 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
         "staging_sha256": file_digest(staging),
     })
     os.replace(staging, final_output)
-    final_delivery = delivery_summary(delivered_ids, campaign.target_count, campaign.delivery_policy)
     update_manifest_file(manifest_path, root, outputs={"workbook": final_output}, registries={"delivery": final_delivery}, status=str(final_delivery["status"]), barriers={"readiness": True, "published": True})
     marker.unlink(missing_ok=True)
     return {"run_id": run_id, "workbook": final_output, "priority": priority_path, "qa_report": qa_report, "delivery": final_delivery}
