@@ -225,6 +225,16 @@ def _raw_result_hash(raw_result: object) -> str:
     return hashlib.sha256(canonical_json(raw_result).encode("utf-8")).hexdigest()
 
 
+def _validate_coverage_delta(admission: LifecycleEvent, terminal_status: str, coverage_delta: dict[str, Any]) -> None:
+    if terminal_status not in {"Completed", "Partial"} and coverage_delta:
+        raise ValueError("non-successful action cannot report coverage")
+    if any(name != admission.action_type for name in coverage_delta):
+        raise ValueError("coverage key does not match admitted action type")
+    for name, value in coverage_delta.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            raise ValueError(f"coverage value is invalid: {name}")
+
+
 def validate_result(root: Path, result: WorkerResult | dict[str, object]) -> WorkerResult:
     validated = result if isinstance(result, WorkerResult) else WorkerResult.model_validate(result)
     if validated.validation_errors:
@@ -373,6 +383,7 @@ def settle_action(root: Path, receipt: ActionReceipt | dict[str, object]) -> Act
                 raise ValueError("receipt validation errors do not match rejected result")
             if validated.coverage_delta:
                 raise ValueError("rejected receipt cannot report coverage")
+        _validate_coverage_delta(admission, validated.terminal_status, validated.coverage_delta)
         if validated.budget_requested != admission.budget_units:
             raise ValueError("receipt budget does not match admission")
         if validated.budget_settled > validated.budget_requested:
@@ -436,15 +447,19 @@ def replay_lifecycle(root: Path, run_id: str) -> dict[str, Any]:
             if result is None:
                 raise ValueError(f"settlement missing result validation or rejection: {key[0]}/{key[1]}")
             settled += settlement.budget_settled
-            for name, value in settlement.coverage_delta.items():
-                if isinstance(value, bool):
-                    coverage[name] = coverage.get(name, 0) + int(value)
-                elif isinstance(value, (int, float)) and not isinstance(value, bool):
-                    coverage[name] = coverage.get(name, 0) + value
+            if settlement.terminal_status not in {"Completed", "Partial"}:
+                if settlement.coverage_delta:
+                    raise ValueError(f"non-successful settlement reports coverage: {key[0]}/{key[1]}")
+            else:
+                for name, value in settlement.coverage_delta.items():
+                    if isinstance(value, bool):
+                        coverage[name] = coverage.get(name, 0) + int(value)
+                    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                        coverage[name] = coverage.get(name, 0) + value
             status = settlement.terminal_status
         else:
             status = result.terminal_status if result is not None else "Admitted"
-        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "status": status, "settled": settlement is not None})
+        actions.append({"action_id": key[0], "attempt_id": key[1], "company_id": admitted.company_id, "action_type": admitted.action_type, "scope": admitted.scope, "status": status, "settled": settlement is not None})
     return {
         "action_count": len(actions),
         "actions": actions,

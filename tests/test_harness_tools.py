@@ -90,13 +90,13 @@ class HarnessToolTests(unittest.TestCase):
             scores = root / "scores.csv"
             priority = root / "priority.csv"
             qa_report = root / "qa.md"
-            qa_sample = root / "qa.json"
+            qa_sample = root / "qa.csv"
             workbook = root / "workbook.xlsx"
             evidence.write_text(json.dumps({"company_id": "FOREIGN", "source_url": "https://example.com", "evidence_excerpt": "unrelated", "research_run_id": "run-1:signals:FOREIGN"}) + "\n", encoding="utf-8")
             scores.write_text("company_id\nFOREIGN\n", encoding="utf-8")
             priority.write_text("company_id\nFOREIGN\n", encoding="utf-8")
             qa_report.write_text("- Errors: 99\n", encoding="utf-8")
-            qa_sample.write_text("[]\n", encoding="utf-8")
+            qa_sample.write_text("company_id,lead_tier\nFOREIGN,A\n", encoding="utf-8")
             workbook.write_bytes(b"not-an-xlsx")
             manifest = root / "manifest.json"
             outputs = {
@@ -104,7 +104,7 @@ class HarnessToolTests(unittest.TestCase):
                 "scores": {"path": "scores.csv", "sha256": file_sha256(scores)},
                 "priority": {"path": "priority.csv", "sha256": file_sha256(priority)},
                 "qa_report": {"path": "qa.md", "sha256": file_sha256(qa_report)},
-                "qa_sample": {"path": "qa.json", "sha256": file_sha256(qa_sample)},
+                "qa_sample": {"path": "qa.csv", "sha256": file_sha256(qa_sample)},
                 "workbook": {"path": "workbook.xlsx", "sha256": file_sha256(workbook)},
             }
             atomic_write(manifest, {

@@ -423,11 +423,19 @@ def _validate_finalization_artifacts(
     qa_sample = artifacts.get("qa_sample")
     if qa_sample:
         try:
-            sample = json.loads(qa_sample.read_text(encoding="utf-8"))
-            if not isinstance(sample, list):
-                errors.append("QA sample is not a JSON list")
-        except (OSError, json.JSONDecodeError):
-            errors.append("QA sample is not valid JSON")
+            with qa_sample.open(encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                sample = list(reader)
+                fields = reader.fieldnames or []
+            if "company_id" not in fields:
+                errors.append("QA sample is missing a company_id column")
+            sample_scope = {str(row.get("company_id") or "") for row in sample if row.get("company_id")}
+            if accepted and not sample_scope.issubset(accepted):
+                errors.append("QA sample contains a company outside the admitted run scope")
+            if any(not row.get("lead_tier") for row in sample):
+                errors.append("QA sample contains a row without lead_tier")
+        except (OSError, csv.Error):
+            errors.append("QA sample is not valid CSV")
 
     workbook_record = outputs.get("workbook")
     if isinstance(workbook_record, dict):
@@ -494,6 +502,16 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             unsettled = [item for item in lifecycle.get("actions", []) if item.get("settled") is not True]
             if unsettled:
                 errors.append("finalization requires all admitted actions to settle")
+            accepted_ids = {str(value) for value in manifest.get("accepted_company_ids", []) if str(value)}
+            completed_ids = {str(item.get("company_id") or "") for item in lifecycle.get("actions", []) if item.get("status") == "Completed"}
+            if delivery_policy == "strict" and accepted_ids and not accepted_ids.issubset(completed_ids):
+                errors.append("durable lifecycle does not cover every accepted company with a completed action")
+            recorded_coverage = manifest.get("coverage") or manifest.get("research_coverage")
+            if isinstance(recorded_coverage, dict):
+                recorded_status = str(recorded_coverage.get("status") or recorded_coverage.get("coverage_status") or "unknown")
+                derived_status = "complete" if not accepted_ids or accepted_ids.issubset(completed_ids) else "partial"
+                if recorded_status in {"complete", "completed"} and derived_status != "complete":
+                    errors.append("recorded coverage claims complete but durable lifecycle coverage is incomplete")
     allowed, policy_errors = finalization_eligibility(manifest, delivery_policy)
     if not allowed:
         errors.extend(policy_errors)
@@ -528,6 +546,19 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             else:
                 validated_artifacts[key] = path
         _validate_finalization_artifacts(root, manifest, output_bucket, validated_artifacts, errors)
+        delivery = manifest.get("delivery")
+        if isinstance(delivery, dict) and "priority" in validated_artifacts:
+            try:
+                with validated_artifacts["priority"].open(encoding="utf-8-sig", newline="") as handle:
+                    priority_rows = list(csv.DictReader(handle))
+                durable_delivered_count = len({str(row.get("company_id") or "") for row in priority_rows if row.get("company_id")})
+                if delivery.get("delivered_count") != durable_delivered_count:
+                    errors.append("delivery count does not match durable ranked-lead artifact")
+                target_count = delivery.get("target_count")
+                if isinstance(target_count, int) and not isinstance(target_count, bool) and delivery.get("shortfall") != max(target_count - durable_delivered_count, 0):
+                    errors.append("delivery shortfall does not match durable ranked-lead artifact")
+            except (OSError, csv.Error):
+                errors.append("ranked leads artifact is not readable CSV")
     workbook = outputs.get("workbook") if isinstance(outputs, dict) else None
     if not isinstance(workbook, dict):
         errors.append("finalization requires a recorded workbook artifact")

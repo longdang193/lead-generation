@@ -180,6 +180,38 @@ class ActionLifecycleTests(unittest.TestCase):
         self.assertEqual(replay["coverage"], {})
         self.assertEqual(len([event for event in replay_lifecycle(self.root, "run-1")["actions"] if event["status"] == "Rejected"]), 1)
 
+    def test_coverage_is_bound_to_successful_action_type(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        validated = validate_result(self.root, result_for(request))
+        receipt = {
+            **request,
+            "result_hash": validated.result_hash,
+            "terminal_status": "Completed",
+            "budget_requested": 1,
+            "budget_settled": 1,
+            "coverage_delta": {"foreign": 1},
+            "created_at": datetime.now(timezone.utc),
+        }
+        with self.assertRaisesRegex(ValueError, "coverage key"):
+            settle_action(self.root, receipt)
+
+    def test_failed_action_cannot_report_coverage(self):
+        request = action()
+        admit_action(self.root, request, self.manifest)
+        failed = result_for(request, status="Failed")
+        validated = validate_result(self.root, failed)
+        with self.assertRaisesRegex(ValueError, "non-successful"):
+            settle_action(self.root, {
+                **request,
+                "result_hash": validated.result_hash,
+                "terminal_status": "Failed",
+                "budget_requested": 1,
+                "budget_settled": 1,
+                "coverage_delta": {"signals": 1},
+                "created_at": datetime.now(timezone.utc),
+            })
+
     def test_exact_duplicate_result_validation_is_idempotent(self):
         request = action()
         admit_action(self.root, request, self.manifest)
