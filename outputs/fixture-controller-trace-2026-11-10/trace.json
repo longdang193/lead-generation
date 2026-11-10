@@ -1,0 +1,99 @@
+{
+  "trace_type": "fixture_controller_complete_trace",
+  "run_id": "fixture-controller-trace-2026-11-10",
+  "git_revision": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "controller": "scripts/orchestrate_enrichment.py",
+  "result": {
+    "run_id": "fixture-controller-trace-2026-11-10",
+    "workbook": "C:\\Users\\HOANG PHI LONG DANG\\repos\\lead-generation\\outputs\\fixture-controller-trace-2026-11-10\\output\\fixture-controller-trace-2026-11-10.xlsx",
+    "priority": "C:\\Users\\HOANG PHI LONG DANG\\repos\\lead-generation\\outputs\\fixture-controller-trace-2026-11-10\\data\\processed\\fixture-controller-trace-2026-11-10\\priority.csv",
+    "qa_report": "C:\\Users\\HOANG PHI LONG DANG\\repos\\lead-generation\\outputs\\fixture-controller-trace-2026-11-10\\evidence\\reports\\fixture-controller-trace-2026-11-10\\qa.md",
+    "delivery": "{'status': 'completed', 'delivery_policy': 'strict', 'target_count': 5, 'delivered_count': 5, 'shortfall': 0, 'reason': 'target_met'}"
+  },
+  "manifest_status": "completed",
+  "barriers": {
+    "provisional_shortlist": true,
+    "research": true,
+    "verifier": true,
+    "verified_evidence": true,
+    "projection": true,
+    "ranking": true,
+    "readiness": true,
+    "published": true
+  },
+  "outputs": {
+    "queue_portfolio": {
+      "path": "evidence/queues/fixture-controller-trace-2026-11-10/portfolio.jsonl",
+      "sha256": "ed215a4acd74fcdbd2bec3574cf26ed379fce853f41b37c621a0b5002302fdcf"
+    },
+    "queue_contacts": {
+      "path": "evidence/queues/fixture-controller-trace-2026-11-10/contacts.jsonl",
+      "sha256": "a671ec2d924071d9ce17bfb2cfc128bfc9fce90f33b54b5fa57e68e41e63ba00"
+    },
+    "malformed_claim_quarantine": {
+      "path": "evidence/candidate/fixture-controller-trace-2026-11-10/malformed_quarantine.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "verified_evidence": {
+      "path": "evidence/verified/fixture-controller-trace-2026-11-10/claims.jsonl",
+      "sha256": "837d50ce03aabe8c4e5b1003d8ca1f954d44af33c1ae7a2fc1f425531cd56d45"
+    },
+    "qualification": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/qualification.jsonl",
+      "sha256": "b83ed14d06a0a7194963e0df184732668eda542a10522d11a632bc8b3719290c"
+    },
+    "scores": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/scores.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    },
+    "contacts": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/contacts.csv",
+      "sha256": "b4855c2cb79433835436d14d3fdd64feab63cbba23dfb0ba7f34b61b24853360"
+    },
+    "events": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/events.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+    },
+    "event_links": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/event_links.csv",
+      "sha256": "38b91a3a812dafe044baecce18332afcb4b51e7d7aef52a598532da5e0db1b17"
+    },
+    "signal_audit": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/signal_audit.csv",
+      "sha256": "2a7d08163de99ec273dab8fa59eba0fe9dbea382c88ee895803d1b7746646c49"
+    },
+    "scoring_audit": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/scoring_audit.csv",
+      "sha256": "1f5b27286c98340dc2bbbce0963e3bd77cde324280a29f2022726cf4ac85ac8f"
+    },
+    "priority": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/priority.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    },
+    "shortlist_audit": {
+      "path": "evidence/audits/fixture-controller-trace-2026-11-10/shortlist.csv",
+      "sha256": "9c72f3b18892aed8a7efc07dba8af74da13904a8bf38280e84516b2420ce9df1"
+    },
+    "workbook": {
+      "path": "output/fixture-controller-trace-2026-11-10.xlsx",
+      "sha256": "bc2891b5d7c39137faf58c09588db441736355c987da4f0c176a79c3a86cd166"
+    },
+    "build_report": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/build.json",
+      "sha256": "93835b606108de57ece997ded10dd2e3125b74127d19f747f03ddc5527c0a331"
+    },
+    "qa_report": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/qa.md",
+      "sha256": "a32f4b2a28d94a82d6dc8245ef5588ca39cc68021f5f3c1b1f50ccf9bcba5a26"
+    },
+    "qa_sample": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/qa.csv",
+      "sha256": "a9dd5440e7b5297c40c8ab190b10db582aeac7da67d47a3a6962cc099d70c1e2"
+    }
+  },
+  "registries": {
+    "execution_mode": null,
+    "account_intelligence_mode": null
+  },
+  "classification_note": "fixture replay; not native parent-runtime proof and not live-provider evidence"
+}

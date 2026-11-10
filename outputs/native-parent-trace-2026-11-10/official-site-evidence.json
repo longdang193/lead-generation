@@ -1,0 +1,35 @@
+{
+  "company_id": "DE-BER-01808a09ff7b",
+  "company_name": "Hermes Hausverwaltung",
+  "source_url": "http://www.hermes-berlin.de",
+  "retrieved_at": "2026-11-10T03:12:25+00:00",
+  "fetch_status": "Fetched",
+  "service_fit": "Confirmed",
+  "residential_weg": "Confirmed",
+  "berlin_relevance": "Confirmed",
+  "buying_signal": "Unknown",
+  "research_gap": "account-bound buying signal unresolved",
+  "claims": [
+    {
+      "field": "service_fit",
+      "value": "Confirmed",
+      "confidence": "High",
+      "evidence_url": "https://www.hermes-berlin.de/",
+      "evidence_excerpt": "Hermes Hausverwaltung 0 Zum Inhalt springen HOME FORMULARE EIGENTÜMER PARTNER KONTAKT ARBEITEN BEI UNS (030) 756 87 99 0 Menü öffnen Menü schließen HOME FORMULARE EIGENTÜMER PARTNER KONTAKT ARBEITEN BE"
+    },
+    {
+      "field": "residential_weg",
+      "value": "Confirmed",
+      "confidence": "High",
+      "evidence_url": "https://www.hermes-berlin.de/",
+      "evidence_excerpt": "NTAKT ARBEITEN BEI UNS (030) 756 87 99 0 HERMES HAUSVERWALTUNG Berlin Die HERMES HAUSVERWALTUNG betreut als Verwalterin Wohnungseigentümergemeinschaften, Einzeleigentümer und Grundstücksgemeinschaften in Berlin und Brandenburg. Mit hoher Fach- und Kommunikationskompetenz entsprechen wir den modernen Anforderungen an eine wirtsch"
+    },
+    {
+      "field": "berlin_relevance",
+      "value": "Confirmed",
+      "confidence": "High",
+      "evidence_url": "https://www.hermes-berlin.de/",
+      "evidence_excerpt": "HAUSVERWALTUNG betreut als Verwalterin Wohnungseigentümergemeinschaften, Einzeleigentümer und Grundstücksgemeinschaften in Berlin und Brandenburg. Mit hoher Fach- und Kommunikationskompetenz entsprechen wir den modernen Anforderungen an eine wirtschaftliche, rechtssichere und die Belange der Eigentümer im Bl"
+    }
+  ]
+}

@@ -205,6 +205,16 @@ class AccountIntelligenceContractTests(unittest.TestCase):
                 rationale_claim_ids=["claim-1"],
             )
 
+    def test_sales_ready_thesis_requires_access_and_comparative_decision_fields(self):
+        with self.assertRaisesRegex(ValidationError, "sales_ready"):
+            AccountThesis(
+                company_id="C1", offer_id="offer-1", offer_version="2026-11-09", structural_fit=80,
+                confidence="high", why_this_account="Fit", why_now="Now", problem_hypothesis="Need",
+                strongest_claim_ids=["claim-1"], semantic_review_ids=["review-1"], access_summary="No buyer",
+                research_gap_impact="Buyer identity unresolved", recommended_action="research",
+                decision_class="sales_ready", readiness_decision="sales_ready",
+            )
+
     def test_semantic_review_requires_entailment_offer_temporal_and_contradiction_decisions(self):
         fields = {
             "company_id": "C1",

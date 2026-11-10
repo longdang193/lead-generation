@@ -1,0 +1,53 @@
+{
+  "publicPaths": [
+    "agents",
+    "config",
+    "docs",
+    "examples",
+    "presentation",
+    "scripts",
+    "tests",
+    "README.md",
+    "requirements.txt"
+  ],
+  "forbiddenPaths": [
+    ".agents",
+    ".codex",
+    ".git",
+    ".serena",
+    ".env",
+    "claims",
+    "data",
+    "evidence",
+    "output",
+    "outputs"
+  ],
+  "requiredPaths": [
+    "agents",
+    "config",
+    "scripts",
+    "tests"
+  ],
+  "allowedGeneratedPaths": [
+    "output",
+    "outputs"
+  ],
+  "scrubPrivateReferencePaths": [
+    ".agents",
+    "docs/operating_system",
+    "docs/superpowers"
+  ],
+  "forbiddenMetadataMarkers": [
+    "repo: private",
+    "private_source"
+  ],
+  "forbiddenFilenameMarkers": [
+    ".private.",
+    ".local."
+  ],
+  "publicExcludeGlobs": [
+    "**/.env*",
+    "**/*.private.*",
+    "**/*.local.*"
+  ]
+}

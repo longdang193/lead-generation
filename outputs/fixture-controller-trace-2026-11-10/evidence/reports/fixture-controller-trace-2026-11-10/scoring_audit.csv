@@ -1,0 +1,6 @@
+company_id,service_weight,residential_weight,portfolio_weight,geography_weight,observed_weight,structural_lead_fit,evidence_coverage,tier,buying_signal,signal_search_status,actionability,sales_priority,signal_rank,calculated_at
+DE-BER-33f026690f34,35,30,25,10,100,100.0,100,A,Unknown,Unknown,Research,Research,0,2026-11-10T10:21:15+00:00
+DE-BER-41db421cfa1e,35,30,25,10,100,100.0,100,A,Unknown,Unknown,Research,Research,0,2026-11-10T10:21:15+00:00
+DE-BER-955c3f4546dc,35,30,25,10,100,100.0,100,A,Unknown,Unknown,Research,Research,0,2026-11-10T10:21:15+00:00
+DE-BER-d7da6f3123f6,35,30,25,10,100,100.0,100,A,Unknown,Unknown,Research,Research,0,2026-11-10T10:21:15+00:00
+DE-BER-f844432b7520,35,30,25,10,100,100.0,100,A,Unknown,Unknown,Research,Research,0,2026-11-10T10:21:15+00:00

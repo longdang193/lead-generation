@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import tomllib
 from datetime import datetime, timezone
 import subprocess
 import sys
@@ -47,8 +48,12 @@ class HarnessToolTests(unittest.TestCase):
         dossier = project_account_intelligence([claim], {
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
             "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
-            "strongest_claim_ids": ["c1"], "access_summary": "Path", "research_gap_impact": "None",
+            "strongest_claim_ids": ["c1"], "access_summary": "Named buyer path", "research_gap_impact": "None",
             "semantic_review_ids": ["m1", "m2", "m3"], "recommended_action": "contact", "material_assertions": assertions,
+            "decision_class": "sales_ready", "readiness_decision": "sales_ready", "access_verified": True,
+            "access_person": "A. Buyer", "access_role": "Managing Director", "access_channel": "official email",
+            "access_claim_ids": ["c1"], "comparative_rationale": "Best fit in the admitted set", "next_alternative_company_id": "C2",
+            "reversal_condition": "Reconsider if the official contact is not attributable",
         }, semantic_reviews=reviews)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -71,11 +76,12 @@ class HarnessToolTests(unittest.TestCase):
                 "production": True, "run_manifest": "manifest.json", "offer_id": "offer-1", "offer_version": "2026-11-09", "max_accounts": 1,
                 "delivery_policy": "personal", "scores": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "buying_signal": "Verified trigger", "lead_tier": "A", "evidence_coverage": 100}],
                 "qualification": {"C1": {"eligible": True, "resolution_status": "Accepted", "lead_tier": "A", "evidence_coverage": 100}},
-                "dossiers": {"C1": dossier},
+                "dossiers": {"C1": {**dossier, "dossier_hash": "caller-forged-hash", "thesis": {**dossier["thesis"], "why_now": "Caller-supplied body"}}},
             }}, root)
         self.assertEqual(result["count"], 1)
         lead = result["leads"][0]
         self.assertEqual(lead["dossier_hash"], dossier["dossier_hash"])
+        self.assertEqual(lead["rank_audit"]["decision_class"], "sales_ready")
         self.assertTrue(lead["projection_run_id"])
 
     def test_production_rank_requires_dossier(self):
@@ -154,7 +160,7 @@ class HarnessToolTests(unittest.TestCase):
                 "outputs": {"dossier": {"path": "dossiers.jsonl", "sha256": file_sha256(dossier_path)}},
                 "dossier_bindings": {"C1": {"dossier_hash": "real-hash"}},
             })
-            with self.assertRaisesRegex(ValueError, "manifest-bound artifact"):
+            with self.assertRaisesRegex(ValueError, "dossier thesis is missing"):
                 invoke({"action": "rank_leads", "payload": {
                     "production": True, "run_manifest": "manifest.json", "offer_id": "offer-1", "offer_version": "v1",
                     "scores": [{"company_id": "C1"}], "qualification": {"C1": {"eligible": True}},
@@ -178,6 +184,12 @@ class HarnessToolTests(unittest.TestCase):
         signal = next(item for item in profiles if item["name"] == "signal-researcher")
         self.assertEqual(signal["task_function"], "account-scoped buying-signal evidence collection")
         self.assertIn("buying-signal-research", signal["skills"])
+
+    def test_profile_registry_uses_canonical_runtime_schema(self):
+        root = Path(__file__).resolve().parents[1]
+        for path in (root / "agents").glob("*.toml"):
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(set(data), {"name", "model_provider", "model", "description", "developer_instructions"})
 
     def test_json_boundary_validates_goal(self):
         result = invoke({"action": "validate_goal", "payload": {"goal_id": "g1", "objective": "find leads"}}, Path(__file__).resolve().parents[1])

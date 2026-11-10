@@ -33,7 +33,7 @@ class SelectionTests(unittest.TestCase):
         row = {
             "company_id": "C1", "lead_tier": "A", "evidence_coverage": "90",
             "rank_audit": "{\"priority_state\": \"Priority\"}", "dossier_hash": "dossier-1",
-            "semantic_review_ids": "review-1", "strongest_claim_ids": "claim-1", "projection_run_id": "run-1",
+            "semantic_review_ids": "review-1", "strongest_claim_ids": "claim-1", "projection_run_id": "run-1", "_commercial_score": "80",
         }
         qualification = {"C1": {"resolution_status": "Accepted", "eligible": True}}
         self.assertEqual(select_accounts([row], qualification, 1, production=True), [])
@@ -70,6 +70,19 @@ class SelectionTests(unittest.TestCase):
         qualification = {company_id: {"resolution_status": "Accepted", "eligible": True} for company_id in ("replay", "source")}
         selected = select_accounts(scores, qualification, 2)
         self.assertEqual([row["company_id"] for row in selected], ["source", "replay"])
+
+    def test_production_selection_requires_explicit_sales_ready_decision(self):
+        row = {
+            "company_id": "C1", "lead_tier": "A", "evidence_coverage": "100",
+            "sales_priority": "Pursue", "structural_lead_fit": "90", "portfolio_potential": "80",
+            "buying_signal": "Verified trigger", "decision_class": "research_candidate",
+            "readiness_decision": "research_required", "rank_audit": "rank-1", "dossier_hash": "dossier-1",
+            "semantic_review_ids": "review-1", "strongest_claim_ids": "claim-1", "projection_run_id": "run-1", "_commercial_score": "80"
+        }
+        qualification = {"C1": {"resolution_status": "Accepted", "eligible": True}}
+        self.assertEqual(select_accounts([row], qualification, 1, production=True), [])
+        row.update({"decision_class": "sales_ready", "readiness_decision": "sales_ready"})
+        self.assertEqual([item["company_id"] for item in select_accounts([row], qualification, 1, production=True)], ["C1"])
 
 
 if __name__ == "__main__":

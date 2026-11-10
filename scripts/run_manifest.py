@@ -10,6 +10,15 @@ import tempfile
 from pathlib import Path
 from typing import Mapping
 
+
+ACCOUNT_INTELLIGENCE_MODES = {"exploratory", "research_backed", "sales_ready", "production"}
+ACCOUNT_INTELLIGENCE_DOSSIER_MODES = {"research_backed", "sales_ready", "production"}
+
+
+def _account_intelligence_mode(manifest: Mapping[str, object]) -> str:
+    return str(manifest.get("account_intelligence_mode") or "").strip().lower()
+
+
 from openpyxl import load_workbook
 
 from lead_contract import has_complete_production_lineage
@@ -414,7 +423,7 @@ def _validate_finalization_artifacts(
                 errors.append("ranked leads contain a company absent from projection scores")
             if accepted and company_id not in accepted:
                 errors.append("ranked leads contain a company outside the admitted run scope")
-        if str(manifest.get("account_intelligence_mode") or "") == "production":
+        if _account_intelligence_mode(manifest) in ACCOUNT_INTELLIGENCE_DOSSIER_MODES:
             dossier_path = artifacts.get("dossier")
             dossier_records = json_records(dossier_path) if dossier_path else []
             dossiers_by_company = {
@@ -464,7 +473,7 @@ def _validate_finalization_artifacts(
         try:
             workbook = load_workbook(workbook_path.resolve(), read_only=True, data_only=True)
             expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
-            if str(manifest.get("account_intelligence_mode") or "") == "production":
+            if _account_intelligence_mode(manifest) in ACCOUNT_INTELLIGENCE_DOSSIER_MODES:
                 expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources", "06_Account_Dossiers", "07_Account_Theses", "08_Account_Timeline", "09_Evidence_Ledger", "10_Research_Gaps"]
             if workbook.sheetnames != expected_sheets:
                 errors.append("workbook tabs do not match the native export contract")
@@ -553,7 +562,7 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             "qa_report": "QA report",
             "qa_sample": "QA sample",
         }
-        if str(manifest.get("account_intelligence_mode") or "") == "production":
+        if _account_intelligence_mode(manifest) in ACCOUNT_INTELLIGENCE_DOSSIER_MODES:
             required_outputs.update({"dossier": "account dossier", "ranking": "ranking audit"})
         output_bucket = outputs if isinstance(outputs, dict) else {}
         validated_artifacts: dict[str, Path] = {}
@@ -640,7 +649,11 @@ def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: st
     if delivery_policy not in {"strict", "personal"}:
         return False, [f"unknown delivery policy: {delivery_policy}"]
     errors: list[str] = []
-    if str(manifest.get("account_intelligence_mode") or "") == "production":
+    execution_mode = str(manifest.get("execution_mode") or "production")
+    intelligence_mode = _account_intelligence_mode(manifest)
+    if execution_mode != "fixture" and intelligence_mode not in ACCOUNT_INTELLIGENCE_MODES:
+        errors.append("non-fixture finalization requires a valid account_intelligence_mode")
+    if intelligence_mode in ACCOUNT_INTELLIGENCE_DOSSIER_MODES:
         outputs = manifest.get("outputs")
         if not isinstance(outputs, dict):
             errors.append("production account-intelligence finalization requires recorded outputs")

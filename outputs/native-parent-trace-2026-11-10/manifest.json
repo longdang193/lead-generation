@@ -1,0 +1,30 @@
+{
+  "record_type": "NativeParentDirectedTrace",
+  "run_id": "native-parent-trace-2026-11-10",
+  "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "git_revision": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "status": "prepared",
+  "budget_limit": 1,
+  "execution_authorization": {
+    "budget_limit": 1
+  },
+  "authorization": {
+    "accepted_company_ids": [
+      "DE-BER-01808a09ff7b"
+    ],
+    "allowed_action_types": [
+      "official_site"
+    ],
+    "scope_prefixes": {
+      "official_site": "official_site:"
+    },
+    "contract_version": "1",
+    "strategy_version": "account-intelligence-v1",
+    "profile_versions": {
+      "official_site": "1"
+    },
+    "campaign_id": "berlin-hausverwaltung",
+    "campaign_version": "2026-11-08",
+    "scope_version": "2026-11-10"
+  }
+}

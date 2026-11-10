@@ -1,0 +1,318 @@
+{
+  "benchmark_id": "account-intelligence-benchmark-2026-11-10",
+  "offer_id": "berlin-hausverwaltung",
+  "offer_version": "2026-11-08",
+  "manifest_revision": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "accounts": [
+    {
+      "blind_id": "A01",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Hausverwaltung WEG-Verwaltung Immobilienvermarktung Fiedler 13467 Berlin Reinickendorf Hermsdorf Home Über uns Leistungen Kontakt Impressum Datenschutz Über uns Leistungen WEG-Verwaltung Sondere"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Hausverwaltung WEG-Verwaltung Immobilienvermarktung Fiedler 13467 Berlin Reinickendorf Hermsdorf Home Über uns Leistungen Kontakt Impressum Datenschutz Über uns Leistungen WEG-Verwaltung Sondereigentumsverwalt"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": null,
+        "contact_role": null,
+        "verification_status": null,
+        "email_present": false
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A02",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Hermes Hausverwaltung 0 Zum Inhalt springen HOME FORMULARE EIGENTÜMER PARTNER KONTAKT ARBEITEN BEI UNS (030) 756 87 99 0 Menü öffnen Menü schließen HOME FORMULARE EIGENTÜMER PARTNER KONTAKT ARBEITEN BE"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "NTAKT ARBEITEN BEI UNS (030) 756 87 99 0 HERMES HAUSVERWALTUNG Berlin Die HERMES HAUSVERWALTUNG betreut als Verwalterin Wohnungseigentümergemeinschaften, Einzeleigentümer und Grundstücksgemeinschaften in Berlin und Brandenburg. Mit hoher Fach- und Kommunikationskompetenz entsprechen wir den modernen Anforderungen an eine wirtsch"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "HAUSVERWALTUNG betreut als Verwalterin Wohnungseigentümergemeinschaften, Einzeleigentümer und Grundstücksgemeinschaften in Berlin und Brandenburg. Mit hoher Fach- und Kommunikationskompetenz entsprechen wir den modernen Anforderungen an eine wirtschaftliche, rechtssichere und die Belange der Eigentümer im Bl"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Unknown",
+        "verification_status": "Not found",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A03",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "ive strategische Planung, Steuerung, Umsetzung und Kontrolle sämtlicher wertbe-einflussender Maßnahmen einer Immobilie. Property Management Als ihr Verwalter sorgen wir für das operative Manage-ment ihrer Immobilie und die effiziente Umsetzung der vorgegebenen Objektstrate-gie mit dem Fokus auf eine renditeoptimierte"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Interdisziplinäres Team Integrierte Leistungen Internationale Erfahrung Lokale Kompetenz Referenzen Wohn-/Geschäftshaus in Berlin Prenzlauer Berg - 41 Wohneinheiten. - 1 Gewerbeeinheit - ca. 3.200 qm Wohn- und Gewerbeeinheit - Asset Management - Property Management - Bestandssanierung - Grundrissoptimierung"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": null,
+        "contact_role": null,
+        "verification_status": null,
+        "email_present": false
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A04",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "VALENT Hausverwaltung und Vermietung Zum Inhalt springen LEISTUNGEN KONTAKT MIETERSERVICE MIETERSERVICE +49 (335) 401 30 80 Telefon TERMINVEREINBARUNG REPARATURAUFTRAG \"Legen Sie Ihre Immobilie vertrau"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "ses. Als Hausverwaltung bieten wir das Rundum -Paket. Wir Ã¼bernehmen die Verwaltung Ihrer Immobilie ob Mietverwaltung, WEG Verwaltung oder Sondereigentumsverwaltung. Verkauf Vermietung Verwaltung Termin vereinbaren Um einen Termin zu vereinbaren Ã¼bersenden Sie uns bitte hier Ihre Kontaktdaten. Unsere Mitarbeite"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": null,
+        "contact_role": null,
+        "verification_status": null,
+        "email_present": false
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A05",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "tungen WEG-Verwaltung Mietverwaltung Sondereigentumsverwaltung Wohnungsangebot Über uns Eigentümerportal Jetzt anfragen Hausverwaltung in Berlin & Umland Zertifizierte WEG-, Miet- und Sondereigentumsverwaltung. Persönlich, digital, zuverlässig. Kostenlos beraten lassen Warum Hirtenberg Immobilien? Zertifiziert &"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "ien Zum Inhalt springen Hirtenberg Immobilien: Ihr Partner für Immobilienverwaltung und -beratung Startseite Leistungen WEG-Verwaltung Mietverwaltung Sondereigentumsverwaltung Wohnungsangebot Über uns Eigentümerportal Jetzt anfragen Main Menu Startseite Leistungen WEG-Verwaltung Mietverwaltung Sondereigentumsverw"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Immobilienverwaltung in Berlin | Hirtenberg Immobilien Zum Inhalt springen Hirtenberg Immobilien: Ihr Partner für Immobilienverwaltung und -beratung Startseite Leistungen WEG-Verwaltung Mietverwaltung Sondereig"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Published business mailbox",
+        "verification_status": "Published",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A06",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste Wahl! primaProfi https://www.primaprofi.de/hausverwaltung/berlin/ primaProfi 3333 regionale Anbieter, 8 Anfragen heute Start seite Miet-Verwa"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "w.primaprofi.de/hausverwaltung/berlin/ primaProfi 3333 regionale Anbieter, 8 Anfragen heute Start seite Miet-Verwaltung WEG-Verwaltung Grundstücks­verwaltung Entdecken /img/top/hausverwaltung-min.jpg primaProfi Startseite Kostenlos Anfrage stellen Hausverwaltung Übersicht Miet-Verwaltung WEG-Verwaltung Grundstück"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste Wahl! primaProfi https://www.primaprofi.de/hausverwaltung/berlin/ primaProfi 3333 regionale Anbieter, 8 Anfragen heute Start seite Miet-Verwaltung WEG-"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Unknown",
+        "verification_status": "Not found",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A07",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "erheit, Transparenz und Qualität in jedem Schritt. Zukunftsfähige Immobilienlösungen – Ihr Partner im Immobilienbereich Immobilienverwaltung Maximieren Sie Wert und Rentabilität Ihrer Immobilien mit unserer ganzheitlichen Bewirtschaftung! WEG Verwaltung Spezialisierte WEG-Verwaltung in Berlin & Potsdam: Individuell, ef"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Next Generation Real Estate - Ihr Immobiliendienstleister Zum Inhalt springen Über uns Zinshaus Verwaltung WEG Verwaltung Asset Management Brandschutz Immobilienbewertung & Due Diligence Consulting News Kontakt Next Generation Real Estate Ihr 360°-Partner für nachhaltige Immobilien-Investitionen und"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Rentabilität Ihrer Immobilien mit unserer ganzheitlichen Bewirtschaftung! WEG Verwaltung Spezialisierte WEG-Verwaltung in Berlin & Potsdam: Individuell, effizient und nachhaltig für Ihre Immobilie. Immobilien Asset Management Steigern Sie den Wert Ihrer Immobilien durch unsere strategische Planung, Marktana"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Unknown",
+        "verification_status": "Not found",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A08",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "ulturpädagogin / Immobilienkauffrau (IHK) Geschäftsführerin Berufserfahrung Über 20 Jahre in der Immobilienbranche: A-Z Hausverwaltung (Eigenbestand) A-Z Verwaltung von Wohn- und Gewerbeimmobilien (JKT Real Estate Development GmbH & JKT Property Management GmbH) Buchhaltung und Rechnungswesen (JKT Property Valuat"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": null,
+        "contact_role": null,
+        "verification_status": null,
+        "email_present": false
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A09",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Zillich Hausverwaltung in Berlin Kreuzberg Hausverwaltung Über uns Leistungen Häuser Kontakt Hausverwaltung Servicezeiten kontakt Unser Team Leistungskatalog verwaltete Häuser So finden sie uns ZILLICH"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "1981 bieten wir als eine auf private Eigentümer spezialisierte Hausverwaltung die Verwaltung von Mietshäusern und WEGs (Wohnungseigentümergemeinschaften) an. Unser Büro liegt direkt am Görlitzer Bahnhof im Herzen Kreuzbergs. Wir übernehmen die umfassende Verwaltung Ihrer Immobilie. Uns sind ein persönlicher Service und ein vertr"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "Zillich Hausverwaltung in Berlin Kreuzberg Hausverwaltung Über uns Leistungen Häuser Kontakt Hausverwaltung Servicezeiten kontakt Unser Team Leistungskatalog verwaltete Häuser So finden sie uns ZILLICH Hausverwal"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Unknown",
+        "verification_status": "Not found",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    },
+    {
+      "blind_id": "A10",
+      "claims": [
+        {
+          "field": "service_fit",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "le STRABAG PFS Polen BESTAND BEYOND Work On Progress STRABAG Residential Property Services GmbH Part of STRABAG PFS Wohnimmobilienverwaltung in Berlin Im Jahr 2012 übernahm STRABAG Property and Facility Services den Berliner Immobilienverwalter, der ursprünglich im Jahr 1924 gegründet wurde. Seitdem firmiert das Untern"
+        },
+        {
+          "field": "residential_weg",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "dem firmiert das Unternehmen unter STRABAG Residential Property Services und ist bei STRABAG PFS auf das Management von Wohnungseigentümergemeinschaften und Wohnungsimmobilienportfolios im Großraum Berlin spezialisiert. RPS auf einen Blick Großraum Berlin Wohnungseigentumsverwaltung, Mietverwaltung, Immobilienvermittlung, Vermie"
+        },
+        {
+          "field": "berlin_relevance",
+          "value": "Confirmed",
+          "confidence": "High",
+          "evidence_excerpt": "BESTAND BEYOND Work On Progress STRABAG Residential Property Services GmbH Part of STRABAG PFS Wohnimmobilienverwaltung in Berlin Im Jahr 2012 übernahm STRABAG Property and Facility Services den Berliner Immobilienverwalter, der ursprünglich im Jahr 1924 gegründet wurde. Seitdem firmiert das Unternehmen unte"
+        }
+      ],
+      "contact_evidence": {
+        "contact_name": "Unknown",
+        "contact_role": "Unknown",
+        "verification_status": "Not found",
+        "email_present": true
+      },
+      "research_state": {
+        "website_fetch_status": "Fetched",
+        "buying_signal": "Unknown",
+        "signal_status": "account-bound buying signal unresolved"
+      }
+    }
+  ]
+}

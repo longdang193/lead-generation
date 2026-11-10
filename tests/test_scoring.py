@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from score_leads import build_rank_audit, calculate_fit, classify_signal, derive_account_signal, priority_reason, rank_account
+from score_leads import build_rank_audit, calculate_fit, classify_signal, derive_account_signal, priority_reason, project_commercial_dimensions, rank_account
 from account_intelligence import project_account_intelligence
 from typed_contracts import MaterialAssertion
 from collect_buying_signals import account_research_state
@@ -65,6 +65,16 @@ class ScoringTests(unittest.TestCase):
         row = {"direct_intent_score": 0, "buying_signal": "Verified trigger"}
         from score_leads import _commercial_dimension_value
         self.assertEqual(_commercial_dimension_value(row, "direct_intent"), 0.0)
+
+    def test_access_gap_does_not_receive_access_credit(self):
+        thesis = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 80,
+            "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+            "strongest_claim_ids": ["c1"], "semantic_review_ids": ["r1"], "access_summary": "No buyer identified",
+            "research_gap_impact": "Buyer identity could change outreach", "recommended_action": "research",
+        }
+        dimensions = project_commercial_dimensions(thesis, [])
+        self.assertEqual(dimensions["access"]["value"], 0.0)
 
     def test_generated_dossier_uses_semantic_review_identity_for_ranking(self):
         claim = {

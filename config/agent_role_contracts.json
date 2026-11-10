@@ -1,0 +1,22 @@
+{
+  "account-intelligence-researcher": {
+    "task_function": "bounded account-intelligence composition",
+    "skills": ["account-research", "lead-evidence", "contact-verification"]
+  },
+  "contact-researcher": {
+    "task_function": "shortlist-scoped contact evidence collection",
+    "skills": ["lead-evidence", "contact-verification"]
+  },
+  "evidence-verifier": {
+    "task_function": "precision evidence verification",
+    "skills": ["lead-evidence"]
+  },
+  "portfolio-researcher": {
+    "task_function": "account-scoped portfolio evidence collection",
+    "skills": ["lead-evidence", "account-research"]
+  },
+  "signal-researcher": {
+    "task_function": "account-scoped buying-signal evidence collection",
+    "skills": ["buying-signal-research", "lead-evidence", "account-research"]
+  }
+}

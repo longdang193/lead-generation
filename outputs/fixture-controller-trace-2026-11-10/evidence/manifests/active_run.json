@@ -1,0 +1,1103 @@
+{
+  "run_id": "fixture-controller-trace-2026-11-10",
+  "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "git_revision": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+  "config_version": "lead-enrichment-run-v1",
+  "campaign": {
+    "campaign_id": "fixture-small",
+    "version": "2026-11-08",
+    "path": "config/campaigns/fixture-small.json",
+    "sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+    "normalized": {
+      "adapter_policy": {
+        "allow_fixture_replay": true,
+        "verification_mode": "structural_validation",
+        "verifier_profile": "fixture-structural",
+        "worker_profile": "fixture-replay"
+      },
+      "campaign_id": "fixture-small",
+      "delivery_policy": "strict",
+      "input_bindings": {
+        "buying_events": "data/fixture/events.json",
+        "companies": "data/fixture/companies.csv",
+        "contacts": "data/fixture/contacts.csv",
+        "qualification": "data/fixture/qualification.jsonl",
+        "scores": "data/fixture/scores.csv",
+        "sources": "data/fixture/sources.csv"
+      },
+      "lanes": [
+        "portfolio",
+        "contacts"
+      ],
+      "qualification": {
+        "city": "Berlin",
+        "residential_weg": true,
+        "resolution_status": "Accepted",
+        "service_fit": "Hausverwaltung",
+        "trusted_domain_field": "verified_company_domain"
+      },
+      "target_count": 5,
+      "version": "2026-11-08"
+    },
+    "delivery_policy": "strict"
+  },
+  "generated_at": "2026-11-10T00:00:00+00:00",
+  "accepted_company_ids": [
+    "DE-BER-33f026690f34",
+    "DE-BER-41db421cfa1e",
+    "DE-BER-955c3f4546dc",
+    "DE-BER-d7da6f3123f6",
+    "DE-BER-f844432b7520"
+  ],
+  "inputs": {
+    "provisional_shortlist": {
+      "path": "shortlist.csv",
+      "sha256": "1ab6aa917ca4465edb9824e2ea76537e791c5db78b3e6a1729a8b357271a2960"
+    },
+    "qualification": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/qualification.jsonl",
+      "sha256": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54"
+    },
+    "scores": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/scores.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    },
+    "contacts": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/contacts.csv",
+      "sha256": "b4855c2cb79433835436d14d3fdd64feab63cbba23dfb0ba7f34b61b24853360"
+    },
+    "companies": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/companies.csv",
+      "sha256": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f"
+    },
+    "sources": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/sources.csv",
+      "sha256": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5"
+    },
+    "website_evidence": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/website_evidence.jsonl",
+      "sha256": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2"
+    },
+    "source_register": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/sources.csv",
+      "sha256": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5"
+    },
+    "entity_resolution": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/companies.csv",
+      "sha256": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f"
+    },
+    "buying_signal_audit": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/signal_audit.csv",
+      "sha256": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe"
+    },
+    "buying_events": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/events.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+    },
+    "scoring_audit": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/scoring_audit.csv",
+      "sha256": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe"
+    },
+    "contact_sources": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/contacts.csv",
+      "sha256": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+    },
+    "candidate_evidence": {
+      "path": "evidence/candidate/fixture-controller-trace-2026-11-10/claims.jsonl",
+      "sha256": "debcb05c252b042d77b28fc090ad13871d2ad7feadaf059f24ee97af8b305a3b"
+    },
+    "verifier_decisions": {
+      "path": "evidence/verifier/fixture-controller-trace-2026-11-10/decisions.jsonl",
+      "sha256": "09c45e6a3d9a45941cef92d6198cb8c5bd584fe7d3ee548045d7c827ce33cb4a"
+    },
+    "priority": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/priority.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    }
+  },
+  "outputs": {
+    "queue_portfolio": {
+      "path": "evidence/queues/fixture-controller-trace-2026-11-10/portfolio.jsonl",
+      "sha256": "ed215a4acd74fcdbd2bec3574cf26ed379fce853f41b37c621a0b5002302fdcf"
+    },
+    "queue_contacts": {
+      "path": "evidence/queues/fixture-controller-trace-2026-11-10/contacts.jsonl",
+      "sha256": "a671ec2d924071d9ce17bfb2cfc128bfc9fce90f33b54b5fa57e68e41e63ba00"
+    },
+    "malformed_claim_quarantine": {
+      "path": "evidence/candidate/fixture-controller-trace-2026-11-10/malformed_quarantine.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "verified_evidence": {
+      "path": "evidence/verified/fixture-controller-trace-2026-11-10/claims.jsonl",
+      "sha256": "837d50ce03aabe8c4e5b1003d8ca1f954d44af33c1ae7a2fc1f425531cd56d45"
+    },
+    "qualification": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/qualification.jsonl",
+      "sha256": "b83ed14d06a0a7194963e0df184732668eda542a10522d11a632bc8b3719290c"
+    },
+    "scores": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/scores.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    },
+    "contacts": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/contacts.csv",
+      "sha256": "b4855c2cb79433835436d14d3fdd64feab63cbba23dfb0ba7f34b61b24853360"
+    },
+    "events": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/events.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+    },
+    "event_links": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/event_links.csv",
+      "sha256": "38b91a3a812dafe044baecce18332afcb4b51e7d7aef52a598532da5e0db1b17"
+    },
+    "signal_audit": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/signal_audit.csv",
+      "sha256": "2a7d08163de99ec273dab8fa59eba0fe9dbea382c88ee895803d1b7746646c49"
+    },
+    "scoring_audit": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/scoring_audit.csv",
+      "sha256": "1f5b27286c98340dc2bbbce0963e3bd77cde324280a29f2022726cf4ac85ac8f"
+    },
+    "priority": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/priority.csv",
+      "sha256": "dc17758dbaa23c359987193f9261cb08c57a6d6dbdfa2586a709a408f99e0171"
+    },
+    "shortlist_audit": {
+      "path": "evidence/audits/fixture-controller-trace-2026-11-10/shortlist.csv",
+      "sha256": "9c72f3b18892aed8a7efc07dba8af74da13904a8bf38280e84516b2420ce9df1"
+    },
+    "workbook": {
+      "path": "output/fixture-controller-trace-2026-11-10.xlsx",
+      "sha256": "bc2891b5d7c39137faf58c09588db441736355c987da4f0c176a79c3a86cd166"
+    },
+    "build_report": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/build.json",
+      "sha256": "93835b606108de57ece997ded10dd2e3125b74127d19f747f03ddc5527c0a331"
+    },
+    "qa_report": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/qa.md",
+      "sha256": "a32f4b2a28d94a82d6dc8245ef5588ca39cc68021f5f3c1b1f50ccf9bcba5a26"
+    },
+    "qa_sample": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/qa.csv",
+      "sha256": "a9dd5440e7b5297c40c8ab190b10db582aeac7da67d47a3a6962cc099d70c1e2"
+    }
+  },
+  "barriers": {
+    "provisional_shortlist": true,
+    "research": true,
+    "verifier": true,
+    "verified_evidence": true,
+    "projection": true,
+    "ranking": true,
+    "readiness": true,
+    "published": true
+  },
+  "supporting_inputs": {
+    "website_evidence": {
+      "path": "evidence/verified/fixture-controller-trace-2026-11-10/website_evidence.jsonl",
+      "sha256": "6ba8c388c80d8c0d3f338e988f0fa75885bf33a3cf6216b7de12ec358d9b198d"
+    },
+    "source_register": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/sources.csv",
+      "sha256": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5"
+    },
+    "entity_resolution": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/companies.csv",
+      "sha256": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f"
+    },
+    "buying_signal_audit": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/signal_audit.csv",
+      "sha256": "2a7d08163de99ec273dab8fa59eba0fe9dbea382c88ee895803d1b7746646c49"
+    },
+    "buying_events": {
+      "path": "data/processed/fixture-controller-trace-2026-11-10/events.json",
+      "sha256": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f"
+    },
+    "scoring_audit": {
+      "path": "evidence/reports/fixture-controller-trace-2026-11-10/scoring_audit.csv",
+      "sha256": "1f5b27286c98340dc2bbbce0963e3bd77cde324280a29f2022726cf4ac85ac8f"
+    },
+    "contact_sources": {
+      "path": "evidence/fixture/fixture-controller-trace-2026-11-10/contacts.csv",
+      "sha256": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+    },
+    "schema": {
+      "path": "config/lead_generation_schema.json",
+      "sha256": "eb3fbd5f730b0cadeb8cb9d4cf9310dc3edc8795921b0fe16ed7920cd8286ad0"
+    }
+  },
+  "execution_mode": "fixture",
+  "account_intelligence_mode": "exploratory",
+  "delivery_policy": "strict",
+  "admitted_work_items": [
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-33f026690f34",
+      "company_name": "Acenes Immobilien GmbH",
+      "trusted_domain": "acenesimmobilien.de",
+      "location": "Berlin",
+      "lane": "portfolio",
+      "scope": "portfolio:DE-BER-33f026690f34",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "671f3fcb2e809b57ffbbb22f57e32141d4cb52f0c2955d76ee6c5f04ffa3d2d2",
+      "status": "pending",
+      "input_fingerprint": "acd5d4cbf8ac50a7b47fc2be20226435b51a06723b30513afe5d55eaecc780e8",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-41db421cfa1e",
+      "company_name": "Ahlsen Immobilienverwaltung Berlin",
+      "trusted_domain": "ahlsen.de",
+      "location": "Berlin",
+      "lane": "portfolio",
+      "scope": "portfolio:DE-BER-41db421cfa1e",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "c1de74238dd672812609d5e5cc971e743cb8b69efe24d3a37275eba675093e4f",
+      "status": "pending",
+      "input_fingerprint": "e95ee1b22b5b8b7a4d36991506ffb4e298cc170cae34d8a73055e59efe756eb8",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-955c3f4546dc",
+      "company_name": "Aadaktio ImmoVerwaltung GmbH",
+      "trusted_domain": "aadaktio.de",
+      "location": "Berlin",
+      "lane": "portfolio",
+      "scope": "portfolio:DE-BER-955c3f4546dc",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "9b8f51dc9ff78d26478d948e0b7d94de3fa3a662f593cdd8bf0bab4d2d4d0a58",
+      "status": "pending",
+      "input_fingerprint": "cba037bea3eb8bdf08dfa76af79eaa6bde42fd9b9ba647dee4cca2f0f7f2bf29",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-d7da6f3123f6",
+      "company_name": "1A Hausverwaltung",
+      "trusted_domain": "1ahausverwaltung.de",
+      "location": "Berlin",
+      "lane": "portfolio",
+      "scope": "portfolio:DE-BER-d7da6f3123f6",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "d969ffbeafb99c7a4340d4f2ec5ec484a660177a5e895c84af956be86b8bdbd6",
+      "status": "pending",
+      "input_fingerprint": "30158537f26308862da62369f651c986be7e7bd174794aef1d9b48208dbdbf8c",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-f844432b7520",
+      "company_name": "ABOS Immobilien GmbH",
+      "trusted_domain": "abos-immobilien.de",
+      "location": "Berlin",
+      "lane": "portfolio",
+      "scope": "portfolio:DE-BER-f844432b7520",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "d8d3fafb06290f75cff14269a4f08b6b811236c1b11ade9dba4b230a9dd277dd",
+      "status": "pending",
+      "input_fingerprint": "5e1ea46b6ac142e42335caf9c477bb76e8fc1eca00f91697b61e6bbd24d3dc1c",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-33f026690f34",
+      "company_name": "Acenes Immobilien GmbH",
+      "trusted_domain": "acenesimmobilien.de",
+      "location": "Berlin",
+      "lane": "contacts",
+      "scope": "contacts:DE-BER-33f026690f34",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "43a14231aedad531e9a5af85e57720a1a249d703c5f8ab07a74b8fc98dd8b908",
+      "status": "pending",
+      "input_fingerprint": "acd5d4cbf8ac50a7b47fc2be20226435b51a06723b30513afe5d55eaecc780e8",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-41db421cfa1e",
+      "company_name": "Ahlsen Immobilienverwaltung Berlin",
+      "trusted_domain": "ahlsen.de",
+      "location": "Berlin",
+      "lane": "contacts",
+      "scope": "contacts:DE-BER-41db421cfa1e",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "858a6bffcaaf08461f5f319463aeca50f18375f5086250814834d93fcac7e8f2",
+      "status": "pending",
+      "input_fingerprint": "e95ee1b22b5b8b7a4d36991506ffb4e298cc170cae34d8a73055e59efe756eb8",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-955c3f4546dc",
+      "company_name": "Aadaktio ImmoVerwaltung GmbH",
+      "trusted_domain": "aadaktio.de",
+      "location": "Berlin",
+      "lane": "contacts",
+      "scope": "contacts:DE-BER-955c3f4546dc",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "8060d06a6d254b6e698532e37843b8c446ccd505cb98fff6c67591b756153d30",
+      "status": "pending",
+      "input_fingerprint": "cba037bea3eb8bdf08dfa76af79eaa6bde42fd9b9ba647dee4cca2f0f7f2bf29",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-d7da6f3123f6",
+      "company_name": "1A Hausverwaltung",
+      "trusted_domain": "1ahausverwaltung.de",
+      "location": "Berlin",
+      "lane": "contacts",
+      "scope": "contacts:DE-BER-d7da6f3123f6",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "c4466a94e0d0b1284cdff5127294e7a6b96a12c1bc1cc51103423e811c26c881",
+      "status": "pending",
+      "input_fingerprint": "30158537f26308862da62369f651c986be7e7bd174794aef1d9b48208dbdbf8c",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    },
+    {
+      "run_id": "fixture-controller-trace-2026-11-10",
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-f844432b7520",
+      "company_name": "ABOS Immobilien GmbH",
+      "trusted_domain": "abos-immobilien.de",
+      "location": "Berlin",
+      "lane": "contacts",
+      "scope": "contacts:DE-BER-f844432b7520",
+      "scope_version": "admitted-work-item-v1",
+      "scope_hash": "8cc37fde5d208ac3b9c89c63fb9fde54cfd17c737a982b70446c95343839062b",
+      "status": "pending",
+      "input_fingerprint": "5e1ea46b6ac142e42335caf9c477bb76e8fc1eca00f91697b61e6bbd24d3dc1c",
+      "adapter": "fixture_replay",
+      "adapter_capability": "replay",
+      "worker_profile": "default",
+      "provider": "fixture",
+      "profile": "default",
+      "executable": "fixture",
+      "adapter_args": [],
+      "head_sha": "0242e653e8c03c333cb678b4e95d2ae52d89fd9b",
+      "campaign_sha256": "c8e7d18efd56459e2be45a2436710b843b2cdbc16ea7861ae985a733d20c9df4",
+      "input_hashes": {
+        "qualification": "8540e85b1fde370021251de62312a4967425f02948a561be84ae47b4c7936e54",
+        "scores": "336870b637c017f7041f3243c5f169a430fac0699c2a66c813544df1391f41da",
+        "contacts": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637",
+        "companies": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "sources": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "website_evidence": "39d27a8b54fd3acf0c26f27c426468e2cdd087564434dbae41e8de5af160edd2",
+        "source_register": "ec740861a4171284bbd3eea24c7c67b0ae83d614fb9aa0fe08b7b3886001e7a5",
+        "entity_resolution": "e07f656ba6465a03222e128aa89ebd3baa53c5ebfb76186371a1a2b80bb3b88f",
+        "buying_signal_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "buying_events": "a5338d955b09046ec0b16f3a9625b7955c763aae07dc722e474e6078745f932f",
+        "scoring_audit": "95155b1bc18e0437612622b20593872fa5d030734491671ad46e0836a0942fbe",
+        "contact_sources": "15b01ea868c49bda1f6658ec2b5b43b2f5f6bdc0024a65cc05856c14674b5637"
+      }
+    }
+  ],
+  "source_policy": {
+    "allowed_domains": [
+      "1ahausverwaltung.de",
+      "aadaktio.de",
+      "abos-immobilien.de",
+      "acenesimmobilien.de",
+      "ahlsen.de"
+    ],
+    "company_domains": {
+      "DE-BER-33f026690f34": "acenesimmobilien.de",
+      "DE-BER-41db421cfa1e": "ahlsen.de",
+      "DE-BER-955c3f4546dc": "aadaktio.de",
+      "DE-BER-d7da6f3123f6": "1ahausverwaltung.de",
+      "DE-BER-f844432b7520": "abos-immobilien.de"
+    }
+  },
+  "status": "completed",
+  "execution_authorization": {
+    "sealed": true,
+    "budget_limit": 120,
+    "queued_action_count": 10,
+    "max_total_attempts": 120,
+    "deadline_seconds": 900
+  },
+  "active_dispatch_ids": [
+    "DE-BER-33f026690f34",
+    "DE-BER-41db421cfa1e",
+    "DE-BER-955c3f4546dc",
+    "DE-BER-d7da6f3123f6",
+    "DE-BER-f844432b7520"
+  ],
+  "delivered_ids": [
+    "DE-BER-33f026690f34",
+    "DE-BER-41db421cfa1e",
+    "DE-BER-955c3f4546dc",
+    "DE-BER-d7da6f3123f6",
+    "DE-BER-f844432b7520"
+  ],
+  "replacement_log": [],
+  "dispatch_records": {
+    "portfolio": [
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "portfolio",
+        "company_id": "DE-BER-f844432b7520",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-f844432b7520",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/portfolio/DE-BER-f844432b7520.json",
+        "output_sha256": "cd64c3e004680c3f2280ab64995de5a12e29c28667fe8b9e919a309a312f05d7",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "portfolio",
+        "company_id": "DE-BER-d7da6f3123f6",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-d7da6f3123f6",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/portfolio/DE-BER-d7da6f3123f6.json",
+        "output_sha256": "33b2a7cce78f1a867d67cc8403135f5efcef148072f0ebd41d427fd0ed84d41c",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "portfolio",
+        "company_id": "DE-BER-955c3f4546dc",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-955c3f4546dc",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/portfolio/DE-BER-955c3f4546dc.json",
+        "output_sha256": "2dde25fd67c5627bd1108b9eb14fc953feee3b44d699dadbc805b71c7a03cd9b",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "portfolio",
+        "company_id": "DE-BER-41db421cfa1e",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-41db421cfa1e",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/portfolio/DE-BER-41db421cfa1e.json",
+        "output_sha256": "5bf01b41f5b8a77bdf9f75c78b674e890a7d5ca3de2f0fa12b8dcbcfba6f8f91",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "portfolio",
+        "company_id": "DE-BER-33f026690f34",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-33f026690f34",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/portfolio/DE-BER-33f026690f34.json",
+        "output_sha256": "932bcc8e5b8cdb012a0749130756198524bfeaaebee4d930725a33c9117471d8",
+        "attempts": 1
+      }
+    ],
+    "contacts": [
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "contacts",
+        "company_id": "DE-BER-f844432b7520",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-f844432b7520",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/contacts/DE-BER-f844432b7520.json",
+        "output_sha256": "b8e08a06f69c8993c6374a4aa99b452dee9b395f2cf4dd027c4aa987210bb6b4",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "contacts",
+        "company_id": "DE-BER-d7da6f3123f6",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-d7da6f3123f6",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/contacts/DE-BER-d7da6f3123f6.json",
+        "output_sha256": "bf37c688f65983a9eebdf24b001f9b5d1ec111adcf42fd194a78d018b3c71c7a",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "contacts",
+        "company_id": "DE-BER-955c3f4546dc",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-955c3f4546dc",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/contacts/DE-BER-955c3f4546dc.json",
+        "output_sha256": "5f38c58c6bf9296c369b9a3a346a3f2f4e2f54aae9e1a712db46fb0cea5e9aba",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "contacts",
+        "company_id": "DE-BER-41db421cfa1e",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-41db421cfa1e",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/contacts/DE-BER-41db421cfa1e.json",
+        "output_sha256": "fd802799d55dbc18eff268120eadd82f15c5b3655a55406f811d33d0c18795a3",
+        "attempts": 1
+      },
+      {
+        "run_id": "fixture-controller-trace-2026-11-10",
+        "lane": "contacts",
+        "company_id": "DE-BER-33f026690f34",
+        "status": "succeeded",
+        "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-33f026690f34",
+        "output_path": "C:/Users/HOANG PHI LONG DANG/repos/lead-generation/outputs/fixture-controller-trace-2026-11-10/evidence/candidate/fixture-controller-trace-2026-11-10/contacts/DE-BER-33f026690f34.json",
+        "output_sha256": "b23e7f63e3811377d7dadf1e3a1503f022d1ce17af7ad93efe2407c82594ce2c",
+        "attempts": 1
+      }
+    ]
+  },
+  "delivery": {
+    "status": "completed",
+    "delivery_policy": "strict",
+    "target_count": 5,
+    "delivered_count": 5,
+    "shortfall": 0,
+    "reason": "target_met"
+  },
+  "research_runs": {
+    "fixture-controller-trace-2026-11-10:portfolio:DE-BER-f844432b7520": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-f844432b7520:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-f844432b7520",
+      "company_name": "ABOS Immobilien GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "portfolio",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-f844432b7520",
+      "scope": "portfolio:DE-BER-f844432b7520",
+      "scope_hash": "d8d3fafb06290f75cff14269a4f08b6b811236c1b11ade9dba4b230a9dd277dd",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "abos-immobilien.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-f844432b7520"
+    },
+    "fixture-controller-trace-2026-11-10:portfolio:DE-BER-d7da6f3123f6": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-d7da6f3123f6:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-d7da6f3123f6",
+      "company_name": "1A Hausverwaltung",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "portfolio",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-d7da6f3123f6",
+      "scope": "portfolio:DE-BER-d7da6f3123f6",
+      "scope_hash": "d969ffbeafb99c7a4340d4f2ec5ec484a660177a5e895c84af956be86b8bdbd6",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "1ahausverwaltung.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-d7da6f3123f6"
+    },
+    "fixture-controller-trace-2026-11-10:portfolio:DE-BER-955c3f4546dc": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-955c3f4546dc:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-955c3f4546dc",
+      "company_name": "Aadaktio ImmoVerwaltung GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "portfolio",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-955c3f4546dc",
+      "scope": "portfolio:DE-BER-955c3f4546dc",
+      "scope_hash": "9b8f51dc9ff78d26478d948e0b7d94de3fa3a662f593cdd8bf0bab4d2d4d0a58",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "aadaktio.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-955c3f4546dc"
+    },
+    "fixture-controller-trace-2026-11-10:portfolio:DE-BER-41db421cfa1e": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-41db421cfa1e:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-41db421cfa1e",
+      "company_name": "Ahlsen Immobilienverwaltung Berlin",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "portfolio",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-41db421cfa1e",
+      "scope": "portfolio:DE-BER-41db421cfa1e",
+      "scope_hash": "c1de74238dd672812609d5e5cc971e743cb8b69efe24d3a37275eba675093e4f",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "ahlsen.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-41db421cfa1e"
+    },
+    "fixture-controller-trace-2026-11-10:portfolio:DE-BER-33f026690f34": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-33f026690f34:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-33f026690f34",
+      "company_name": "Acenes Immobilien GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "portfolio",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-33f026690f34",
+      "scope": "portfolio:DE-BER-33f026690f34",
+      "scope_hash": "671f3fcb2e809b57ffbbb22f57e32141d4cb52f0c2955d76ee6c5f04ffa3d2d2",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "acenesimmobilien.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:portfolio:DE-BER-33f026690f34"
+    },
+    "fixture-controller-trace-2026-11-10:contacts:DE-BER-f844432b7520": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-f844432b7520:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-f844432b7520",
+      "company_name": "ABOS Immobilien GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "contacts",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-f844432b7520",
+      "scope": "contacts:DE-BER-f844432b7520",
+      "scope_hash": "8cc37fde5d208ac3b9c89c63fb9fde54cfd17c737a982b70446c95343839062b",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "abos-immobilien.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-f844432b7520"
+    },
+    "fixture-controller-trace-2026-11-10:contacts:DE-BER-d7da6f3123f6": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-d7da6f3123f6:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-d7da6f3123f6",
+      "company_name": "1A Hausverwaltung",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "contacts",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-d7da6f3123f6",
+      "scope": "contacts:DE-BER-d7da6f3123f6",
+      "scope_hash": "c4466a94e0d0b1284cdff5127294e7a6b96a12c1bc1cc51103423e811c26c881",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "1ahausverwaltung.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-d7da6f3123f6"
+    },
+    "fixture-controller-trace-2026-11-10:contacts:DE-BER-955c3f4546dc": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-955c3f4546dc:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-955c3f4546dc",
+      "company_name": "Aadaktio ImmoVerwaltung GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "contacts",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-955c3f4546dc",
+      "scope": "contacts:DE-BER-955c3f4546dc",
+      "scope_hash": "8060d06a6d254b6e698532e37843b8c446ccd505cb98fff6c67591b756153d30",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "aadaktio.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-955c3f4546dc"
+    },
+    "fixture-controller-trace-2026-11-10:contacts:DE-BER-41db421cfa1e": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-41db421cfa1e:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-41db421cfa1e",
+      "company_name": "Ahlsen Immobilienverwaltung Berlin",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "contacts",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-41db421cfa1e",
+      "scope": "contacts:DE-BER-41db421cfa1e",
+      "scope_hash": "858a6bffcaaf08461f5f319463aeca50f18375f5086250814834d93fcac7e8f2",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "ahlsen.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-41db421cfa1e"
+    },
+    "fixture-controller-trace-2026-11-10:contacts:DE-BER-33f026690f34": {
+      "adapter_capability": "replay",
+      "attempts": [
+        {
+          "attempt_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-33f026690f34:1",
+          "query_or_source": "fixture",
+          "status": "Completed",
+          "truncated": false
+        }
+      ],
+      "campaign_id": "fixture-small",
+      "company_id": "DE-BER-33f026690f34",
+      "company_name": "Acenes Immobilien GmbH",
+      "completed_at": "2026-11-08T00:00:01+00:00",
+      "location": "Berlin",
+      "provider_status": "Available",
+      "record_type": "ResearchRun",
+      "research_type": "contacts",
+      "result_count": 0,
+      "run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-33f026690f34",
+      "scope": "contacts:DE-BER-33f026690f34",
+      "scope_hash": "43a14231aedad531e9a5af85e57720a1a249d703c5f8ab07a74b8fc98dd8b908",
+      "scope_version": "admitted-work-item-v1",
+      "source": "fixture",
+      "started_at": "2026-11-08T00:00:00+00:00",
+      "status": "Completed",
+      "truncated": false,
+      "trusted_domain": "acenesimmobilien.de",
+      "research_run_id": "fixture-controller-trace-2026-11-10:contacts:DE-BER-33f026690f34"
+    }
+  },
+  "verifier_runs": {
+    "fixture-controller-trace-2026-11-10:verifier": {
+      "verifier_run_id": "fixture-controller-trace-2026-11-10:verifier",
+      "verifier_id": "fixture-verifier",
+      "status": "Completed",
+      "capability": "replay",
+      "decision_count": 25
+    }
+  },
+  "projection": {
+    "outputs": {
+      "qualification": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/qualification.jsonl",
+        "format": ".jsonl"
+      },
+      "scores": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/scores.csv",
+        "format": ".csv"
+      },
+      "contacts": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/contacts.csv",
+        "format": ".csv"
+      },
+      "events": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/events.json",
+        "format": ".json"
+      },
+      "event_links": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/event_links.csv",
+        "format": ".csv"
+      },
+      "signal_audit": {
+        "path": "data/processed/fixture-controller-trace-2026-11-10/signal_audit.csv",
+        "format": ".csv"
+      }
+    },
+    "run_id": "fixture-controller-trace-2026-11-10"
+  },
+  "coverage": {
+    "status": "complete"
+  }
+}

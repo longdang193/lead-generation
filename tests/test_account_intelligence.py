@@ -44,6 +44,22 @@ def semantic_review(claim_id: str = "c1", assertion_id: str = "a1") -> dict[str,
 
 
 class AccountIntelligenceTests(unittest.TestCase):
+    def test_stale_or_irrelevant_event_cannot_become_verified_trigger(self):
+        manifest = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+            "required_checks": ["official_site"], "completed_checks": ["official_site"],
+            "provider_states": {"official_site": "available"},
+            "research_policy_id": "policy-1", "research_policy_version": "1", "research_policy_hash": "p" * 64,
+            "settled_receipt_ids": ["action-1:attempt-1"], "run_id": "run-1",
+            "receipt_check_map": {"official_site": ["action-1:attempt-1"]},
+            "receipt_context": {"run_id": "run-1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "research_policy_id": "policy-1", "research_policy_version": "1", "research_policy_hash": "p" * 64},
+        }
+        event = {
+            "company_id": "C1", "event_id": "E1", "source_url": "https://example.com/event",
+            "offer_relevance": "relevant", "temporal_relevance": "stale", "verification_status": "Verified",
+        }
+        self.assertEqual(account_signal_state([event], manifest), "No trigger found")
+
     def test_no_trigger_state_requires_complete_offer_coverage(self):
         manifest = {
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",

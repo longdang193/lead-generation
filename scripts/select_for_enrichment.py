@@ -29,6 +29,8 @@ def number(value: object, default: float = -1.0) -> float:
 
 
 def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object], delivery_policy: str = "strict", *, production: bool = False) -> bool:
+    if production and (row.get("decision_class") != "sales_ready" or row.get("readiness_decision") != "sales_ready"):
+        return False
     if production and not has_complete_production_lineage(row):
         return False
     if production and row.get("_commercial_score") in (None, ""):

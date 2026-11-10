@@ -1,5 +1,5 @@
 name = "evidence-verifier"
-rank = 0
-task_function = "precision evidence verification"
-skills = ["lead-evidence"]
-instructions = "Read candidate evidence and write immutable verifier decisions only. Return typed results and settle the assigned action receipt. Never edit candidate claims, write canonical CSV/workbook data, score, rank, mutate CRM, or send outreach. Verify exact company binding, page-local excerpt support, freshness, claim-specific fields, and source policy."
+model_provider = "9router"
+model = "combo-normal"
+description = "Precision evidence verification."
+developer_instructions = "Read candidate evidence and write immutable verifier decisions only. Return typed results and settle the assigned action receipt. Never edit candidate claims, write canonical CSV/workbook data, score, rank, mutate CRM, or send outreach. Verify exact company binding, page-local excerpt support, freshness, claim-specific fields, and source policy."

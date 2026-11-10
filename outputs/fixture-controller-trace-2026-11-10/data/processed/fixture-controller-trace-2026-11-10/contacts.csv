@@ -1,0 +1,6 @@
+company_id,company_name,contact_name,contact_role,relevance,contact_email,email_source,verification_status,linkedin_url,last_verified,assurance_level,projection_run_id
+DE-BER-33f026690f34,Acenes Immobilien GmbH,Anna Schmidt,Geschäftsführung,Shortlisted account,anna.schmidt@acenesimmobilien.de,https://acenesimmobilien.de/contact,Unknown,Unknown,2026-11-08,replay,fixture-controller-trace-2026-11-10
+DE-BER-41db421cfa1e,Ahlsen Immobilienverwaltung Berlin,Anna Schmidt,Geschäftsführung,Shortlisted account,anna.schmidt@ahlsen.de,https://ahlsen.de/contact,Unknown,Unknown,2026-11-08,replay,fixture-controller-trace-2026-11-10
+DE-BER-955c3f4546dc,Aadaktio ImmoVerwaltung GmbH,Anna Schmidt,Geschäftsführung,Shortlisted account,anna.schmidt@aadaktio.de,https://aadaktio.de/contact,Unknown,Unknown,2026-11-08,replay,fixture-controller-trace-2026-11-10
+DE-BER-d7da6f3123f6,1A Hausverwaltung,Anna Schmidt,Geschäftsführung,Shortlisted account,anna.schmidt@1ahausverwaltung.de,https://1ahausverwaltung.de/contact,Unknown,Unknown,2026-11-08,replay,fixture-controller-trace-2026-11-10
+DE-BER-f844432b7520,ABOS Immobilien GmbH,Anna Schmidt,Geschäftsführung,Shortlisted account,anna.schmidt@abos-immobilien.de,https://abos-immobilien.de/contact,Unknown,Unknown,2026-11-08,replay,fixture-controller-trace-2026-11-10

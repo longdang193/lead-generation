@@ -150,13 +150,29 @@ def project_commercial_dimensions(thesis: AccountThesis | dict[str, object], cla
         criteria = sorted({str(getattr(item, "offer_criterion", "")) for item in selected_items if getattr(item, "offer_criterion", None)})
         return {"value": round(selected * confidence_factor, 6), "supporting_claim_ids": claim_ids, "offer_criterion": criteria[0] if criteria else name, "normalized_inputs": {"raw_strength": selected, "confidence_factor": confidence_factor, "signal_state": signal_state}}
 
+    claim_models = [item if isinstance(item, EvidenceClaim) else EvidenceClaim.model_validate(item) for item in claims]
+    claim_ids = {item.claim_id for item in claim_models}
+    access_claim_ids = [claim_id for claim_id in validated.access_claim_ids if claim_id in claim_ids]
+    access_evidence = [
+        item for item in claim_models
+        if item.claim_id in access_claim_ids
+        and item.assurance_level.value == "source"
+        and item.candidate_status in {"Verified", "Supported"}
+    ]
+    access_verified = (
+        validated.access_verified
+        and bool(validated.access_person)
+        and bool(validated.access_role)
+        and bool(validated.access_channel)
+        and bool(access_evidence)
+    )
     result = {
         "fit": {"value": float(validated.structural_fit), "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "target_customer", "normalized_inputs": {"structural_fit": float(validated.structural_fit)}},
         "opportunity": {"value": float(validated.opportunity_potential or 0.0) * confidence_factor, "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "value_propositions", "normalized_inputs": {"opportunity_potential": float(validated.opportunity_potential or 0.0), "confidence_factor": confidence_factor}},
         "need": dimension("need_indicator", by_type["need_indicator"]),
         "change": dimension("change_readiness", by_type["change_readiness"] + by_type["trigger"]),
         "direct_intent": dimension("direct_intent", by_type["direct_intent"]),
-        "access": {"value": 100.0 if validated.access_summary else 0.0, "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "economic_buyer_roles", "normalized_inputs": {"access_present": bool(validated.access_summary)}},
+        "access": {"value": 100.0 if access_verified else 0.0, "supporting_claim_ids": [item.claim_id for item in access_evidence], "offer_criterion": "economic_buyer_roles", "normalized_inputs": {"access_present": bool(validated.access_summary), "access_verified": access_verified, "access_person": validated.access_person or "", "access_role": validated.access_role or "", "access_channel": validated.access_channel or ""}},
         "evidence_confidence": {"value": {"low": 40.0, "medium": 70.0, "high": 100.0}[validated.confidence.value], "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "evidence_confidence", "normalized_inputs": {"confidence": validated.confidence.value}},
     }
     return result
@@ -218,17 +234,17 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
         for name, value in dimensions.items()
     ]
     signal = str(record.get("validated_signal_state") or record.get("buying_signal") or "")
+    decision_class = str(record.get("decision_class") or "research_candidate")
+    readiness_decision = str(record.get("readiness_decision") or "research_required")
     fit = dimensions["fit"]
     if fit < 40:
         state = "Disqualify"
-    elif signal == "Verified trigger":
-        state = "Priority — verified trigger"
-    elif fit >= 70 and signal == "No trigger found":
-        state = "Priority — strong fit, no trigger"
-    elif signal in {"Research incomplete", "Unavailable", "Unknown"}:
-        state = "Research required"
+    elif decision_class == "sales_ready" and readiness_decision == "sales_ready":
+        state = "Priority — verified trigger" if signal == "Verified trigger" else "Priority — sales-ready account"
+    elif decision_class == "proactive_account" and readiness_decision == "proactive_qualified":
+        state = "Proactive account"
     else:
-        state = "Nurture"
+        state = "Research required" if readiness_decision in {"research_required", "blocked"} or signal in {"Research incomplete", "Unavailable", "Unknown"} else "Research candidate"
     return RankAudit(
         company_id=str(record.get("company_id") or ""),
         offer_id=offer_id,
@@ -237,6 +253,10 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
         total_score=round(sum(item.contribution for item in contributions), 6),
         contributions=contributions,
         rationale_claim_ids=claim_ids,
+        decision_class=decision_class,
+        readiness_decision=readiness_decision,
+        comparative_rationale=record.get("comparative_rationale"),
+        reversal_condition=record.get("reversal_condition"),
     )
 
 
@@ -268,6 +288,10 @@ def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *
             "semantic_reviews": dossier_reviews,
             "semantic_review_ids": [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in dossier_reviews],
             "strongest_claim_ids": list(validated_thesis.strongest_claim_ids),
+            "decision_class": validated_thesis.decision_class,
+            "readiness_decision": validated_thesis.readiness_decision,
+            "comparative_rationale": validated_thesis.comparative_rationale,
+            "reversal_condition": validated_thesis.reversal_condition,
         }
     return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None, projected_dimensions=projected)
 

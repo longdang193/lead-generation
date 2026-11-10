@@ -1,0 +1,316 @@
+company_id,research_run_id,search_term,research_status,search_status,signal_state,event_count,reason,retrieved_at
+DE-BER-15575a79c979,,Mende Grundbesitzverwaltungs GmbH Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:19+00:00
+DE-BER-15575a79c979,,Mende Grundbesitzverwaltungs GmbH Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:20+00:00
+DE-BER-15575a79c979,,Mende Grundbesitzverwaltungs GmbH Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:20+00:00
+DE-BER-15575a79c979,,Mende Grundbesitzverwaltungs GmbH Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:21+00:00
+DE-BER-37ef9e32d511,,Digitale Hausverwaltung für Berlin und Brandenburg Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:22+00:00
+DE-BER-37ef9e32d511,,Digitale Hausverwaltung für Berlin und Brandenburg Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:22+00:00
+DE-BER-37ef9e32d511,,Digitale Hausverwaltung für Berlin und Brandenburg Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:23+00:00
+DE-BER-37ef9e32d511,,Digitale Hausverwaltung für Berlin und Brandenburg Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:24+00:00
+DE-BER-471e471ace63,,Anton Schmittlein Construction GmbH Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:24+00:00
+DE-BER-471e471ace63,,Anton Schmittlein Construction GmbH Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:25+00:00
+DE-BER-471e471ace63,,Anton Schmittlein Construction GmbH Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:25+00:00
+DE-BER-471e471ace63,,Anton Schmittlein Construction GmbH Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:26+00:00
+DE-BER-4623a8743d1a,,Hubert Hausverwaltung GmbH Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:26+00:00
+DE-BER-4623a8743d1a,,Hubert Hausverwaltung GmbH Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:27+00:00
+DE-BER-4623a8743d1a,,Hubert Hausverwaltung GmbH Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:27+00:00
+DE-BER-4623a8743d1a,,Hubert Hausverwaltung GmbH Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:28+00:00
+DE-BER-32a50b5315bf,,Bruno Grüttner Grundstücksverwaltungen Immobilien e.K. Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:28+00:00
+DE-BER-32a50b5315bf,,Bruno Grüttner Grundstücksverwaltungen Immobilien e.K. Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:29+00:00
+DE-BER-32a50b5315bf,,Bruno Grüttner Grundstücksverwaltungen Immobilien e.K. Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:29+00:00
+DE-BER-32a50b5315bf,,Bruno Grüttner Grundstücksverwaltungen Immobilien e.K. Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:29+00:00
+DE-BER-9a559f5a6e33,,Hausverwaltung Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:30+00:00
+DE-BER-9a559f5a6e33,,Hausverwaltung Berlin Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:30+00:00
+DE-BER-9a559f5a6e33,,Hausverwaltung Berlin Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:31+00:00
+DE-BER-9a559f5a6e33,,Hausverwaltung Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:31+00:00
+DE-BER-01808a09ff7b,,Hermes Hausverwaltung Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:32+00:00
+DE-BER-01808a09ff7b,,Hermes Hausverwaltung Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:32+00:00
+DE-BER-01808a09ff7b,,Hermes Hausverwaltung Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:33+00:00
+DE-BER-01808a09ff7b,,Hermes Hausverwaltung Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:33+00:00
+DE-BER-0368fe16f577,,Immobilienverwaltung in Berlin Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:34+00:00
+DE-BER-0368fe16f577,,Immobilienverwaltung in Berlin Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:34+00:00
+DE-BER-0368fe16f577,,Immobilienverwaltung in Berlin Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:35+00:00
+DE-BER-0368fe16f577,,Immobilienverwaltung in Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:35+00:00
+DE-BER-04ce1a1840d0,,Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste ... Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:36+00:00
+DE-BER-04ce1a1840d0,,Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste ... Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:36+00:00
+DE-BER-04ce1a1840d0,,Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste ... Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:37+00:00
+DE-BER-04ce1a1840d0,,Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste ... Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:37+00:00
+DE-BER-070d9382f72a,,Next Generation Real Estate Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:38+00:00
+DE-BER-070d9382f72a,,Next Generation Real Estate Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:39+00:00
+DE-BER-070d9382f72a,,Next Generation Real Estate Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:39+00:00
+DE-BER-070d9382f72a,,Next Generation Real Estate Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:40+00:00
+DE-BER-093642e8250b,,Zillich Hausverwaltung in Berlin Kreuzberg Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:40+00:00
+DE-BER-093642e8250b,,Zillich Hausverwaltung in Berlin Kreuzberg Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:40+00:00
+DE-BER-093642e8250b,,Zillich Hausverwaltung in Berlin Kreuzberg Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:41+00:00
+DE-BER-093642e8250b,,Zillich Hausverwaltung in Berlin Kreuzberg Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:41+00:00
+DE-BER-098931a2059b,,STRABAG Residential Property Services GmbH Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:42+00:00
+DE-BER-098931a2059b,,STRABAG Residential Property Services GmbH Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:43+00:00
+DE-BER-098931a2059b,,STRABAG Residential Property Services GmbH Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:43+00:00
+DE-BER-098931a2059b,,STRABAG Residential Property Services GmbH Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:44+00:00
+DE-BER-0b05e4b70091,,A1 Asset One: Immobilienleistungen in Berlin und Leipzig Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:44+00:00
+DE-BER-0b05e4b70091,,A1 Asset One: Immobilienleistungen in Berlin und Leipzig Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:45+00:00
+DE-BER-0b05e4b70091,,A1 Asset One: Immobilienleistungen in Berlin und Leipzig Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:45+00:00
+DE-BER-0b05e4b70091,,A1 Asset One: Immobilienleistungen in Berlin und Leipzig Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:45+00:00
+DE-BER-0e4e70b147e9,,Hausverwaltung in Berlin für Eigentümergemeinschaften Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:46+00:00
+DE-BER-0e4e70b147e9,,Hausverwaltung in Berlin für Eigentümergemeinschaften Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:46+00:00
+DE-BER-0e4e70b147e9,,Hausverwaltung in Berlin für Eigentümergemeinschaften Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:47+00:00
+DE-BER-0e4e70b147e9,,Hausverwaltung in Berlin für Eigentümergemeinschaften Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:47+00:00
+DE-BER-106e95725fb3,,WEG-Verwaltung Berlin | Zuverlässige Betreuung Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:48+00:00
+DE-BER-106e95725fb3,,WEG-Verwaltung Berlin | Zuverlässige Betreuung Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:48+00:00
+DE-BER-106e95725fb3,,WEG-Verwaltung Berlin | Zuverlässige Betreuung Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:49+00:00
+DE-BER-106e95725fb3,,WEG-Verwaltung Berlin | Zuverlässige Betreuung Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:50+00:00
+DE-BER-1147d0871209,,Hausverwaltung Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:50+00:00
+DE-BER-1147d0871209,,Hausverwaltung Berlin Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:51+00:00
+DE-BER-1147d0871209,,Hausverwaltung Berlin Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:51+00:00
+DE-BER-1147d0871209,,Hausverwaltung Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:52+00:00
+DE-BER-1887ee75ef27,,BalticSea Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:52+00:00
+DE-BER-1887ee75ef27,,BalticSea Berlin Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:52+00:00
+DE-BER-1887ee75ef27,,BalticSea Berlin Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:53+00:00
+DE-BER-1887ee75ef27,,BalticSea Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:53+00:00
+DE-BER-194b2fd9710f,,KLOTZ Hausverwaltung GmbH | Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:54+00:00
+DE-BER-194b2fd9710f,,KLOTZ Hausverwaltung GmbH | Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:54+00:00
+DE-BER-194b2fd9710f,,KLOTZ Hausverwaltung GmbH | Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:55+00:00
+DE-BER-194b2fd9710f,,KLOTZ Hausverwaltung GmbH | Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:55+00:00
+DE-BER-1bad84b95efe,,Wertinvest Immobilien Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:56+00:00
+DE-BER-1bad84b95efe,,Wertinvest Immobilien Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:56+00:00
+DE-BER-1bad84b95efe,,Wertinvest Immobilien Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:57+00:00
+DE-BER-1bad84b95efe,,Wertinvest Immobilien Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:57+00:00
+DE-BER-1e9a0d449683,,Akkurat Hausverwaltung Berlin & Potsdam Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:58+00:00
+DE-BER-1e9a0d449683,,Akkurat Hausverwaltung Berlin & Potsdam Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:58+00:00
+DE-BER-1e9a0d449683,,Akkurat Hausverwaltung Berlin & Potsdam Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:59+00:00
+DE-BER-1e9a0d449683,,Akkurat Hausverwaltung Berlin & Potsdam Wärmezähler,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:38:59+00:00
+DE-BER-22bdda0dea6b,,Ihre Hausverwaltung Berlin von PANDION SERVICE Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:38:59+00:00
+DE-BER-22bdda0dea6b,,Ihre Hausverwaltung Berlin von PANDION SERVICE Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:00+00:00
+DE-BER-22bdda0dea6b,,Ihre Hausverwaltung Berlin von PANDION SERVICE Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:00+00:00
+DE-BER-22bdda0dea6b,,Ihre Hausverwaltung Berlin von PANDION SERVICE Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:01+00:00
+DE-BER-235cce5bda1c,,P2 Immobilien Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:01+00:00
+DE-BER-235cce5bda1c,,P2 Immobilien Berlin Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:02+00:00
+DE-BER-235cce5bda1c,,P2 Immobilien Berlin Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:03+00:00
+DE-BER-235cce5bda1c,,P2 Immobilien Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:03+00:00
+DE-BER-23684bc837ed,,BRH Berlin Residential Hausverwaltungen Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:04+00:00
+DE-BER-23684bc837ed,,BRH Berlin Residential Hausverwaltungen Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:04+00:00
+DE-BER-23684bc837ed,,BRH Berlin Residential Hausverwaltungen Heizkostenabrechnung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:05+00:00
+DE-BER-23684bc837ed,,BRH Berlin Residential Hausverwaltungen Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:05+00:00
+DE-BER-28c906b92441,,"Hausverwaltung in Berlin, Potsdam und Brandenburg Zählertausch",,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:06+00:00
+DE-BER-28c906b92441,,"Hausverwaltung in Berlin, Potsdam und Brandenburg Fernablesung",,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:06+00:00
+DE-BER-28c906b92441,,"Hausverwaltung in Berlin, Potsdam und Brandenburg Heizkostenabrechnung",,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:07+00:00
+DE-BER-28c906b92441,,"Hausverwaltung in Berlin, Potsdam und Brandenburg Wärmezähler",,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:07+00:00
+DE-BER-305888335d13,,Immobilienmakler in Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:08+00:00
+DE-BER-305888335d13,,Immobilienmakler in Berlin Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:08+00:00
+DE-BER-305888335d13,,Immobilienmakler in Berlin Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:08+00:00
+DE-BER-305888335d13,,Immobilienmakler in Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:09+00:00
+DE-BER-30f3b722f7b7,,Deutsche Version Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:09+00:00
+DE-BER-30f3b722f7b7,,Deutsche Version Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:10+00:00
+DE-BER-30f3b722f7b7,,Deutsche Version Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:10+00:00
+DE-BER-30f3b722f7b7,,Deutsche Version Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:11+00:00
+DE-BER-31f52dd09bdb,,Hausverwaltung in Berlin und Brandenburg Zählertausch,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:11+00:00
+DE-BER-31f52dd09bdb,,Hausverwaltung in Berlin und Brandenburg Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:12+00:00
+DE-BER-31f52dd09bdb,,Hausverwaltung in Berlin und Brandenburg Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:12+00:00
+DE-BER-31f52dd09bdb,,Hausverwaltung in Berlin und Brandenburg Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:13+00:00
+DE-BER-365c86b3256d,,Jeremy Zimmer Immobilien Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:13+00:00
+DE-BER-365c86b3256d,,Jeremy Zimmer Immobilien Fernablesung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:14+00:00
+DE-BER-365c86b3256d,,Jeremy Zimmer Immobilien Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:15+00:00
+DE-BER-365c86b3256d,,Jeremy Zimmer Immobilien Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:15+00:00
+DE-BER-38756d1e2905,,GWD Immo Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:15+00:00
+DE-BER-38756d1e2905,,GWD Immo Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:16+00:00
+DE-BER-38756d1e2905,,GWD Immo Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:16+00:00
+DE-BER-38756d1e2905,,GWD Immo Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:17+00:00
+DE-BER-3b62e742bb59,,TOPCON Hausverwaltung - Immobilienverwaltung Berlin Zählertausch,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:17+00:00
+DE-BER-3b62e742bb59,,TOPCON Hausverwaltung - Immobilienverwaltung Berlin Fernablesung,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:18+00:00
+DE-BER-3b62e742bb59,,TOPCON Hausverwaltung - Immobilienverwaltung Berlin Heizkostenabrechnung,,Searched,,0,account-scoped TED search; only exact normalized buyer links are verified,2026-11-10T08:39:18+00:00
+DE-BER-3b62e742bb59,,TOPCON Hausverwaltung - Immobilienverwaltung Berlin Wärmezähler,,Unavailable,,0,TED search failed with HTTP 429,2026-11-10T08:39:19+00:00
+DE-BER-d7da6f3123f6,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-955c3f4546dc,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-f844432b7520,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-33f026690f34,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-eb7b26e9db77,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-41db421cfa1e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-33a4dd22f080,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1e9a0d449683,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a70a521c00a8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4affa20d1178,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-41d142b92465,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-df35087e2cd8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-603a6737f0a8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-798a19e465f5,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8f2df9562b64,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-3e4d1fa3125d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e401b74ddfb8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1887ee75ef27,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-ee91c17d75bc,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e59f241f4228,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-74c77711d0e4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-3263b5622c82,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d21b4ddfe34f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-aba632e3b992,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6b423aa25160,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-815e53674d7b,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a77e9bf9f036,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-679e3b976400,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9eee9b305024,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4d3cb33d0991,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1c0932dd1c89,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-23684bc837ed,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-32a50b5315bf,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-22c4e54b2ad2,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-5f89bb2f91d3,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-56e2674ae53e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8af2a2ef669d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b43c55123fe7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-2a88228ac204,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b456c1e1d6fa,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-908bd2cbd716,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d62e7dd29529,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e8cdf5267259,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c2a8d3605ff9,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-471e471ace63,berlin-hausverwaltung-2026-11-10,,Completed,Searched,None found,0,all required account searches completed with no verified account match,2026-11-10T08:39:19+00:00
+DE-BER-675fa315d3a7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-7ad38b50c78b,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-f0c2615ebb30,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d65e0778accd,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-bdb8a814b338,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6d20c29ac980,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4bd8ae71f148,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-30f3b722f7b7,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8884b4076880,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-91da0397a46c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-94ab16b76bde,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-93c59abf174e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-487aa197aceb,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-491de65f8bc6,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a698700c532a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-892e7ff2404a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d4f3cfbae6df,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-dd4df9c890c4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-7c2fafd58b9c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-5145981bf915,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-61e924b7a1f7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-ea848b4b1ade,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-305888335d13,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8e8bfd686c1c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e809168d5307,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4c1490ac510d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-38756d1e2905,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-908ec12ba2a3,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-017bb4e9bc88,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-80f0e7eb845e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-711c9f1a4206,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e5e3e3d12a04,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c880ea307fb8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-3d431cdf7ec1,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-58debc7dff0f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-63674b968fd2,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-68443e189eb7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-01808a09ff7b,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6499f078256c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-0368fe16f577,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c2cb16850231,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4623a8743d1a,berlin-hausverwaltung-2026-11-10,,Completed,Searched,None found,0,all required account searches completed with no verified account match,2026-11-10T08:39:19+00:00
+DE-BER-cbd61ae01edf,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9bdc02c516f4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-31f52dd09bdb,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b1b0ac471552,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-95e85cea8e86,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6ecfd6e4230d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d6004611ef5b,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9f16e639d4fb,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-0e2435fc3d8f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-58008874298d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9a559f5a6e33,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-be07fc10306a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-365c86b3256d,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-08d50b6a7d6a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b8e9761e5f69,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-5ba0a36752c3,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d0cc82975fa4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-ee650b788ccd,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-194b2fd9710f,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-fae352f12583,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-2338d3362ebb,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d40d0a35dfc4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-621c923a1ca3,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c892019db020,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a6ed03dc9ff1,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-15575a79c979,berlin-hausverwaltung-2026-11-10,,Completed,Searched,None found,0,all required account searches completed with no verified account match,2026-11-10T08:39:19+00:00
+DE-BER-0e4e70b147e9,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-eaca59427c66,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9a8e299b069f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-37ef9e32d511,berlin-hausverwaltung-2026-11-10,,Completed,Searched,None found,0,all required account searches completed with no verified account match,2026-11-10T08:39:19+00:00
+DE-BER-faf346d3af8e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-36ec0d190ae5,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-3c1e22d54396,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-28c906b92441,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8355ff551e92,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-90c347f5d4b0,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-504975205571,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-ee075a9a3d4a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d5ab81232ef8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b22f1a30eb20,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-395abf903ef5,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-5158cc6dd108,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-2c6672fe6103,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-ef0fb283d017,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b755fb39886f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-235cce5bda1c,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1919ac7ef411,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-7b923abb9ee9,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8c89eb2715f7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8ce898d5980e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-65d2ca8ce058,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-f13dd6eb3dfc,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c2410fc41700,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-0235ea142342,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-0b05e4b70091,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8f6bc70cc5c7,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a5a3595a44ac,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4f2243326c6c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d58f9b64fe60,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6f0daaeb701a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a2383f979716,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-63a900741d51,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-e4944e9e7f55,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a5af138af243,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6e5a7f1244be,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-12fe274dfbc4,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-a3de5f133fce,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6f9dfa2fd98c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-8d8a7a9b0ac8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-fb197df11595,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-098931a2059b,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1e98eefd2538,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-2222c74ec14c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-664fa9c1e0d1,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-026149706b86,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-d617a4c73593,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-986d789416af,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-070d9382f72a,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-87c8f5a78dd0,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-43def3e45a9a,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6133144b670e,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-4f9e08056a39,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-9f1e5b498178,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-eb4912537712,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-791918c2698d,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1bad84b95efe,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-1147d0871209,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-6d0f1dda1d96,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b5619e862db3,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b7de5f4076af,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-528ad9e03fbf,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-f649cb6b48a8,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b545cb3baa6f,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-f1a0389a6d2b,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-093642e8250b,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c117d2b02c26,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-fec8f0403053,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-61e909f95183,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-106e95725fb3,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b4d07920488c,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-b1169d7aa9ce,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-c8c120597277,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-fac245e582da,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-7d888f3a53b6,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-22bdda0dea6b,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-5394c84f004b,berlin-hausverwaltung-2026-11-10,,Not searched,Not searched,Unknown,0,provider search incomplete or capped; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-3b62e742bb59,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00
+DE-BER-04ce1a1840d0,berlin-hausverwaltung-2026-11-10,,Partial,Unknown,Unknown,0,account-scoped search incomplete or contained unresolved candidates; no negative conclusion,2026-11-10T08:39:19+00:00

@@ -1,4 +1,4 @@
 source_type,retrieved_at,query_or_export_id,access_limitation,actor_id,actor_run_id,extraction_method,source_reuse_status,source_url
-VDIV,2026-11-10T01:19:06+00:00,vdiv_2026-11-07.csv,,,,bounded local import,New retrieval,https://vdiv-bb.de/mitglieder/
-Apify,2026-11-10T01:19:06+00:00,apify.json,,apify/google-search-scraper,gbOq4M9o1GBVJFarQ,apify/google-search-scraper,New retrieval,
-Overpass,2026-11-10T01:19:06+00:00,overpass.json,,,,bounded local import,New retrieval,https://overpass-api.de/api/interpreter
+VDIV,2026-11-10T03:09:41+00:00,vdiv_2026-11-07.csv,,,,bounded local import,New retrieval,https://vdiv-bb.de/mitglieder/
+Apify,2026-11-10T03:09:41+00:00,apify-4usd.json,,apify/google-search-scraper,6amspoNTlVMQOoYZ3,apify/google-search-scraper,New retrieval,
+Overpass,2026-11-10T03:09:41+00:00,overpass-4usd.json,Overpass query failed after retries; last HTTP status 502,,,bounded local import,Existing export,https://overpass-api.de/api/interpreter

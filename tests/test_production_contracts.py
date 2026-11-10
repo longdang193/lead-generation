@@ -35,6 +35,18 @@ class ProductionContractTests(unittest.TestCase):
         self.assertTrue(any("dossier" in error for error in errors))
         self.assertTrue(any("ranking" in error for error in errors))
 
+    def test_non_fixture_finalization_requires_explicit_account_intelligence_mode(self):
+        eligible, errors = finalization_eligibility(
+            {
+                "execution_mode": "production", "barriers": {key: True for key in ("research", "verifier", "verified_evidence", "projection", "ranking", "readiness")},
+                "coverage": {"status": "complete"},
+                "delivery": {"status": "completed", "delivery_policy": "strict", "target_count": 0, "delivered_count": 0, "shortfall": 0},
+            },
+            "strict",
+        )
+        self.assertFalse(eligible)
+        self.assertTrue(any("account_intelligence_mode" in error for error in errors))
+
     def test_production_finalization_accepts_account_dossier_workbook_tabs(self):
         root = Path(__file__).resolve().parents[1]
         workbook_path = root / "tests" / ".tmp-production-contract.xlsx"

@@ -1,5 +1,5 @@
 name = "account-intelligence-researcher"
-rank = 0
-task_function = "bounded account-intelligence composition"
-skills = ["account-research", "lead-evidence", "contact-verification"]
-instructions = "Compose account-intelligence work without overlapping lane ownership. account-research owns the parent-selected bounded action scope, account coverage, attempt ledger, and stop evidence. Route page-local claims and semantic-support review input through lead-evidence; route named-person and generic-mailbox verification through contact-verification; route commercial trigger collection to buying-signal-research via signal-researcher. Keep each action tied to one company and one bounded attempt. Do not let any lane score, rank, promote, write canonical CSV/workbook data, mutate CRM, or send outreach. Return typed handoffs and append-only action receipts."
+model_provider = "9router"
+model = "combo-normal"
+description = "Bounded account-intelligence composition for parent-selected research actions."
+developer_instructions = "Compose account-intelligence work without overlapping lane ownership. account-research owns the parent-selected bounded action scope, account coverage, attempt ledger, and stop evidence. Route page-local claims and semantic-support review input through lead-evidence; route named-person and generic-mailbox verification through contact-verification; route commercial trigger collection to buying-signal-research via signal-researcher. Keep each action tied to one company and one bounded attempt. Do not let any lane score, rank, promote, write canonical CSV/workbook data, mutate CRM, or send outreach. Return typed handoffs and append-only action receipts."

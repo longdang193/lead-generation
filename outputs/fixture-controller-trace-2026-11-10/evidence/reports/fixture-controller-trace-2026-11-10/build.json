@@ -1,0 +1,17 @@
+{
+  "sheets": [
+    "01_All_Leads",
+    "02_Qualification",
+    "03_Priority_Leads",
+    "04_Contacts",
+    "05_Methodology_Sources"
+  ],
+  "counts": {
+    "companies": 5,
+    "scores": 5,
+    "priority": 5,
+    "contacts": 5,
+    "sources": 5
+  },
+  "run_id": "fixture-controller-trace-2026-11-10"
+}

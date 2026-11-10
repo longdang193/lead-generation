@@ -296,13 +296,20 @@ class RankAudit(ContractModel):
     priority_state: Literal[
         "Priority — verified trigger",
         "Priority — strong fit, no trigger",
+        "Priority — sales-ready account",
         "Nurture",
         "Research required",
+        "Research candidate",
+        "Proactive account",
         "Disqualify",
     ]
+    decision_class: Literal["research_candidate", "proactive_account", "sales_ready"] = "research_candidate"
+    readiness_decision: Literal["research_required", "proactive_qualified", "sales_ready", "blocked"] = "research_required"
     total_score: float = Field(ge=0)
     contributions: list[RankContribution] = Field(min_length=1)
     rationale_claim_ids: list[str] = Field(min_length=1)
+    comparative_rationale: str | None = None
+    reversal_condition: str | None = None
 
     @model_validator(mode="after")
     def contributions_sum_to_total(self) -> "RankAudit":
@@ -655,6 +662,38 @@ class AccountThesis(ContractModel):
     research_gap_impact: str = Field(min_length=1)
     semantic_review_ids: list[str] = Field(min_length=1)
     recommended_action: str = Field(min_length=1)
+    decision_class: Literal["research_candidate", "proactive_account", "sales_ready"] = "research_candidate"
+    readiness_decision: Literal["research_required", "proactive_qualified", "sales_ready", "blocked"] = "research_required"
+    access_verified: bool = False
+    access_person: str | None = None
+    access_role: str | None = None
+    access_channel: str | None = None
+    access_claim_ids: list[str] = Field(default_factory=list)
+    comparative_rationale: str | None = None
+    next_alternative_company_id: str | None = None
+    reversal_condition: str | None = None
+
+    @model_validator(mode="after")
+    def enforce_sales_ready_contract(self) -> "AccountThesis":
+        if self.decision_class != "sales_ready":
+            return self
+        missing = [
+            name for name, value in (
+                ("readiness_decision", self.readiness_decision == "sales_ready"),
+                ("access_verified", self.access_verified),
+                ("access_person", bool(self.access_person)),
+                ("access_role", bool(self.access_role)),
+                ("access_channel", bool(self.access_channel)),
+                ("comparative_rationale", bool(self.comparative_rationale)),
+                ("next_alternative_company_id", bool(self.next_alternative_company_id)),
+                ("reversal_condition", bool(self.reversal_condition)),
+            ) if not value
+        ]
+        if missing:
+            raise ValueError("sales_ready thesis requires: " + ", ".join(missing))
+        if not self.access_claim_ids:
+            raise ValueError("sales_ready thesis requires access_claim_ids")
+        return self
 
 
 class FinalizationRequest(ContractModel):

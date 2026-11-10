@@ -1,0 +1,6 @@
+company_id,company_name,domain,verified_company_domain,city,berlin_relevance,resolution_status,source_url,retrieved_at,evidence_level
+DE-BER-d7da6f3123f6,1A Hausverwaltung,1ahausverwaltung.de,1ahausverwaltung.de,Berlin,Confirmed,Accepted,https://1ahausverwaltung.de/,2026-11-08T00:00:00+00:00,Primary
+DE-BER-955c3f4546dc,Aadaktio ImmoVerwaltung GmbH,aadaktio.de,aadaktio.de,Berlin,Confirmed,Accepted,https://aadaktio.de/,2026-11-08T00:00:00+00:00,Primary
+DE-BER-f844432b7520,ABOS Immobilien GmbH,abos-immobilien.de,abos-immobilien.de,Berlin,Confirmed,Accepted,https://abos-immobilien.de/,2026-11-08T00:00:00+00:00,Primary
+DE-BER-33f026690f34,Acenes Immobilien GmbH,acenesimmobilien.de,acenesimmobilien.de,Berlin,Confirmed,Accepted,https://acenesimmobilien.de/,2026-11-08T00:00:00+00:00,Primary
+DE-BER-41db421cfa1e,Ahlsen Immobilienverwaltung Berlin,ahlsen.de,ahlsen.de,Berlin,Confirmed,Accepted,https://ahlsen.de/,2026-11-08T00:00:00+00:00,Primary

@@ -1,0 +1,55 @@
+{
+  "benchmark_id": "account-intelligence-benchmark-2026-11-10",
+  "baseline": {
+    "A02": {
+      "structural_rank": 1,
+      "company_id": "DE-BER-01808a09ff7b",
+      "structural_score": "75.0"
+    },
+    "A05": {
+      "structural_rank": 2,
+      "company_id": "DE-BER-0368fe16f577",
+      "structural_score": "75.0"
+    },
+    "A06": {
+      "structural_rank": 3,
+      "company_id": "DE-BER-04ce1a1840d0",
+      "structural_score": "75.0"
+    },
+    "A07": {
+      "structural_rank": 4,
+      "company_id": "DE-BER-070d9382f72a",
+      "structural_score": "75.0"
+    },
+    "A09": {
+      "structural_rank": 5,
+      "company_id": "DE-BER-093642e8250b",
+      "structural_score": "75.0"
+    },
+    "A10": {
+      "structural_rank": 6,
+      "company_id": "DE-BER-098931a2059b",
+      "structural_score": "75.0"
+    },
+    "A01": {
+      "structural_rank": 7,
+      "company_id": "DE-BER-017bb4e9bc88",
+      "structural_score": "65.0"
+    },
+    "A04": {
+      "structural_rank": 8,
+      "company_id": "DE-BER-026149706b86",
+      "structural_score": "65.0"
+    },
+    "A03": {
+      "structural_rank": 9,
+      "company_id": "DE-BER-0235ea142342",
+      "structural_score": "45.0"
+    },
+    "A08": {
+      "structural_rank": 10,
+      "company_id": "DE-BER-08d50b6a7d6a",
+      "structural_score": "35.0"
+    }
+  }
+}

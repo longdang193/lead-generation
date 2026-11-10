@@ -15,7 +15,7 @@ from pathlib import Path
 from campaign_spec import CampaignSpec, admit_work_item, load_campaign_spec
 from dispatch_contracts import validate_lane_output
 from lead_contract import candidate_claim_id, candidate_sha256, run_scope_matches
-from run_manifest import entry, finalization_eligibility, finalize_run as finalize_manifest_run, load as load_manifest, portable_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
+from run_manifest import ACCOUNT_INTELLIGENCE_MODES, entry, finalization_eligibility, finalize_run as finalize_manifest_run, load as load_manifest, portable_path, recover_publication, repository_root, update as update_manifest, validate_manifest_revision
 from runtime_config import RuntimeConfig
 
 
@@ -736,10 +736,16 @@ def run_pipeline(root: Path, manifest_path: Path, shortlist_path: Path, *, campa
     admitted_items = [item for lane in campaign.lanes for item in queues[lane]]
     domain_by_company = {str(item["company_id"]): str(item["trusted_domain"]) for item in admitted_items}
     source_policy = {"allowed_domains": sorted(set(domain_by_company.values())), "company_domains": domain_by_company}
+    configured_intelligence_mode = campaign.normalized.get("account_intelligence_mode")
+    if configured_intelligence_mode is None:
+        configured_intelligence_mode = campaign.adapter_policy.get("account_intelligence_mode")
+    account_intelligence_mode = str(configured_intelligence_mode or "exploratory").strip().lower()
+    if account_intelligence_mode not in ACCOUNT_INTELLIGENCE_MODES:
+        raise ValueError("account_intelligence_mode must be one of: " + ", ".join(sorted(ACCOUNT_INTELLIGENCE_MODES)))
     configured_source_policy = campaign.adapter_policy.get("source_policy")
     if isinstance(configured_source_policy, dict):
         source_policy.update(configured_source_policy)
-    update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, registries={"execution_mode": "fixture" if fixture else "production", "delivery_policy": campaign.delivery_policy, "admitted_work_items": admitted_items, "source_policy": source_policy}, status="queued", barriers={"provisional_shortlist": True})
+    update_manifest_file(manifest_path, root, inputs=fixture_inputs, outputs={f"queue_{lane}": queue_dir / f"{lane}.jsonl" for lane in queues}, registries={"execution_mode": "fixture" if fixture else "production", "account_intelligence_mode": account_intelligence_mode, "delivery_policy": campaign.delivery_policy, "admitted_work_items": admitted_items, "source_policy": source_policy}, status="queued", barriers={"provisional_shortlist": True})
     from worker_dispatch import DispatchBudget, NativeExecutorConfig, dispatch_fixture_lanes, dispatch_native_lane, reconcile_lane_outputs, split_material_gap_queue
     runtime_config = RuntimeConfig.from_env()
     config_errors = runtime_config.validate()

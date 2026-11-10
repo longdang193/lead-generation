@@ -31,18 +31,33 @@ from typed_contracts import (
 
 
 def discover_profiles(root: Path) -> list[dict[str, Any]]:
+    role_contract_path = root / "config" / "agent_role_contracts.json"
+    try:
+        role_contracts = json.loads(role_contract_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read agent role contracts: {role_contract_path}") from exc
+    if not isinstance(role_contracts, dict):
+        raise ValueError("agent role contracts must be an object")
     profiles: list[dict[str, Any]] = []
     for path in sorted((root / "agents").glob("*.toml")):
         with path.open("rb") as handle:
             data = tomllib.load(handle)
         name = str(data.get("name") or path.stem)
-        skills = data.get("skills") or []
+        role = role_contracts.get(name)
+        if role is None and name.startswith("review-"):
+            continue
+        if not isinstance(role, dict):
+            raise ValueError(f"missing agent role contract: {name}")
+        skills = role.get("skills") or []
         if not isinstance(skills, list) or not all(isinstance(skill, str) and skill for skill in skills):
-            raise ValueError(f"profile skills must be a list of non-empty strings: {path}")
+            raise ValueError(f"agent role skills must be a list of non-empty strings: {name}")
+        task_function = role.get("task_function")
+        if not isinstance(task_function, str) or not task_function.strip():
+            raise ValueError(f"agent role task_function must be a non-empty string: {name}")
         profiles.append({
             "name": name,
             "path": path.relative_to(root).as_posix(),
-            "task_function": str(data.get("task_function") or ""),
+            "task_function": task_function,
             "skills": list(skills),
         })
     return profiles
@@ -323,13 +338,17 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
             )
         compatibility_mode = bool(payload.get("compatibility_mode", False))
         dossiers = payload.get("dossiers")
-        if production and (not offer_id or not offer_version or not isinstance(dossiers, (dict, list))):
+        if production and (not offer_id or not offer_version):
             raise ValueError("production ranking requires offer context and one validated dossier per company")
+        if production and not manifest_dossiers:
+            raise ValueError("production ranking requires one validated dossier per company")
         if not production and not compatibility_mode and not isinstance(dossiers, (dict, list)):
             raise ValueError("flat structural ranking is compatibility-only; pass compatibility_mode=true or dossiers")
         semantic_reviews = payload.get("semantic_reviews")
         if offer_id and offer_version and (isinstance(dossiers, (dict, list)) or compatibility_mode):
-            if isinstance(dossiers, dict):
+            if production:
+                dossiers_by_company = dict(manifest_dossiers)
+            elif isinstance(dossiers, dict):
                 dossiers_by_company = {str(key): value for key, value in dossiers.items() if isinstance(value, dict)}
             elif isinstance(dossiers, list):
                 dossiers_by_company = {str(value.get("company_id") or (value.get("thesis") or {}).get("company_id")): value for value in dossiers if isinstance(value, dict)}
@@ -372,6 +391,10 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                 audit = rank_account(enriched, offer_id, offer_version, dossier=dossier)
                 enriched["rank_audit"] = audit.model_dump(mode="json")
                 enriched["_commercial_score"] = audit.total_score
+                enriched["decision_class"] = audit.decision_class
+                enriched["readiness_decision"] = audit.readiness_decision
+                enriched["comparative_rationale"] = audit.comparative_rationale or ""
+                enriched["reversal_condition"] = audit.reversal_condition or ""
                 enriched["dossier_hash"] = dossier.get("dossier_hash")
                 enriched["semantic_review_ids"] = [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in reviews if isinstance(item, dict)]
                 enriched["strongest_claim_ids"] = list(dossier["thesis"].get("strongest_claim_ids") or [])

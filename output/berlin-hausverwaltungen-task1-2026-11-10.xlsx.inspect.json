@@ -1,0 +1,122 @@
+{
+  "outputPath": "output/berlin-hausverwaltungen-task1-2026-11-10.xlsx",
+  "companyCount": 195,
+  "priorityCount": 30,
+  "sheets": [
+    {
+      "name": "Berlin Hausverwaltungen",
+      "regions": [
+        {
+          "range": "A1:A2",
+          "rowCount": 2,
+          "columnCount": 1
+        },
+        {
+          "range": "A4:AJ199",
+          "rowCount": 196,
+          "columnCount": 36
+        },
+        {
+          "range": "H33",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H36:H38",
+          "rowCount": 3,
+          "columnCount": 1
+        },
+        {
+          "range": "H40",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H72",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H74",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H107:H108",
+          "rowCount": 2,
+          "columnCount": 1
+        },
+        {
+          "range": "H160:H162",
+          "rowCount": 3,
+          "columnCount": 1
+        },
+        {
+          "range": "H175",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H184",
+          "rowCount": 1,
+          "columnCount": 1
+        },
+        {
+          "range": "H193",
+          "rowCount": 1,
+          "columnCount": 1
+        }
+      ]
+    },
+    {
+      "name": "Top 30 Leads",
+      "regions": [
+        {
+          "range": "A1:A2",
+          "rowCount": 2,
+          "columnCount": 1
+        },
+        {
+          "range": "A4:AJ34",
+          "rowCount": 31,
+          "columnCount": 36
+        },
+        {
+          "range": "H33",
+          "rowCount": 1,
+          "columnCount": 1
+        }
+      ]
+    },
+    {
+      "name": "KPI Definitions",
+      "regions": [
+        {
+          "range": "A1:A2",
+          "rowCount": 2,
+          "columnCount": 1
+        },
+        {
+          "range": "A4:E12",
+          "rowCount": 9,
+          "columnCount": 5
+        }
+      ]
+    },
+    {
+      "name": "Source Notes",
+      "regions": [
+        {
+          "range": "A1:A2",
+          "rowCount": 2,
+          "columnCount": 1
+        },
+        {
+          "range": "A4:B15",
+          "rowCount": 12,
+          "columnCount": 2
+        }
+      ]
+    }
+  ]
+}

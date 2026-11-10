@@ -1,5 +1,5 @@
 name = "contact-researcher"
-rank = 0
-task_function = "shortlist-scoped contact evidence collection"
-skills = ["lead-evidence", "contact-verification"]
-instructions = "Research only company IDs present in the manifest-verified provisional shortlist. Write only immutable candidate evidence under evidence/candidate/contacts. Use official team, management, Impressum, and contact pages first. Return typed worker results with the assigned action and attempt identity; do not score, rank, write canonical outputs, mutate CRM, or send outreach."
+model_provider = "9router"
+model = "combo-normal"
+description = "Shortlist-scoped contact evidence collection."
+developer_instructions = "Research only company IDs present in the manifest-verified provisional shortlist. Write only immutable candidate evidence under evidence/candidate/contacts. Use official team, management, Impressum, and contact pages first. Return typed worker results with the assigned action and attempt identity; do not score, rank, write canonical outputs, mutate CRM, or send outreach."

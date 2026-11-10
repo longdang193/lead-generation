@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 from urllib.parse import urlparse
 
 from action_receipts import settled_receipt_ids_for_checks, validate_settled_receipt
@@ -234,9 +234,21 @@ def account_signal_state(
     require_receipts: bool = False,
 ) -> str:
     events = list(matched_events)
-    if events:
-        return "Verified trigger"
     if manifest is None:
+        return "Verified trigger" if events and all(_usable_event(event, None) for event in events) else "Research incomplete"
+    expected_company_id = str((manifest.company_id if isinstance(manifest, CoverageManifest) else manifest.get("company_id")) or "")
+    usable_events = [event for event in events if _usable_event(event, expected_company_id)]
+    if usable_events:
+        return "Verified trigger"
+    if events and expected_company_id and all(_event_is_decisively_rejected(event, expected_company_id) for event in events):
+        try:
+            coverage = validate_coverage_manifest(manifest, receipt_root=receipt_root, receipt_run_id=receipt_run_id, require_receipts=require_receipts)
+        except ValueError:
+            if require_receipts:
+                return "Research incomplete"
+            raise
+        return "No trigger found" if coverage.permits_no_trigger() else "Research incomplete"
+    if events:
         return "Research incomplete"
     try:
         coverage = validate_coverage_manifest(manifest, receipt_root=receipt_root, receipt_run_id=receipt_run_id, require_receipts=require_receipts)
@@ -247,6 +259,40 @@ def account_signal_state(
     if all(state in {"unavailable", "invalid"} for state in coverage.provider_states.values()) and coverage.provider_states:
         return "Unavailable"
     return "No trigger found" if coverage.permits_no_trigger() else "Research incomplete"
+
+
+def _event_fields(event: Mapping[str, Any]) -> dict[str, str]:
+    value = event.get("value")
+    nested = value if isinstance(value, Mapping) else {}
+    return {
+        key: str(event.get(key) or nested.get(key) or "").strip().lower()
+        for key in ("company_id", "verification_status", "match_confidence", "offer_relevance", "temporal_relevance", "contradiction_result")
+    }
+
+
+def _event_is_decisively_rejected(event: Mapping[str, Any], expected_company_id: str | None) -> bool:
+    fields = _event_fields(event)
+    if expected_company_id and fields["company_id"] and fields["company_id"] != expected_company_id.lower():
+        return True
+    return (
+        fields["verification_status"] in {"rejected", "invalid", "unverified", "unknown"}
+        or fields["match_confidence"] in {"rejected", "invalid", "unverified", "unknown"}
+        or fields["offer_relevance"] in {"irrelevant", "unclear", "unknown"}
+        or fields["temporal_relevance"] in {"stale", "unknown"}
+        or fields["contradiction_result"] in {"present", "unclear"}
+    )
+
+
+def _usable_event(event: Mapping[str, Any], expected_company_id: str | None) -> bool:
+    fields = _event_fields(event)
+    if expected_company_id and fields["company_id"] != expected_company_id.lower():
+        return False
+    if _event_is_decisively_rejected(event, expected_company_id):
+        return False
+    return (
+        fields["verification_status"] in {"verified", "supported"}
+        or fields["match_confidence"] in {"verified", "supported", "high"}
+    ) and fields["offer_relevance"] == "relevant" and fields["temporal_relevance"] == "current" and fields["contradiction_result"] in {"", "none"}
 
 
 def validate_account_thesis(
@@ -278,7 +324,10 @@ def validate_account_thesis(
             raise ValueError("hypothesis offer context does not match the enclosing thesis")
         hypotheses.append(validate_account_hypothesis(hypothesis, claim_list))
     claim_ids = {claim.claim_id for claim in claim_list}
-    referenced = set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)
+    missing_access_claims = sorted(set(validated.access_claim_ids) - claim_ids)
+    if missing_access_claims:
+        raise ValueError("thesis references missing access claim IDs: " + ", ".join(missing_access_claims))
+    referenced = set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids) | set(validated.access_claim_ids)
     missing = sorted(referenced - claim_ids)
     if missing:
         raise ValueError(f"thesis references missing claim IDs: {', '.join(missing)}")
@@ -383,15 +432,30 @@ def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -
     return round(fit or 0.0, 2)
 
 
-def derive_validated_signal_state(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> str:
-    """Derive signal state only from validated, source-assured claim content."""
+def derive_validated_signal_state(
+    claims: Iterable[EvidenceClaim | dict[str, Any]],
+    semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
+) -> str:
+    """Derive signal state from source-assured claims and approved offer-bound reviews."""
 
-    for raw_claim in claims:
+    claim_list = list(claims)
+    approved_review_claim_ids = {
+        claim_id
+        for raw_review in semantic_reviews
+        for review in [raw_review if isinstance(raw_review, SemanticReview) else SemanticReview.model_validate(raw_review)]
+        if review.decision == "approved"
+        for claim_id in review.reviewed_claim_ids
+    }
+    for raw_claim in claim_list:
         claim = _claim_model(raw_claim)
         if claim.assurance_level != AssuranceLevel.source or _claim_status(raw_claim, claim) not in {"Verified", "Supported"}:
             continue
         if claim.claim_type == "event":
-            return "Verified trigger"
+            value = claim.value if isinstance(claim.value, dict) else {}
+            event = {**value, "company_id": claim.company_id}
+            if _usable_event(event, claim.company_id) or (claim.claim_id in approved_review_claim_ids and not _event_is_decisively_rejected(event, claim.company_id)):
+                return "Verified trigger"
+            continue
         if claim.claim_type == "buying_signal":
             value = claim.value.get("value") if isinstance(claim.value, dict) else claim.value
             if str(value) in _SIGNAL_STATES:
@@ -427,7 +491,7 @@ def project_account_intelligence(
     )
     validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile, require_receipt=production, receipt_root=receipt_root, receipt_run_id=receipt_run_id) for item in review_list]
     timeline = build_account_timeline(claim_list)
-    signal_state = derive_validated_signal_state(claim_list)
+    signal_state = derive_validated_signal_state(claim_list, validated_reviews)
     if coverage_manifest is not None and signal_state == "Research incomplete":
         coverage = validate_coverage_manifest(
             coverage_manifest,

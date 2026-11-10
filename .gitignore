@@ -1,6 +1,9 @@
 .env
+.env.*
 .env.*.local
 !.env.example
+*.private.*
+*.local.*
 .serena/
 __pycache__/
 *.pyc
