@@ -16,7 +16,7 @@ from import_discovery import read_rows
 from lead_contract import is_plausible_company_name
 from normalize_dedupe import clean_name, company_id, explicit_berlin_evidence, trusted_company_domain
 from promote_evidence import promote_verified_claims
-from run_manifest import file_sha256, finalization_eligibility, finalize_run, load, reconstruct_finalization_readiness
+from run_manifest import file_sha256, finalization_eligibility, finalize_run, load, reconstruct_finalization_readiness, update as update_manifest
 from select_for_enrichment import select_accounts
 from score_leads import rank_account
 from typed_contracts import (
@@ -200,6 +200,10 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
             raise ValueError("thesis must be an object")
         return project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
     if action == "persist_dossier":
+        production = bool(payload.pop("production", False))
+        manifest_raw = payload.get("manifest_path") or payload.get("run_manifest")
+        if production and not manifest_raw:
+            raise ValueError("production dossier persistence requires an active run manifest")
         claims = payload.pop("claims", [])
         thesis = payload.pop("thesis", None)
         offer_profile = payload.pop("offer_profile", None)
@@ -207,9 +211,20 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         output = _resolve_path(root, payload.pop("output"))
         if not isinstance(thesis, dict):
             raise ValueError("thesis must be an object")
-        dossier = project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
+        dossier = project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile, production=production)
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(dossier, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")) + "\n", encoding="utf-8")
+        if manifest_raw:
+            manifest_path = _resolve_path(root, manifest_raw)
+            update_manifest(manifest_path, root, outputs={"dossier": output}, registries={"dossier_bindings": {
+                str(dossier.get("company_id") or ""): {
+                    "dossier_hash": str(dossier.get("dossier_hash") or ""),
+                    "offer_id": str(dossier.get("offer_id") or ""),
+                    "offer_version": str(dossier.get("offer_version") or ""),
+                    "run_id": str(dossier.get("run_id") or ""),
+                    "manifest_revision": str(load(manifest_path).get("head_sha") or load(manifest_path).get("git_revision") or ""),
+                }
+            }}, status="dossier_staged")
         return {"dossier": dossier, "artifact": _artifact(root, output, "account_dossier")}
     if action == "calculate_fit":
         claims = payload.get("claims", [])
@@ -228,6 +243,8 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         offer_id = str(payload.get("offer_id") or "")
         offer_version = str(payload.get("offer_version") or "")
         production = bool(payload.get("production", False))
+        if production and not (payload.get("run_manifest") or payload.get("manifest_path")):
+            raise ValueError("production ranking requires an active run manifest")
         compatibility_mode = bool(payload.get("compatibility_mode", False))
         dossiers = payload.get("dossiers")
         if production and (not offer_id or not offer_version or not isinstance(dossiers, (dict, list))):
@@ -270,7 +287,7 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                 validate_account_thesis(
                     dossier["thesis"], claims, enforce_structural_fit=True,
                     require_source_assurance=True, require_material_assertions=True,
-                    semantic_reviews=reviews, offer_profile=payload.get("offer_profile"),
+                    semantic_reviews=reviews, offer_profile=payload.get("offer_profile"), require_receipts=production,
                 )
                 audit = rank_account(enriched, offer_id, offer_version, dossier=dossier)
                 enriched["rank_audit"] = audit.model_dump(mode="json")
@@ -322,6 +339,11 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         ]
         if payload.get("website_evidence"):
             command.extend(["--website-evidence", str(_resolve_path(root, payload.get("website_evidence")))])
+        if payload.get("production_account_intelligence"):
+            dossier = payload.get("dossier")
+            if not dossier or not payload.get("run_manifest"):
+                raise ValueError("production workbook QA requires run manifest and dossier")
+            command.extend(["--production-account-intelligence", "--dossier", str(_resolve_path(root, dossier))])
         if payload.get("run_manifest"):
             command.extend(["--run-manifest", str(_resolve_path(root, payload.get("run_manifest")))])
         completed = subprocess.run(command, cwd=root, check=False, capture_output=True, text=True)

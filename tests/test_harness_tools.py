@@ -42,7 +42,7 @@ class HarnessToolTests(unittest.TestCase):
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c1"],
             "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant",
             "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved",
-            "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+            "reason_codes": ["supported"], "reviewer_id": "reviewer-1", "receipt_id": "review-action:attempt-1",
         } for assertion in assertions]
         dossier = project_account_intelligence([claim], {
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
@@ -51,7 +51,7 @@ class HarnessToolTests(unittest.TestCase):
             "semantic_review_ids": ["m1", "m2", "m3"], "recommended_action": "contact", "material_assertions": assertions,
         }, semantic_reviews=reviews)
         result = invoke({"action": "rank_leads", "payload": {
-            "production": True, "offer_id": "offer-1", "offer_version": "2026-11-09", "max_accounts": 1,
+            "production": True, "run_manifest": "evidence/run_manifest_2026-11-09.json", "offer_id": "offer-1", "offer_version": "2026-11-09", "max_accounts": 1,
             "delivery_policy": "personal", "scores": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "buying_signal": "Verified trigger", "lead_tier": "A", "evidence_coverage": 100}],
             "qualification": {"C1": {"eligible": True, "resolution_status": "Accepted", "lead_tier": "A", "evidence_coverage": 100}},
             "dossiers": {"C1": dossier},
@@ -65,11 +65,42 @@ class HarnessToolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "validated dossier"):
             invoke({"action": "rank_leads", "payload": {
                 "production": True,
+                "run_manifest": "manifest.json",
                 "offer_id": "offer-1",
                 "offer_version": "2026-11-09",
                 "scores": [],
                 "qualification": {},
             }}, Path.cwd())
+
+    def test_production_rank_requires_active_manifest(self):
+        with self.assertRaisesRegex(ValueError, "active run manifest"):
+            invoke({"action": "rank_leads", "payload": {
+                "production": True, "offer_id": "offer-1", "offer_version": "2026-11-09",
+                "scores": [], "qualification": {}, "dossiers": {},
+            }}, Path.cwd())
+
+    def test_production_persist_dossier_requires_active_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "active run manifest"):
+                invoke({"action": "persist_dossier", "payload": {"production": True, "thesis": {}, "output": "dossier.jsonl"}}, root)
+
+    def test_production_persist_dossier_binds_output_to_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = root / "manifest.json"
+            atomic_write(manifest, {"run_id": "run-1", "head_sha": "a" * 40, "outputs": {}})
+            output = root / "dossier.jsonl"
+            dossier = {"company_id": "C1", "dossier_hash": "hash-1", "offer_id": "offer-1", "offer_version": "v1", "run_id": "run-1"}
+            with patch("harness_tools.project_account_intelligence", return_value=dossier):
+                result = invoke({"action": "persist_dossier", "payload": {
+                    "production": True, "manifest_path": "manifest.json", "thesis": {}, "output": "dossier.jsonl",
+                }}, root)
+            self.assertEqual(result["dossier"], dossier)
+            recorded = load(manifest)
+            self.assertEqual(recorded["status"], "dossier_staged")
+            self.assertEqual(recorded["outputs"]["dossier"]["path"], "dossier.jsonl")
+            self.assertEqual(recorded["dossier_bindings"]["C1"]["dossier_hash"], "hash-1")
 
     def test_persist_dossier_writes_consumable_jsonl_artifact(self):
         with tempfile.TemporaryDirectory() as directory:

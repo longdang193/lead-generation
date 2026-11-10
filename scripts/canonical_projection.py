@@ -83,6 +83,7 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         and policy_complete
     )
     return CoverageManifest(
+        run_id=str(source.get("run_id") or research_run.get("run_id") or "") or None,
         company_id=company_id,
         offer_id=offer_id,
         offer_version=offer_version,
@@ -95,6 +96,8 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         research_policy_version=str(source.get("research_policy_version") or "") or None,
         research_policy_hash=str(source.get("research_policy_hash") or "") or None,
         settled_receipt_ids=[str(value) for value in source.get("settled_receipt_ids", []) if value] if isinstance(source.get("settled_receipt_ids"), list) else [],
+        receipt_check_map={str(key): [str(value) for value in values if value] for key, values in (source.get("receipt_check_map") or {}).items() if isinstance(values, list)} if isinstance(source.get("receipt_check_map"), dict) else {},
+        receipt_context={str(key): str(value) for key, value in (source.get("receipt_context") or {}).items() if value is not None} if isinstance(source.get("receipt_context"), dict) else {},
         trigger_state="No trigger found" if coverage_status == "complete" and permits_no_trigger else "Research incomplete",
     )
 

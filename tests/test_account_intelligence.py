@@ -58,6 +58,9 @@ class AccountIntelligenceTests(unittest.TestCase):
             "research_policy_version": "1",
             "research_policy_hash": "p" * 64,
             "settled_receipt_ids": ["action-1:attempt-1", "action-2:attempt-1"],
+            "run_id": "run-1",
+            "receipt_check_map": {"official_site": ["action-1:attempt-1"], "public_news": ["action-2:attempt-1"]},
+            "receipt_context": {"run_id": "run-1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "research_policy_id": "policy-1", "research_policy_version": "1", "research_policy_hash": "p" * 64},
         })
         self.assertEqual(account_signal_state([], manifest), "No trigger found")
 

@@ -219,6 +219,7 @@ class SemanticReview(ContractModel):
 
 
 class CoverageManifest(ContractModel):
+    run_id: str | None = None
     company_id: str = Field(min_length=1)
     offer_id: str = Field(min_length=1)
     offer_version: str = Field(min_length=1)
@@ -232,6 +233,8 @@ class CoverageManifest(ContractModel):
     research_policy_version: str | None = None
     research_policy_hash: str | None = None
     settled_receipt_ids: list[str] = Field(default_factory=list)
+    receipt_check_map: dict[str, list[str]] = Field(default_factory=dict)
+    receipt_context: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def completed_checks_are_declared(self) -> "CoverageManifest":
@@ -243,13 +246,27 @@ class CoverageManifest(ContractModel):
         return self
 
     def permits_no_trigger(self) -> bool:
+        required = set(self.required_checks)
+        mapped = {check: set(self.receipt_check_map.get(check, [])) for check in required}
+        receipt_ids = set(self.settled_receipt_ids)
+        context = self.receipt_context
         return (
-            set(self.completed_checks) == set(self.required_checks)
+            bool(self.run_id)
+            and set(self.completed_checks) == required
             and not self.truncated
             and self.unresolved_candidates == 0
-            and set(self.provider_states) >= set(self.required_checks)
-            and all(self.provider_states.get(check) == "available" for check in self.required_checks)
-            and bool(self.research_policy_id and self.research_policy_version and self.research_policy_hash and self.settled_receipt_ids)
+            and set(self.provider_states) >= required
+            and all(self.provider_states.get(check) == "available" for check in required)
+            and bool(self.research_policy_id and self.research_policy_version and self.research_policy_hash)
+            and all(mapped[check] and mapped[check].issubset(receipt_ids) for check in required)
+            and bool(receipt_ids)
+            and context.get("run_id") == self.run_id
+            and context.get("company_id") == self.company_id
+            and context.get("offer_id") == self.offer_id
+            and context.get("offer_version") == self.offer_version
+            and context.get("research_policy_id") == self.research_policy_id
+            and context.get("research_policy_version") == self.research_policy_version
+            and context.get("research_policy_hash") == self.research_policy_hash
         )
 
 

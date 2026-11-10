@@ -138,14 +138,41 @@ def replay_run(root: Path, run_id: str) -> dict[str, Any]:
     return replay_receipts(read_receipts(root, run_id))
 
 
-def settled_receipt_ids_for_checks(root: Path, run_id: str, company_id: str, required_checks: Iterable[str]) -> tuple[bool, list[str]]:
+def settled_receipt_ids_for_checks(
+    root: Path,
+    run_id: str,
+    company_id: str,
+    required_checks: Iterable[str],
+    *,
+    offer_id: str | None = None,
+    offer_version: str | None = None,
+    research_policy_id: str | None = None,
+    research_policy_version: str | None = None,
+    research_policy_hash: str | None = None,
+) -> tuple[bool, list[str]]:
     """Prove each required check has a settled terminal receipt for this account."""
 
     receipts = [receipt for receipt in read_receipts(root, run_id) if receipt.company_id == company_id]
+    expected_provenance = {
+        "offer_id": offer_id,
+        "offer_version": offer_version,
+        "research_policy_id": research_policy_id,
+        "research_policy_version": research_policy_version,
+        "research_policy_hash": research_policy_hash,
+    }
+    expected_provenance = {key: value for key, value in expected_provenance.items() if value is not None}
     errors: list[str] = []
     receipt_ids: list[str] = []
     for check in required_checks:
-        matched = [receipt for receipt in receipts if receipt.terminal_status in {"Completed", "Partial"} and (check in receipt.coverage_delta or check in receipt.scope or check == receipt.action_type)]
+        matched = []
+        for receipt in receipts:
+            value = receipt.coverage_delta.get(check)
+            covers_check = (isinstance(value, bool) and value) or (isinstance(value, (int, float)) and value > 0)
+            if receipt.terminal_status != "Completed" or not covers_check:
+                continue
+            if not all(receipt.provenance.get(key) == str(expected) for key, expected in expected_provenance.items()):
+                continue
+            matched.append(receipt)
         if not matched:
             errors.append(f"missing settled receipt for check: {check}")
             continue

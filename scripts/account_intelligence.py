@@ -159,7 +159,7 @@ def validate_account_hypothesis(hypothesis: AccountHypothesis | dict[str, Any], 
     return validated
 
 
-def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None, material_assertions: Iterable[MaterialAssertion | dict[str, Any]] = ()) -> SemanticReview:
+def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None, material_assertions: Iterable[MaterialAssertion | dict[str, Any]] = (), require_receipt: bool = False) -> SemanticReview:
     validated = review if isinstance(review, SemanticReview) else SemanticReview.model_validate(review)
     by_id = {claim.claim_id: claim for claim in (_claim_model(item) for item in claims)}
     missing = sorted(set(validated.reviewed_claim_ids) - set(by_id))
@@ -171,6 +171,8 @@ def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: It
         profile = offer_profile if isinstance(offer_profile, OfferProfile) else OfferProfile.model_validate(offer_profile)
         if (validated.offer_id, validated.offer_version) != (profile.offer_id, profile.offer_version):
             raise ValueError("semantic review offer context does not match offer profile")
+    if require_receipt and validated.decision == "approved" and not validated.receipt_id:
+        raise ValueError("approved semantic review requires a settled review receipt")
     assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in material_assertions]
     if assertions:
         matches = [item for item in assertions if item.assertion_id == validated.assertion_id and item.company_id == validated.company_id and (item.offer_id, item.offer_version) == (validated.offer_id, validated.offer_version)]
@@ -212,6 +214,7 @@ def validate_account_thesis(
     require_material_assertions: bool = False,
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
+    require_receipts: bool = False,
 ) -> AccountThesis:
     validated = thesis if isinstance(thesis, AccountThesis) else AccountThesis.model_validate(thesis)
     claim_list = [_claim_model(item) for item in claims]
@@ -237,9 +240,10 @@ def validate_account_thesis(
         raise ValueError("thesis references claims from another company")
     if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
         raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
-    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile) for item in semantic_reviews]
+    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, require_receipt=require_receipts) for item in semantic_reviews]
     assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in validated.material_assertions]
-    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, material_assertions=assertions) for item in reviews]
+    if assertions:
+        reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, material_assertions=assertions, require_receipt=require_receipts) for item in reviews]
     reviews_by_id = {key: review for review in reviews for key in {review.assertion_id, review.semantic_review_id or ""} if key}
     missing_reviews = sorted(set(validated.semantic_review_ids) - set(reviews_by_id))
     if missing_reviews:
@@ -340,6 +344,7 @@ def project_account_intelligence(
     *,
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
+    production: bool = False,
 ) -> dict[str, Any]:
     claim_list = list(claims)
     review_list = list(semantic_reviews)
@@ -351,8 +356,9 @@ def project_account_intelligence(
         require_material_assertions=True,
         semantic_reviews=review_list,
         offer_profile=offer_profile,
+        require_receipts=production,
     )
-    validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile) for item in review_list]
+    validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile, require_receipt=production) for item in review_list]
     timeline = build_account_timeline(claim_list)
     result = {
         "company_id": validated_thesis.company_id,

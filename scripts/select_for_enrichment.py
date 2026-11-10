@@ -31,6 +31,8 @@ def number(value: object, default: float = -1.0) -> float:
 def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object], delivery_policy: str = "strict", *, production: bool = False) -> bool:
     if production and not has_complete_production_lineage(row):
         return False
+    if production and row.get("_commercial_score") in (None, ""):
+        return False
     if not qualification or not qualification_eligibility(qualification, delivery_policy):
         return False
     allowed_tiers = {"A", "B"} | ({"Research"} if delivery_policy == "personal" else set())
