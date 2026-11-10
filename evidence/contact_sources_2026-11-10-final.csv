@@ -1,9 +1,9 @@
 company_id,contact_name,email,source_url,verification_status,last_verified
-DE-BER-15575a79c979,Unknown,info@mende-grundbesitz.de,https://www.mende-grundbesitz.de/,Published,2026-11-10
-DE-BER-471e471ace63,Unknown,Unknown,https://www.anton-schmittlein.de/,Not found,Unknown
-DE-BER-32a50b5315bf,Unknown,Unknown,https://www.xn--hv-grttner-eeb.de/,Not found,Unknown
-DE-BER-01808a09ff7b,Unknown,Unknown,https://www.hermes-berlin.de/,Not found,Unknown
-DE-BER-070d9382f72a,Unknown,Unknown,https://verinova.de/,Not found,Unknown
+DE-BER-15575a79c979,Anika Wilwand,info@mende-grundbesitz.de,https://mende-grundbesitz.de/impressum,Published,2026-11-10
+DE-BER-471e471ace63,Sven Sasse,Unknown,https://www.anton-schmittlein.de/,Not found,2026-11-10
+DE-BER-32a50b5315bf,Karin Grüttner-Böhme,info@hv-gruettner.de,https://www.xn--hv-gruettner-eeb.de/impressum,Published,2026-11-10
+DE-BER-01808a09ff7b,Jochen Rühr,info@hermes-berlin.de,https://www.hermes-berlin.de/impressum,Published,2026-11-10
+DE-BER-070d9382f72a,Hendryk Lietzmann,Unknown,https://verinova.de/,Not found,2026-11-10
 DE-BER-098931a2059b,Unknown,Unknown,https://www.strabag-pfs.com/de/ueber-uns/unsere-unternehmensgruppe/strabag-residential-property-services-gmbh,Not found,Unknown
 DE-BER-1887ee75ef27,Unknown,Unknown,https://balticsea-berlin.de/,Not found,Unknown
 DE-BER-1bad84b95efe,Unknown,Unknown,https://www.wertinvest-immobilien.de/,Not found,Unknown

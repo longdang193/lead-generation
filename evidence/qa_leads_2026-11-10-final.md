@@ -4,7 +4,7 @@
 - Priority rows: 30
 - Contact rows: 30
 - Tier distribution: {'A': 47, 'Research': 96}
-- Contact email status: {'Published': 16}
+- Contact email status: {'Published': 18}
 - Errors: 0
 
 ## Limitations
