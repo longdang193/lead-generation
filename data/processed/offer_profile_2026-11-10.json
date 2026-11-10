@@ -1,0 +1,31 @@
+{
+  "offer_id": "berlin-hausverwaltung-account-intelligence",
+  "offer_version": "2026-11-10",
+  "solution": "account-intelligence-led lead qualification",
+  "target_customer": "Berlin property-management companies (Hausverwaltungen) with residential or WEG operations",
+  "problems_solved": [
+    "Prioritize accounts from verified company evidence",
+    "Expose operational opportunity hypotheses and research gaps"
+  ],
+  "value_propositions": [
+    "Explain why an account fits the target profile",
+    "Separate fit evidence from buying timing and uncertainty"
+  ],
+  "economic_buyer_roles": [
+    "Managing Director",
+    "Head of Property Management",
+    "Owner"
+  ],
+  "relevant_triggers": [
+    "portfolio growth",
+    "new property-management mandate",
+    "digital process initiative",
+    "hiring or operational expansion"
+  ],
+  "disqualifiers": [
+    "not a property manager",
+    "no verified Berlin relevance",
+    "identity unresolved"
+  ],
+  "incumbent_or_competitor_signals": []
+}

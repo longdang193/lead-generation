@@ -14,6 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
+from web_content import soup_from_response
 
 
 def stamp() -> str:
@@ -35,7 +36,7 @@ def fetch(url: str, config: RuntimeConfig) -> tuple[str, str, list[str]]:
         try:
             response = requests.get(url, headers=headers, timeout=config.request_timeout_seconds, allow_redirects=True)
             if response.ok and response.text:
-                soup = BeautifulSoup(response.text, "html.parser")
+                soup = soup_from_response(response)
                 for tag in soup(["script", "style", "noscript"]):
                     tag.decompose()
                 text = re.sub(r"\s+", " ", soup.get_text(" ", strip=True))

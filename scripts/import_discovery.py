@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
 from lead_contract import is_plausible_company_name
+from web_content import soup_from_response
 from provider_clients import ProviderError, normalize_apify_items, overpass_query, run_apify_actor
 
 OVERPASS_MIN_TIMEOUT_SECONDS = 30
@@ -46,7 +47,9 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
         if not isinstance(item, dict):
             continue
         tags = item.get("tags") if isinstance(item.get("tags"), dict) else {}
-        name = item.get("company_name") or item.get("legal_name") or item.get("name") or item.get("title") or item.get("company") or tags.get("name") or ""
+        named_fields = (item.get("company_name"), item.get("legal_name"), item.get("name"), item.get("company"), tags.get("name"))
+        title_only = not any(str(value or "").strip() for value in named_fields) and bool(str(item.get("title") or "").strip())
+        name = next((value for value in named_fields if str(value or "").strip()), item.get("title") or "")
         url = item.get("source_url") or item.get("url") or item.get("website") or item.get("link") or tags.get("website") or tags.get("contact:website") or ""
         if name or url:
             rows.append({
@@ -61,6 +64,7 @@ def read_rows(path: Path, source: str) -> list[dict[str, str]]:
                 "region": str(item.get("region") or item.get("state") or tags.get("addr:state") or ""),
                 "contact": str(item.get("contact") or item.get("phone") or tags.get("contact:phone") or ""),
                 "email": str(item.get("email") or tags.get("contact:email") or ""),
+                "identity_status": str(item.get("identity_status") or metadata.get("identity_status") or ("Review" if title_only else "")),
                 "source_type": source,
                 "source_record_id": str(item.get("source_record_id") or item.get("id") or ""),
                 "source_reuse_status": str(item.get("source_reuse_status") or metadata.get("source_reuse_status") or "Existing export"),
@@ -85,7 +89,7 @@ def refresh_identity(row: dict[str, str], timeout: int) -> dict[str, str]:
         if not response.ok:
             row["identity_status"] = "Review"
             return row
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = soup_from_response(response)
         title = soup.title.get_text(" ", strip=True) if soup.title else ""
         candidate = re.split(r"\s+[|–—-]\s+", title, maxsplit=1)[0].strip()
         candidate = re.sub(r"^(home|startseite)\s*[:|-]\s*", "", candidate, flags=re.I).strip()
@@ -203,7 +207,7 @@ def main() -> int:
                 "region": row.get("region", ""),
                 "contact": row.get("contact", ""),
                 "email": row.get("email", ""),
-                "identity_status": row.get("identity_status", "Accepted" if name else "Review"),
+                "identity_status": row.get("identity_status") or ("Review" if source == "Apify" and not is_plausible_company_name(name) else "Accepted" if name else "Review"),
                 "retrieved_at": now(),
                 "source_reuse_status": row.get("source_reuse_status") or ("New retrieval" if source == "VDIV" else "Existing export"),
                 "extraction_method": row.get("extraction_method", "manual/public export"),

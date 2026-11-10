@@ -53,7 +53,7 @@ def main() -> int:
     else:
         workbook = load_workbook(args.workbook, read_only=True)
         required = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
-        if workbook.sheetnames != required:
+        if workbook.sheetnames[: len(required)] != required:
             errors.append("workbook tabs mismatch")
         else:
             def rows(sheet):

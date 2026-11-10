@@ -1,0 +1,22 @@
+{
+  "sheets": [
+    "01_All_Leads",
+    "02_Qualification",
+    "03_Priority_Leads",
+    "04_Contacts",
+    "05_Methodology_Sources",
+    "06_Account_Dossiers",
+    "07_Account_Theses",
+    "08_Account_Timeline",
+    "09_Evidence_Ledger",
+    "10_Research_Gaps"
+  ],
+  "counts": {
+    "companies": 143,
+    "scores": 143,
+    "priority": 30,
+    "contacts": 30,
+    "sources": 3
+  },
+  "run_id": "unbound"
+}

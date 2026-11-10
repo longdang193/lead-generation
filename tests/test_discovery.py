@@ -116,6 +116,34 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(row["company_name"], "www.example.de")
         self.assertEqual(row["identity_status"], "Review")
 
+    @patch("import_discovery.requests.get")
+    def test_vdiv_refresh_rejects_marketing_title_as_identity(self, get):
+        response = Mock(ok=True, text="<html><title>Digitale Hausverwaltung für Berlin und Brandenburg | Meister</title><body>13156 Berlin</body></html>")
+        get.return_value = response
+        row = refresh_identity({"source_type": "VDIV", "company_name": "www.meister-grundbesitz.de", "source_url": "https://www.meister-grundbesitz.de", "address": ""}, 5)
+        self.assertEqual(row["company_name"], "www.meister-grundbesitz.de")
+        self.assertEqual(row["identity_status"], "Review")
+
+    def test_apify_page_title_is_quarantined_until_identity_is_resolved(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "provider.json"
+            path.write_text(json.dumps({"items": [{"title": "Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste Wahl!", "link": "https://www.primaprofi.de/hausverwaltung/berlin/"}]}), encoding="utf-8")
+            row = read_rows(path, "Apify")[0]
+        self.assertEqual(row["company_name"], "Top Hausverwaltung in Berlin: Ihr Ratgeber für die beste Wahl!")
+        self.assertEqual(row["identity_status"], "Review")
+
+    def test_apify_marketing_company_name_is_quarantined_during_import(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            provider = root / "provider.json"
+            output = root / "discovery.csv"
+            provider.write_text(json.dumps({"items": [{"company_name": "WEG Verwaltung | Wohneigentümergemeinschaften Berlin", "source_url": "https://example.de/weg"}]}), encoding="utf-8")
+            with patch.object(sys, "argv", ["import_discovery.py", "--apify", str(provider), "--output", str(output)]):
+                self.assertEqual(import_discovery.main(), 0)
+            with output.open(encoding="utf-8", newline="") as handle:
+                row = next(csv.DictReader(handle))
+        self.assertEqual(row["identity_status"], "Review")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -107,10 +107,21 @@ def is_plausible_company_name(value: object) -> bool:
     normalized = text.casefold()
     if not text or len(text.split()) < 2:
         return False
+    if any(marker in text for marker in (":", ">", "|", "–", "—")) or re.search(r"\b(?:ratgeber|ihre?|beste|zuverlässige|zuverlaessige)\b", text, re.I):
+        return False
+    if re.search(r"\b(?:startseite|übersicht|moderne|persönliche|transparente|digitale)\b", text, re.I) and not re.search(r"\b(?:gmbh|ag|kg|ohg|gbr|e\.?k\.?|ug)\b", text, re.I):
+        return False
+    if re.search(r"\b(?:in|für|fuer)\s+(?:berlin|brandenburg|potsdam)\b", text, re.I):
+        return False
+    if (
+        re.search(r"^(?:hausverwaltung|immobilienverwaltung|immobilienmakler|weg[- ]?verwaltung)\b.*\b(?:berlin|brandenburg|potsdam)\b", text, re.I)
+        and not re.search(r"\b(?:gmbh|ag|kg|ohg|gbr|e\.?k\.?|ug)\b", text, re.I)
+    ):
+        return False
     generic_titles = {
         "über uns", "about us", "kontakt", "contact", "impressum", "startseite",
         "home", "leistungen", "services", "team", "referenzen", "portfolio",
-        "immobilien", "hausverwaltung", "immobilienverwaltung",
+        "übersicht", "startseite", "immobilien", "hausverwaltung", "immobilienverwaltung",
     }
     if normalized in generic_titles:
         return False

@@ -74,6 +74,12 @@ def same_person(left: object, right: object) -> bool:
     return bool(normalize(left) and normalize(left) == normalize(right))
 
 
+def contact_verified_date(row: dict[str, str], email: str, *, today: str | None = None) -> str:
+    if not email:
+        return "Unknown"
+    return str(row.get("last_verified") or today or date.today().isoformat())
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--scores", type=Path, required=True)
@@ -142,7 +148,7 @@ def main() -> int:
             research_gap = "Personal email unavailable"
         next_action = str((rationale or {}).get("recommended_action") or "Review official contact page and validate outreach owner")
         priority_rows.append({**row, "priority_reason": reason, "key_evidence": row.get("evidence_urls", ""), "research_gap": research_gap, "next_action": next_action})
-        verified_date = row.get("last_verified") or "Unknown"
+        verified_date = contact_verified_date(row, email)
         contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if email_owner_match else "Unverified", "linkedin_url": "Unknown", "last_verified": verified_date if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": verified_date if email else "Unknown"})
     for path, rows, fallback in [(args.priority_output, priority_rows, ["company_id", "lead_tier"]), (args.contacts_output, contacts, ["company_id", "contact_email"]), (args.evidence_output, evidence, ["company_id", "source_url"])]:

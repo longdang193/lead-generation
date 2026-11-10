@@ -17,7 +17,7 @@ def main() -> int:
     args = parser.parse_args()
     wb = load_workbook(args.workbook, read_only=True, data_only=False)
     errors = []
-    if wb.sheetnames != REQUIRED:
+    if wb.sheetnames[: len(REQUIRED)] != REQUIRED:
         errors.append(f"sheet names/order mismatch: {wb.sheetnames}")
     for name in REQUIRED:
         ws = wb[name]
