@@ -12,6 +12,20 @@ const outputPath = process.argv[3] ?? "output/berlin-hausverwaltungen-task1-2026
 const previewDir = process.argv[4] ?? "C:/tmp/berlin_hausverwaltungen_previews";
 
 const input = JSON.parse(await fs.readFile(inputPath, "utf8"));
+if (input.account_intelligence_mode === "production") {
+  if (!input.run_manifest || !Array.isArray(input.dossiers)) {
+    throw new Error("production workbook requires run_manifest and dossiers");
+  }
+  const dossierIds = new Set(input.dossiers.map((item) => String(item.company_id ?? item.thesis?.company_id ?? "")));
+  const dossiersById = new Map(input.dossiers.map((item) => [String(item.company_id ?? item.thesis?.company_id ?? ""), item]));
+  const requiredLineageFields = ["rank_audit", "dossier_hash", "semantic_review_ids", "strongest_claim_ids", "projection_run_id"];
+  for (const row of input.priority_rows ?? []) {
+    const dossier = dossiersById.get(String(row.company_id ?? ""));
+    if (!dossierIds.has(String(row.company_id ?? "")) || requiredLineageFields.some((field) => row[field] === undefined || row[field] === null || row[field] === "") || String(row.dossier_hash ?? "") !== String(dossier?.dossier_hash ?? "")) {
+      throw new Error(`priority row lacks dossier lineage: ${row.company_id ?? ""}`);
+    }
+  }
+}
 const workbook = Workbook.create();
 
 workbook.colorScheme = {
@@ -172,7 +186,7 @@ const overview = writeTableSheet({
 const priority = writeTableSheet({
   name: "Top 30 Leads",
   title: "Top 30 Berlin Hausverwaltung Leads",
-  note: "Ranked shortlist from the same canonical inputs. Prioritization is structural and evidence-aware; Buying Signal is a separate timing indicator and Contact Verification is a next-step control.",
+  note: "Ranked shortlist from the canonical dossier projection. Each row must resolve to a rank audit, semantic review, promoted claim, and source lineage.",
   rows: input.priority_rows,
   tableName: "Top30Leads",
   tabColor: "#0F766E",
@@ -237,12 +251,39 @@ writeSimpleSheet({
   widths: { A: 24, B: 110 },
 });
 
+if (input.account_intelligence_mode === "production") {
+  const dossierRows = input.dossiers.map((item) => ({
+    company_id: item.company_id ?? item.thesis?.company_id ?? "",
+    offer_id: item.offer_id ?? "",
+    offer_version: item.offer_version ?? "",
+    dossier_version: item.dossier_version ?? "",
+    dossier_hash: item.dossier_hash ?? "",
+    why_this_account: item.thesis?.why_this_account ?? "",
+    why_now: item.thesis?.why_now ?? "",
+    recommended_action: item.thesis?.recommended_action ?? "",
+  }));
+  const thesisRows = input.dossiers.map((item) => ({ company_id: item.company_id ?? item.thesis?.company_id ?? "", ...(item.thesis ?? {}) }));
+  const timelineRows = input.dossiers.flatMap((item) => (item.timeline ?? []).map((event) => ({ company_id: item.company_id ?? item.thesis?.company_id ?? "", ...event })));
+  const evidenceRows = input.dossiers.flatMap((item) => (item.claims ?? []).map((claim) => ({ company_id: item.company_id ?? item.thesis?.company_id ?? "", ...claim })));
+  const gapRows = input.dossiers.map((item) => ({
+    company_id: item.company_id ?? item.thesis?.company_id ?? "",
+    research_gap_impact: item.thesis?.research_gap_impact ?? "",
+    decision_relevant_gaps: (item.thesis?.hypotheses ?? []).map((hypothesis) => hypothesis.decision_relevant_gap).filter(Boolean).join("; "),
+    recommended_action: item.thesis?.recommended_action ?? "",
+  }));
+  writeSimpleSheet({ name: "Account Dossiers", title: "Account Dossiers", note: "Durable dossier identity and concise account rationale.", headers: Object.keys(dossierRows[0] ?? { company_id: "" }), rows: dossierRows, tableName: "AccountDossiers", tabColor: "#0F766E", widths: { A: 18, B: 24, C: 18, D: 18, E: 70, F: 48, G: 48, H: 42 } });
+  writeSimpleSheet({ name: "Account Theses", title: "Account Theses", note: "Validated account thesis, indicators, and recommended action.", headers: Object.keys(thesisRows[0] ?? { company_id: "" }), rows: thesisRows, tableName: "AccountTheses", tabColor: "#0F766E", widths: { A: 18, B: 42, C: 42, D: 42 } });
+  writeSimpleSheet({ name: "Account Timeline", title: "Account Timeline", note: "Company-bound chronology reconstructed from promoted claims.", headers: Object.keys(timelineRows[0] ?? { company_id: "" }), rows: timelineRows, tableName: "AccountTimeline", tabColor: "#0F766E", widths: { A: 18, B: 32, C: 42, D: 48 } });
+  writeSimpleSheet({ name: "Evidence Ledger", title: "Evidence Ledger", note: "Claim-level source lineage supporting the account thesis.", headers: Object.keys(evidenceRows[0] ?? { company_id: "" }), rows: evidenceRows, tableName: "EvidenceLedger", tabColor: "#0F766E", widths: { A: 18, B: 28, C: 48, D: 70 } });
+  writeSimpleSheet({ name: "Research Gaps", title: "Research Gaps", note: "Explicit uncertainty and next action for each account.", headers: ["company_id", "research_gap_impact", "decision_relevant_gaps", "recommended_action"], rows: gapRows, tableName: "ResearchGaps", tabColor: "#0F766E", widths: { A: 18, B: 48, C: 62, D: 42 } });
+}
+
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 await fs.mkdir(previewDir, { recursive: true });
 const xlsx = await SpreadsheetFile.exportXlsx(workbook);
 await xlsx.save(outputPath);
 
-for (const sheetName of ["Berlin Hausverwaltungen", "Top 30 Leads", "KPI Definitions", "Source Notes"]) {
+for (const sheetName of ["Berlin Hausverwaltungen", "Top 30 Leads", "KPI Definitions", "Source Notes", ...(input.account_intelligence_mode === "production" ? ["Account Dossiers", "Account Theses", "Account Timeline", "Evidence Ledger", "Research Gaps"] : [])]) {
   const preview = await workbook.render({ sheetName, autoCrop: "all", scale: 1, format: "png" });
   const previewBytes = new Uint8Array(await preview.arrayBuffer());
   const safeName = sheetName.toLowerCase().replaceAll(" ", "-");

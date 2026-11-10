@@ -21,6 +21,7 @@ from action_receipts import replay_run
 from harness_tools import invoke
 from orchestrate_enrichment import create_run_manifest, run_pipeline
 from run_manifest import atomic_write, file_sha256, finalization_eligibility, load, reconstruct_finalization_readiness
+from typed_contracts import MaterialAssertion
 import run_manifest
 
 
@@ -331,9 +332,14 @@ output.write_text(json.dumps(payload, sort_keys=True) + "\\n", encoding="utf-8")
         invoke({"action": "record_receipt", "payload": {key: value for key, value in {**action, "result_hash": result_hash, "terminal_status": "Partial" if stop_early else "Completed", "budget_requested": 1, "budget_settled": 1, "created_at": datetime.now(timezone.utc).isoformat(), "coverage_delta": {"signals": 0 if stop_early else 1}}.items() if key not in {"budget_units", "manifest_path"}}}, root)
         if not stop_early:
             claims = [_claim("c1", "C1", "service_fit", "Confirmed"), _claim("c2", "C1", "event", {"event_id": "E1", "event_type": "tender", "event_date": "2026-11-01"})]
-            thesis = {"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 35, "confidence": "high", "why_this_account": "Residential property management fit", "why_now": "Recent procurement activity", "problem_hypothesis": "Operations may need support", "strongest_claim_ids": ["c2"], "semantic_review_ids": ["a1"], "access_summary": "Contact path requires research", "research_gap_impact": "Could change outreach timing", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}
-            review = {"assertion_id": "a1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c2"], "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "semantic-reviewer"}
-            projection = project_account_intelligence(claims, thesis, semantic_reviews=[review])
+            assertions = [
+                {"assertion_id": "m1", "assertion_kind": "why_this_account", "statement": "Residential property management fit", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c2"]},
+                {"assertion_id": "m2", "assertion_kind": "why_now", "statement": "Recent procurement activity", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c2"]},
+                {"assertion_id": "m3", "assertion_kind": "problem_hypothesis", "statement": "Operations may need support", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c2"]},
+            ]
+            thesis = {"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 35, "confidence": "high", "why_this_account": "Residential property management fit", "why_now": "Recent procurement activity", "problem_hypothesis": "Operations may need support", "strongest_claim_ids": ["c2"], "semantic_review_ids": ["m1", "m2", "m3"], "material_assertions": assertions, "access_summary": "Contact path requires research", "research_gap_impact": "Could change outreach timing", "recommended_action": "research contacts", "hypotheses": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "hypothesis_type": "opportunity", "statement": "Observed procurement activity may create a near-term opening", "supporting_claim_ids": ["c2"], "confidence": "medium"}]}
+            reviews = [{"assertion_id": assertion["assertion_id"], "assertion_hash": MaterialAssertion.model_validate(assertion).content_hash, "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c2"], "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "semantic-reviewer"} for assertion in assertions]
+            projection = project_account_intelligence(claims, thesis, semantic_reviews=reviews)
             self.assertEqual(projection["timeline"][0]["event_identity"], "C1:E1")
             inputs = root / "inputs"
             inputs.mkdir(parents=True, exist_ok=True)

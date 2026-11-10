@@ -1,7 +1,7 @@
 ---
 layer: change
 artifact_type: plan
-status: proposed
+status: active
 template_id: implementation-plan
 contract_version: "1"
 name: account-intelligence-trust-chain-remediation
@@ -14,7 +14,12 @@ targets:
   - scripts/harness_tools.py
   - scripts/build_workbook.py
   - scripts/build_task1_workbook.mjs
+  - scripts/build_shortlist.py
   - scripts/qa_leads.py
+  - scripts/lead_contract.py
+  - scripts/action_receipts.py
+  - scripts/run_manifest.py
+  - scripts/promote_evidence.py
   - config/research_policy.json
   - config/signal_taxonomy.json
   - config/research_evidence_schema.json
@@ -41,40 +46,57 @@ promotion, validation, projection, ranking, QA, and export.
 
 ## Review Basis
 
-The reviewed revision is `5c06966de1aabdcb5d275054f210a715c2fa493a` on
+The reviewed revision is `7b065fa54a21a30278444306bc818e39873c41f9` on
 `longdang193/lead-generation`; `origin/main` reaches the same full SHA and no
 publication was required before review.
 
 Both requested reviews completed in one authenticated repository-bound context
 with `High` effort and fresh tabs:
 
-- `GPT-5.6-Sol`, `High`, run `run-kzfDIh`, chat
-  `6af256ce-860c-83eb-afe8-e7bcaff6a7ef`; bounded result `completed`, visible
+- `GPT-5.6-Sol`, `High`, run `run-L3GaCF`, chat
+  `6af25b8e-3b04-83eb-91d8-ce425f8bc7b0`; bounded result `completed`, visible
   response final and pinned to the reviewed SHA.
-- `GPT-6`, `High`, run `run-jzE5E1`, chat
-  `6af25743-3d50-83ed-8775-17452b9de1f3`; bounded result `completed`, visible
+- `GPT-6`, `High`, run `run-vl4yc3`, chat
+  `6af25c3e-9108-83eb-8685-0db3a42cab44`; bounded result `completed`, visible
   response final and pinned to the reviewed SHA.
 
 No run was timed out, incomplete, ambiguous, or retried. The consolidated
 source-validated findings are:
 
-1. `harness_tools.invoke("rank_leads")` and `score_leads.rank_account()` can
-   rank flat records without a validated `AccountThesis` or projected dossier.
-2. `SemanticReview.assertion_id` is not bound to immutable assertion content,
-   so an approval can survive a material thesis-text change.
-3. `build_rank_audit()` accepts caller-supplied commercial dimensions and
-   copies one claim set into every dimension.
-4. `score_leads.py` joins events by `event_id` alone even though event links
-   are company-scoped.
-5. Positive environmental triggers can disappear when no separate
-   `buying_signal` claim exists, and legacy A/B eligibility can suppress
-   commercially strong accounts before commercial ranking.
-6. Coverage manifests can declare narrow checks complete without proving that
-   the offer-specific research policy was executed through settled receipts.
-7. Counterevidence, uncertainty, and hypothesis validation steps are optional
-   or descriptive rather than enforced for priority accounts.
-8. The benchmark protocol exists, but live research quality, stakeholder
-   ranking agreement, and live-provider/CRM boundary proof are not recorded.
+1. Every production ranking/export path must close over the canonical chain
+   `validated dossier → dimension projection → rank audit → shortlist → workbook → strict QA`;
+   structural-only paths remain compatibility views and a structural-only
+   priority workbook must be rejected.
+2. Source assurance must be bound to a promoted claim identity, candidate hash,
+   verifier decision, active run, and manifest-bound artifact; caller-supplied
+   `assurance_level="source"` is not sufficient.
+3. Scoring needs a versioned deterministic policy with admissible evidence,
+   transformations, recency, contradiction, confidence, and missing-data rules;
+   commercial attractiveness must be separated from observability/actionability.
+4. Semantic review needs stable instance identity and supersession semantics;
+   material thesis assertions must be explicit typed members rather than
+   reconstructed only from prose.
+5. Research completeness must be receipt-authoritative and task ordering must
+   make selection gates depend on `action_receipts.py`, `run_manifest.py`, and
+   `promote_evidence.py`; all signal-state consumers migrate together.
+6. Signal precedence must distinguish direct intent, environmental trigger,
+   need/change, and research completeness; incomplete research remains
+   uncertainty, not negative intent.
+7. A durable, versioned dossier artifact keyed by company, offer, run, and
+   manifest revision must be registered and resolved by workbook/QA lineage.
+8. Native runtime proof must include one real Codex execution trace showing
+   parent-selected actions/stopping plus a guard against repository scheduler
+   or planner loops; fixture tests remain boundary proof.
+9. Benchmark gates must use blinded same-cohort comparison, declared
+   non-inferiority/uplift thresholds, denominators, zero-observation handling,
+   adjudication, usable-contact coverage, and separate local/semantic/live
+   acceptance states. Blocked live probes block production-readiness claims.
+10. Priority theses require receipt-backed bounded disconfirmation before
+    claiming no counterevidence.
+11. Workbook provenance must be manifest-derived; no hard-coded retrieval or
+    execution dates remain.
+12. Benchmark samples must be stratified by structural fit, trigger
+    availability, and evidence completeness before outcomes are observed.
 
 Unverified claims are excluded from this plan. In particular, no exact lead
 count discrepancy is treated as a defect, no direct procurement event is
@@ -123,7 +145,7 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Mode: `inline sequential`
 - Coordination: `git-tracked`
 - Required skills: `skill-systematic-debugging`, `skill-test-driven-development`, `skill-backend-verification`, `skill-code-standards`, `skill-verification-before-completion`, `skill-plan-document-reviewer`, `spreadsheets:Spreadsheets`
-- Isolation: `current workspace`; preserve unrelated changes and stop if the base is no longer `5c06966de1aabdcb5d275054f210a715c2fa493a`
+- Isolation: `current workspace`; preserve unrelated changes and stop if the base is no longer `7b065fa54a21a30278444306bc818e39873c41f9`
 - Commit policy: `no commits during execution`; the lead controller decides branch disposition after fresh verification
 - Preauthorized local actions: edit declared files, run declared tests, inspect configured local fixtures and schemas, and produce bounded fixture artifacts
 - User-approval actions: push, merge, live external provider calls, CRM writes, paid enrichment, destructive cleanup, or changing the approved product scope
@@ -135,21 +157,38 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Coordination owner: `single lead controller`
 - Coordination schema: `2`
 - Branch: `main`
-- Base commit: `5c06966de1aabdcb5d275054f210a715c2fa493a`
+- Base commit: `7b065fa54a21a30278444306bc818e39873c41f9`
 - Expected workspace: `clean before implementation; this plan file is the only planned addition at authoring time`
-- Next action: `approve this plan, then activate Task 1`
-- Blockers: `none for local implementation; live-provider/CRM proof requires explicit external-action approval and configured credentials`
+- Next action: `complete Task 5 native-runtime evidence, then execute the benchmark gates in Task 6`
+- Blockers: `local implementation is verified through 238 passing tests; actual native Codex trace and live-provider/CRM probe remain unavailable without the required authenticated external boundary and approval`
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| Task 1 | `pending` | current | `unresolved` | none | assertion-binding and claim-assurance tests | pending |
-| Task 2 | `pending` | current | `unresolved` | Task 1 | dossier-derived rank and fail-closed facade tests | pending |
-| Task 3 | `pending` | current | `unresolved` | Task 1 | collision, trigger, and coverage-policy tests | pending |
-| Task 4 | `pending` | current | `unresolved` | Tasks 2–3 | workbook and QA regression tests | pending |
-| Task 5 | `pending` | current | `unresolved` | Tasks 1–4 | native trace and artifact integrity proof | pending |
-| Task 6 | `pending` | current | `unresolved` | Task 5 | benchmark record and final verification | pending |
+| Task 1 | `completed` | current | `Codex` | none | assertion-binding and claim-assurance tests | focused contracts and account-intelligence tests pass |
+| Task 2 | `completed` | current | `Codex` | Tasks 1 and 3 | dossier-derived rank and fail-closed facade tests | scoring, facade, and selection tests pass |
+| Task 3 | `completed` | current | `Codex` | Task 1 | collision, trigger, and coverage-policy tests | signal, projection, receipt, and evidence tests pass |
+| Task 4 | `completed` | current | `Codex` | Tasks 2–3 | workbook and QA regression tests | production lineage gates, five account-intelligence sheets, and finalization tests pass |
+| Task 5 | `active` | current | `Codex` | Tasks 1–4 | native trace and artifact integrity proof | fixture trace passes; actual native Codex execution trace remains outstanding |
+| Task 6 | `pending` | current | `unresolved` | Task 5 | benchmark record and final verification | blocked pending native trace, blinded benchmark, and external-boundary decision |
 
 ## Task Breakdown
+
+### Enforced review gates applied to all tasks
+
+- `scripts/promote_evidence.py`, `scripts/action_receipts.py`, and
+  `scripts/run_manifest.py` are canonical provenance owners; no caller-supplied
+  assurance, coverage, or completion flag can promote a claim or close a run.
+- `scripts/score_leads.py`, `scripts/select_for_enrichment.py`,
+  `scripts/harness_tools.py`, `scripts/build_workbook.py`,
+  `scripts/build_task1_workbook.mjs`, and `scripts/qa_leads.py` must use one
+  dossier-backed production path. Structural ranking is compatibility-only and
+  must be rejected when presented as a priority deliverable.
+- Every priority output resolves `rank audit → material assertion → semantic
+  review → promoted claim → source/artifact lineage`; missing or superseded
+  links fail closed.
+- Acceptance is reported in three independent states: local implementation
+  verified, semantic benchmark accepted, and live-provider/CRM boundary
+  verified. A blocked external probe cannot be represented as production-ready.
 
 ### Task 1: Bind semantic reviews to immutable assertions
 
@@ -189,14 +228,15 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Stop for: new external provider behavior, migration of persisted production artifacts, or any change to Codex planner authority
 
 **Steps:**
-- [ ] Step 1: Add an immutable `MaterialAssertion` contract with assertion ID, kind, normalized assertion text, content hash, company ID, offer ID/version, and supporting/counterevidence claim IDs.
-- [ ] Step 2: Require `SemanticReview` to carry the matching assertion hash, offer criterion, reviewer/action receipt, and reviewed claim IDs; preserve the existing approved-decision predicates.
-- [ ] Step 3: Add `validation_step` and decision-relevant gap fields to `AccountHypothesis`; require a falsifiable validation step for unsupported speculative hypotheses used by a priority thesis.
-- [ ] Step 4: Make `validate_semantic_review()` and `validate_account_thesis()` reconstruct the expected material-assertion set, require exactly matching approved reviews, reject foreign-company claims, and reject replay/unknown assurance for production conclusions.
-- [ ] Step 5: Add regression cases for changed assertion text, reused assertion IDs, mismatched offer criteria, foreign claims, replay-only support, and missing hypothesis validation steps.
+- [x] Step 1: Add an immutable `MaterialAssertion` contract with assertion ID, kind, normalized assertion text, content hash, company ID, offer ID/version, and supporting/counterevidence claim IDs.
+- [x] Step 2: Require `SemanticReview` to carry the matching assertion hash, offer criterion, reviewer/action receipt, and reviewed claim IDs; preserve the existing approved-decision predicates.
+- [x] Step 3: Add `validation_step` and decision-relevant gap fields to `AccountHypothesis`; require a falsifiable validation step for unsupported speculative hypotheses used by a priority thesis.
+- [x] Step 4: Make `validate_semantic_review()` and `validate_account_thesis()` reconstruct the expected material-assertion set, require exactly matching approved reviews, reject foreign-company claims, and reject replay/unknown assurance for production conclusions.
+- [x] Step 5: Add regression cases for changed assertion text, reused assertion IDs, mismatched offer criteria, foreign claims, replay-only support, and missing hypothesis validation steps.
+- [x] Step 6: Define stable semantic-review identity, supersession, and conflicting-active-review behavior; make `material_assertions` explicit typed thesis members.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_typed_contracts tests.test_account_intelligence tests.test_account_intelligence_contracts -v`
+- [x] `py -3 -m unittest tests.test_typed_contracts tests.test_account_intelligence tests.test_account_intelligence_contracts -v`
 - Expected: stale approvals, foreign claims, replay-only claims, and unsupported priority hypotheses fail; valid assertions round-trip with stable hashes.
 
 **Exit Criteria:**
@@ -233,28 +273,30 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Verify: `tests/test_scoring.py`, `tests/test_harness_tools.py`, `tests/test_selection.py`
 
 **Dependencies:**
-- Task 1 provides assertion-bound semantic approvals and source-assurance validation.
+- Tasks 1 and 3; ranking cannot consume a thesis until receipt-authoritative completeness and signal precedence are enforced.
 
 **Authority:**
 - Preauthorized local actions: edit declared ranking, facade, selection, and focused tests; run fixture-based backend tests
 - Stop for: changing the parent-agent planning boundary, introducing a custom scheduler, or publishing leads to an external system
 
 **Steps:**
-- [ ] Step 1: Add one deterministic projector from validated `AccountThesis` and `AccountIndicator` records to the seven commercial dimensions already defined by `COMMERCIAL_WEIGHTS`.
-- [ ] Step 2: Make each `RankContribution` carry only the claims and semantic review that support that dimension; remove blanket reuse of `strongest_claim_ids`.
-- [ ] Step 3: Make `build_rank_audit()` accept the validated dossier/projected dimensions and reject raw caller-supplied commercial scores on the production path.
-- [ ] Step 4: Make `rank_leads` require a validated dossier for commercial ranking and remove the silent structural fallback from that action; preserve structural ranking only as an explicitly separate compatibility action.
-- [ ] Step 5: Replace the legacy A/B-only selection gate with an explicit delivery-policy check over validated rank state, thesis readiness, fit threshold, and research completeness so strong proactive accounts can enter the commercial queue.
-- [ ] Step 6: Add regression tests proving score tampering, missing thesis, wrong company, missing dimension evidence, and absent offer context cannot produce a priority lead.
+- [x] Step 1: Add one deterministic projector from validated `AccountThesis` and `AccountIndicator` records to the seven commercial dimensions already defined by `COMMERCIAL_WEIGHTS`.
+- [x] Step 2: Make each `RankContribution` carry only the claims and semantic review that support that dimension; remove blanket reuse of `strongest_claim_ids`.
+- [x] Step 3: Make `build_rank_audit()` accept the validated dossier/projected dimensions and reject raw caller-supplied commercial scores on the production path.
+- [x] Step 4: Make `rank_leads` require a validated dossier for commercial ranking and remove the silent structural fallback from that action; preserve structural ranking only as an explicitly separate compatibility action.
+- [x] Step 5: Replace the legacy A/B-only selection gate with an explicit delivery-policy check over validated rank state, thesis readiness, fit threshold, and research completeness so strong proactive accounts can enter the commercial queue.
+- [x] Step 6: Add regression tests proving score tampering, missing thesis, wrong company, missing dimension evidence, and absent offer context cannot produce a priority lead.
+- [x] Step 7: Record scoring-policy ID/version/hash, normalized inputs, formula, recency, contradiction, confidence, assertion IDs, review IDs, and claim IDs in every contribution; separate attractiveness from observability/actionability.
+- [x] Step 8: Add a structural-only priority-workbook rejection test and a proactive-account ordering test without a TED/procurement event.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_scoring tests.test_harness_tools tests.test_selection -v`
+- [x] `py -3 -m unittest tests.test_scoring tests.test_harness_tools tests.test_selection -v`
 - Expected: identical dossiers produce identical rank audits; changing a thesis/evidence input changes the affected contribution; unsupported flat scores are rejected; selection can admit a validated strong proactive account without a TED event.
 
 **Exit Criteria:**
 - The only production commercial score is a deterministic projection of a validated account dossier, and the native facade cannot emit a commercial priority from a flat unvalidated row.
 
-### Task 3: Harden account-scoped signals and negative research
+### Task 3: Harden account-scoped signals, receipts, and negative research
 
 **Purpose:**
 - Prevent cross-account evidence contamination, source-availability bias, and false negative intent states.
@@ -295,14 +337,15 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Stop for: live provider calls, paid enrichment, CRM writes, or changing campaign-specific source policy without explicit approval
 
 **Steps:**
-- [ ] Step 1: Replace event-only indexing with `(company_id, event_id)` indexing and reject links whose company/event ownership is missing or ambiguous.
-- [ ] Step 2: Preserve independently verified portfolio expansion, modernization, supplier change, hiring, and organizational-change indicators even when no direct procurement/buying-signal claim exists.
-- [ ] Step 3: Add immutable research-policy ID/version/hash to `CoverageManifest`; validate required checks against the offer profile and require each completed check to reference a settled action receipt and attempt outcome.
-- [ ] Step 4: Distinguish `No trigger found in searched sources`, `Research incomplete`, `Unavailable`, and `No trigger found after required coverage`; only the last state may drive a strong negative conclusion.
-- [ ] Step 5: Add duplicate-event fixtures with different companies, dates, and URLs; add narrow-coverage and non-TED-trigger fixtures; assert that source availability does not become a negative buying signal.
+- [x] Step 1: Replace event-only indexing with `(company_id, event_id)` indexing and reject links whose company/event ownership is missing or ambiguous.
+- [x] Step 2: Preserve independently verified portfolio expansion, modernization, supplier change, hiring, and organizational-change indicators even when no direct procurement/buying-signal claim exists.
+- [x] Step 3: Add immutable research-policy ID/version/hash to `CoverageManifest`; validate required checks against the offer profile and require each completed check to reference a settled action receipt and attempt outcome.
+- [x] Step 4: Distinguish `No trigger found in searched sources`, `Research incomplete`, `Unavailable`, and `No trigger found after required coverage`; only the last state may drive a strong negative conclusion.
+- [x] Step 5: Add duplicate-event fixtures with different companies, dates, and URLs; add narrow-coverage and non-TED-trigger fixtures; assert that source availability does not become a negative buying signal.
+- [x] Step 6: Include `scripts/lead_contract.py` and all signal-state consumers in the migration; require receipt-backed bounded disconfirmation before claiming no counterevidence.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_scoring tests.test_account_intelligence tests.test_canonical_projection tests.test_buying_signals -v`
+- [x] `py -3 -m unittest tests.test_scoring tests.test_account_intelligence tests.test_canonical_projection tests.test_buying_signals -v`
 - Expected: duplicate IDs never cross accounts; non-TED verified triggers survive projection; incomplete or policy-mismatched coverage cannot emit a complete negative state.
 
 **Exit Criteria:**
@@ -346,14 +389,16 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Stop for: external Google Sheets writes, CRM writes, destructive replacement of existing artifacts, or visual redesign outside the data contract
 
 **Steps:**
-- [ ] Step 1: Add priority fields for why-this-account, why-now, problem hypothesis, strongest evidence, counterevidence, confidence, contact owner, recommended action, research gap, rank contributions, and source links.
-- [ ] Step 2: Add `Account Theses`, `Account Timeline`, `Evidence Ledger`, and `Research Gaps` sheets sourced from the canonical projection; keep claim IDs and source hyperlinks intact.
-- [ ] Step 3: Make `qa_leads.py` reject strict priority rows without a validated thesis, matching rank audit, source-backed claims, explicit uncertainty/counterevidence state, and company-bound contacts.
-- [ ] Step 4: Route every supported workbook generator through the same canonical projection or remove the duplicate path; do not maintain two divergent workbook schemas.
-- [ ] Step 5: Add a fixture E2E assertion that a stakeholder can trace a priority row from rank contribution to thesis assertion to evidence claim to source URL.
+- [x] Step 1: Add priority fields for why-this-account, why-now, problem hypothesis, strongest evidence, counterevidence, confidence, contact owner, recommended action, research gap, rank contributions, and source links.
+- [x] Step 2: Add `Account Theses`, `Account Timeline`, `Evidence Ledger`, and `Research Gaps` sheets sourced from the canonical projection; keep claim IDs and source hyperlinks intact.
+- [x] Step 3: Make `qa_leads.py` reject strict priority rows without a validated thesis, matching rank audit, source-backed claims, explicit uncertainty/counterevidence state, and company-bound contacts.
+- [x] Step 4: Route every supported workbook generator through the same canonical projection or remove the duplicate path; do not maintain two divergent workbook schemas.
+- [x] Step 5: Add a fixture E2E assertion that a stakeholder can trace a priority row from rank contribution to thesis assertion to evidence claim to source URL.
+- [x] Step 6: Replace hard-coded retrieval/execution dates in `scripts/build_workbook.py` with manifest-derived offer, policy, scoring-policy, run, and retrieval revisions.
+- [x] Step 7: Apply the same strict dossier gate to `scripts/build_shortlist.py`, `scripts/select_for_enrichment.py`, `scripts/build_task1_workbook.mjs`, `scripts/qa_leads.py`, and finalization readiness; compatibility sorting must not write a production priority artifact.
 
 **Verification:**
-- [ ] `py -3 -m unittest tests.test_harness_e2e tests.test_artifact_manifest_side_effects -v`
+- [x] `py -3 -m unittest tests.test_harness_e2e tests.test_artifact_manifest_side_effects -v`
 - Expected: generated workbook contains all dossier sheets; strict QA rejects unexplained priority rows; artifact hashes and source links remain manifest-bound.
 
 **Exit Criteria:**
@@ -397,8 +442,10 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 **Steps:**
 - [ ] Step 1: Execute one representative parent-selected account-research trace using the native facade and record the selected action, worker result, verifier decision, promoted claims, thesis, rank audit, and workbook artifact.
 - [ ] Step 2: Assert that the parent selects the next action or stops; Python only validates, persists, projects, ranks, and exports the selected action.
+- [ ] Step 2a: Capture one actual native Codex execution trace showing parent-selected action/stopping; fixture-only traces are insufficient for production-readiness claims.
 - [ ] Step 3: Assert shared company ID, offer ID/version, run ID, manifest hash, claim IDs, and artifact references across the trace.
 - [ ] Step 4: Verify replay is never treated as live/source assurance and that no-trigger is not emitted for incomplete research.
+- [ ] Step 5: Add a static/runtime guard demonstrating no repository scheduler, planner loop, or hidden chain-of-thought persistence exists in the execution path.
 
 **Verification:**
 - [ ] `py -3 -m unittest tests.test_harness_e2e tests.test_orchestration tests.test_action_lifecycle tests.test_action_receipts tests.test_native_adapters -v`
@@ -444,7 +491,9 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 
 **Steps:**
 - [ ] Step 1: Select 10–20 accounts from one campaign and one manifest revision; retain the manifest hash, offer ID/version, claim IDs, thesis IDs, and rank audits.
+- [ ] Step 1a: Stratify the sample by structural fit, trigger availability, and evidence completeness before observing outcomes; define denominators and zero-observation handling.
 - [ ] Step 2: Record claim-support precision, priority-thesis semantic support, critical attribution errors, top-10 pairwise ranking agreement, named-contact usefulness, and research cost against the declared thresholds.
+- [ ] Step 2a: Run a blinded same-cohort comparison against the structural baseline and record a declared non-inferiority/uplift threshold plus adjudication for disagreements.
 - [ ] Step 3: Run a non-destructive live-provider read probe and CRM export/dry-run boundary check when credentials and approval are available; otherwise record `blocked: external proof unavailable` and do not claim live readiness.
 - [ ] Step 4: Run the full suite and reconcile actual files, test counts, benchmark results, deferred live proof, and plan status through `skill-verification-before-completion`.
 

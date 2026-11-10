@@ -8,6 +8,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from score_leads import build_rank_audit, calculate_fit, classify_signal, derive_account_signal, priority_reason, rank_account
+from account_intelligence import project_account_intelligence
+from typed_contracts import MaterialAssertion
 from collect_buying_signals import account_research_state
 from extract_website_evidence import claim
 
@@ -63,6 +65,63 @@ class ScoringTests(unittest.TestCase):
         row = {"direct_intent_score": 0, "buying_signal": "Verified trigger"}
         from score_leads import _commercial_dimension_value
         self.assertEqual(_commercial_dimension_value(row, "direct_intent"), 0.0)
+
+    def test_generated_dossier_uses_semantic_review_identity_for_ranking(self):
+        claim = {
+            "candidate_claim_id": "c1", "company_id": "C1", "claim_type": "event",
+            "claim_value": {"event_id": "E1"}, "source_url": "https://example.com/source",
+            "source_kind": "other", "evidence_excerpt": "Observed", "confidence": "high",
+            "retrieved_at": "2026-11-09T00:00:00Z", "candidate_status": "Verified", "assurance_level": "source",
+        }
+        assertions = [
+            {"assertion_id": "m1", "assertion_kind": "why_this_account", "statement": "Fit", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c1"]},
+            {"assertion_id": "m2", "assertion_kind": "why_now", "statement": "Now", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c1"]},
+            {"assertion_id": "m3", "assertion_kind": "problem_hypothesis", "statement": "Need", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers", "supporting_claim_ids": ["c1"]},
+        ]
+        reviews = [
+            {**self.review("C1", "c1", assertion["assertion_id"]), "assertion_hash": MaterialAssertion.model_validate(assertion).content_hash}
+            for assertion in assertions
+        ]
+        thesis = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
+            "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+            "strongest_claim_ids": ["c1"], "access_summary": "Path", "research_gap_impact": "None",
+            "semantic_review_ids": ["m1", "m2", "m3"], "recommended_action": "contact",
+            "material_assertions": assertions,
+        }
+        dossier = project_account_intelligence([claim], thesis, semantic_reviews=reviews)
+        audit = rank_account({"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "buying_signal": "Verified trigger"}, "offer-1", "2026-11-09", dossier=dossier)
+        self.assertTrue(audit.contributions)
+
+    def test_production_thesis_rejects_unassured_supporting_claim(self):
+        claim = {
+            "candidate_claim_id": "c1", "company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1"},
+            "source_url": "https://example.com/source", "source_kind": "other", "evidence_excerpt": "Observed",
+            "confidence": "high", "retrieved_at": "2026-11-09T00:00:00Z", "candidate_status": "Candidate", "assurance_level": "replay",
+        }
+        thesis = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
+            "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+            "strongest_claim_ids": ["c1"], "access_summary": "Path", "research_gap_impact": "None",
+            "semantic_review_ids": ["a1"], "recommended_action": "contact",
+        }
+        with self.assertRaisesRegex(ValueError, "source assurance"):
+            project_account_intelligence([claim], thesis, semantic_reviews=[self.review("C1", "c1", "a1")])
+
+    def test_production_thesis_requires_reviewed_exported_conclusions(self):
+        claim = {
+            "candidate_claim_id": "c1", "company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1"},
+            "source_url": "https://example.com/source", "source_kind": "other", "evidence_excerpt": "Observed",
+            "confidence": "high", "retrieved_at": "2026-11-09T00:00:00Z", "candidate_status": "Verified", "assurance_level": "source",
+        }
+        thesis = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
+            "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+            "strongest_claim_ids": ["c1"], "access_summary": "Path", "research_gap_impact": "None",
+            "semantic_review_ids": ["a1"], "recommended_action": "contact",
+        }
+        with self.assertRaisesRegex(ValueError, "material assertions"):
+            project_account_intelligence([claim], thesis, semantic_reviews=[self.review("C1", "c1", "a1")])
 
     def test_verified_trigger_cannot_override_disqualifying_fit(self):
         row = {

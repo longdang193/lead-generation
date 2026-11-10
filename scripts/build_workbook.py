@@ -12,6 +12,7 @@ from openpyxl.formatting.rule import ColorScaleRule
 
 from runtime_config import RuntimeConfig, provider_limitation
 from run_manifest import load as load_manifest, repository_root, update as update_manifest
+from lead_contract import has_complete_production_lineage
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -54,6 +55,8 @@ def write_sheet(ws, rows: list[dict[str, str]], widths: dict[str, int] | None = 
                         pass
             elif header in nullable_unknown_fields and value == "Unknown":
                 value = None
+            elif isinstance(value, (list, dict)):
+                value = json.dumps(value, ensure_ascii=False, sort_keys=True)
             values.append(value)
         ws.append(values)
     ws.freeze_panes = "A2"
@@ -87,16 +90,43 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--build-report", type=Path, required=True)
     parser.add_argument("--run-manifest", type=Path)
+    parser.add_argument("--dossier", type=Path)
+    parser.add_argument("--production-account-intelligence", action="store_true")
     args = parser.parse_args()
     companies = read_csv(args.companies)
     scores = read_csv(args.scores)
     priority = read_csv(args.priority)
     contacts = read_csv(args.contacts)
     sources = read_csv(args.sources)
+    dossiers = []
+    if args.dossier:
+        if not args.dossier.exists():
+            raise ValueError("dossier artifact does not exist")
+        dossiers = [json.loads(line) for line in args.dossier.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if args.production_account_intelligence:
+        if not args.run_manifest or not args.dossier:
+            raise ValueError("production account-intelligence workbook requires run manifest and dossier artifact")
+        dossier_ids = {str(item.get("company_id") or (item.get("thesis") or {}).get("company_id")) for item in dossiers if isinstance(item, dict)}
+        priority_ids = {str(item.get("company_id") or "") for item in priority}
+        if not priority_ids.issubset(dossier_ids):
+            raise ValueError("priority workbook contains companies without durable dossier artifacts")
+        if any(not has_complete_production_lineage(item) for item in priority):
+            raise ValueError("production priority rows require complete dossier lineage")
+        dossiers_by_company = {
+            str(item.get("company_id") or (item.get("thesis") or {}).get("company_id")): item
+            for item in dossiers
+            if isinstance(item, dict)
+        }
+        for row in priority:
+            dossier = dossiers_by_company.get(str(row.get("company_id") or ""))
+            if not dossier or str(row.get("dossier_hash") or "") != str(dossier.get("dossier_hash") or ""):
+                raise ValueError(f"production priority row dossier hash does not match dossier artifact: {row.get('company_id', '')}")
     research_runs = {}
     delivery = {}
+    run_id = None
     if args.run_manifest and args.run_manifest.exists():
         manifest = load_manifest(args.run_manifest)
+        run_id = str(manifest.get("run_id") or "") or None
         research_runs = manifest.get("research_runs", {})
         delivery = manifest.get("delivery", {})
         if not isinstance(research_runs, dict):
@@ -128,16 +158,48 @@ def main() -> int:
         {"Topic": "Buying signals", "Definition": "Separate event dataset; no account signal without verified company-event match."},
         {"Topic": "Limitations", "Definition": provider_limitation(RuntimeConfig.from_env(), research_runs)},
         {"Topic": "Delivery status", "Definition": f"{delivery.get('status', 'unknown')} ({delivery.get('delivered_count', 0)}/{delivery.get('target_count', 0)} delivered); shortfall={delivery.get('shortfall', 0)}."},
-        {"Topic": "Retrieval", "Definition": "Public VDIV page and official company websites retrieved during 2026-11-07/08 execution."},
+        {"Topic": "Retrieval", "Definition": json.dumps({"run_id": run_id, "manifest": str(args.run_manifest) if args.run_manifest else None, "dossier": str(args.dossier) if args.dossier else None}, sort_keys=True)},
     ]
     ws = wb.create_sheet("05_Methodology_Sources")
     write_sheet(ws, methodology, {"Topic": 24, "Definition": 110})
+    if dossiers:
+        dossier_rows = []
+        thesis_rows = []
+        timeline_rows = []
+        evidence_rows = []
+        gap_rows = []
+        for item in dossiers:
+            thesis = item.get("thesis") if isinstance(item, dict) else {}
+            company_id = item.get("company_id") if isinstance(item, dict) else ""
+            dossier_rows.append({
+                "company_id": company_id,
+                "offer_id": item.get("offer_id") if isinstance(item, dict) else "",
+                "offer_version": item.get("offer_version") if isinstance(item, dict) else "",
+                "dossier_version": item.get("dossier_version") if isinstance(item, dict) else "",
+                "dossier_hash": item.get("dossier_hash") if isinstance(item, dict) else "",
+                "why_this_account": thesis.get("why_this_account", "") if isinstance(thesis, dict) else "",
+                "why_now": thesis.get("why_now", "") if isinstance(thesis, dict) else "",
+                "recommended_action": thesis.get("recommended_action", "") if isinstance(thesis, dict) else "",
+            })
+            thesis_rows.append({"company_id": company_id, **(thesis if isinstance(thesis, dict) else {})})
+            for event in item.get("timeline", []) if isinstance(item, dict) else []:
+                timeline_rows.append({"company_id": company_id, **event})
+            for claim in item.get("claims", []) if isinstance(item, dict) else []:
+                evidence_rows.append({"company_id": company_id, **claim})
+            gap_rows.append({
+                "company_id": company_id,
+                "research_gap_impact": thesis.get("research_gap_impact", "") if isinstance(thesis, dict) else "",
+                "decision_relevant_gaps": "; ".join(str(hypothesis.get("decision_relevant_gap") or "") for hypothesis in (thesis.get("hypotheses", []) if isinstance(thesis, dict) else []) if isinstance(hypothesis, dict) and hypothesis.get("decision_relevant_gap")),
+                "recommended_action": thesis.get("recommended_action", "") if isinstance(thesis, dict) else "",
+            })
+        for name, rows in (("06_Account_Dossiers", dossier_rows), ("07_Account_Theses", thesis_rows), ("08_Account_Timeline", timeline_rows), ("09_Evidence_Ledger", evidence_rows), ("10_Research_Gaps", gap_rows)):
+            ws = wb.create_sheet(name)
+            write_sheet(ws, rows)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     wb.save(args.output)
     report = {"sheets": wb.sheetnames, "counts": {"companies": len(companies), "scores": len(scores), "priority": len(priority), "contacts": len(contacts), "sources": len(sources)}}
     args.build_report.parent.mkdir(parents=True, exist_ok=True)
     args.build_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    run_id = None
     if args.run_manifest:
         if not args.run_manifest.exists():
             raise ValueError("supplied run manifest must already exist; workbook generation cannot mint run identity")

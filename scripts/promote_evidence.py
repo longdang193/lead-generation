@@ -43,7 +43,7 @@ def validate_verifier_decision(decision: dict[str, object], claims: dict[str, di
     return verifier_decision_valid(decision, claim)
 
 
-def decision_assurance_level(decision: dict[str, object], verifier_registry: dict[str, object]) -> str:
+def decision_assurance_level(decision: dict[str, object], verifier_registry: dict[str, object], *, require_registered: bool = False) -> str:
     explicit = str(decision.get("assurance_level") or "")
     registration = verifier_registry.get(str(decision.get("verifier_run_id") or ""))
     capability = registration.get("capability") if isinstance(registration, dict) else None
@@ -54,6 +54,8 @@ def decision_assurance_level(decision: dict[str, object], verifier_registry: dic
     if capability == "structural_validation":
         return "structural"
     if registration is not None:
+        return "unknown"
+    if require_registered and verifier_registry == {} and decision.get("verifier_run_id"):
         return "unknown"
     if verifier_registry and explicit in {"replay", "structural", "source"}:
         return "unknown"
@@ -214,7 +216,7 @@ def promote_verified_claims(candidates_path: Path, decisions_path: Path, output_
             continue
         claim = dict(claims[claim_id])
         claim.setdefault("candidate_status", "Unresolved")
-        assurance_level = decision_assurance_level(decisions[claim_id], verifier_registry)
+        assurance_level = decision_assurance_level(decisions[claim_id], verifier_registry, require_registered=bool(active_run_id))
         if assurance_level == "unknown":
             if delivery_policy == "personal":
                 quarantined.append({"claim": claim, "reason": "missing_verifier_assurance"})

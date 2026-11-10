@@ -8,6 +8,8 @@ not implement orchestration or provider access.
 from __future__ import annotations
 
 import re
+import hashlib
+import json
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
@@ -126,10 +128,50 @@ class AccountIndicator(ContractModel):
         return self
 
 
+class MaterialAssertion(ContractModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    assertion_id: str = Field(min_length=1)
+    assertion_kind: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+    content_hash: str | None = None
+    company_id: str = Field(min_length=1)
+    offer_id: str = Field(min_length=1)
+    offer_version: str = Field(min_length=1)
+    offer_criterion: str = Field(min_length=1)
+    supporting_claim_ids: list[str] = Field(default_factory=list)
+    counterevidence_claim_ids: list[str] = Field(default_factory=list)
+    uncertainty: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def bind_content(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
+        payload = {
+            "assertion_id": values.get("assertion_id", ""),
+            "assertion_kind": values.get("assertion_kind", ""),
+            "statement": " ".join(str(values.get("statement", "")).split()),
+            "company_id": values.get("company_id", ""),
+            "offer_id": values.get("offer_id", ""),
+            "offer_version": values.get("offer_version", ""),
+            "offer_criterion": values.get("offer_criterion", ""),
+            "supporting_claim_ids": sorted(values.get("supporting_claim_ids") or []),
+            "counterevidence_claim_ids": sorted(values.get("counterevidence_claim_ids") or []),
+            "uncertainty": sorted(values.get("uncertainty") or []),
+        }
+        expected = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        if values.get("content_hash") is not None and values.get("content_hash") != expected:
+            raise ValueError("material assertion content_hash does not match immutable assertion content")
+        return {**values, "statement": payload["statement"], "content_hash": expected}
+
+
 class SemanticReview(ContractModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
     assertion_id: str = Field(min_length=1)
+    semantic_review_id: str | None = None
+    assertion_hash: str | None = None
     company_id: str = Field(min_length=1)
     offer_id: str = Field(min_length=1)
     offer_version: str = Field(min_length=1)
@@ -142,6 +184,26 @@ class SemanticReview(ContractModel):
     decision: Literal["approved", "rejected", "needs_review"]
     reason_codes: list[str] = Field(min_length=1)
     reviewer_id: str = Field(min_length=1)
+    receipt_id: str | None = None
+    supersedes_review_id: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def bind_identity(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or values.get("semantic_review_id"):
+            return values
+        payload = {
+            "assertion_id": values.get("assertion_id", ""),
+            "assertion_hash": values.get("assertion_hash") or "",
+            "reviewed_claim_ids": sorted(values.get("reviewed_claim_ids") or []),
+            "offer_criterion": values.get("offer_criterion", ""),
+            "decision": values.get("decision", ""),
+            "reason_codes": sorted(values.get("reason_codes") or []),
+            "reviewer_id": values.get("reviewer_id", ""),
+            "receipt_id": values.get("receipt_id") or "",
+        }
+        review_id = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        return {**values, "semantic_review_id": f"review-{review_id}"}
 
     @model_validator(mode="after")
     def enforce_approval_gate(self) -> "SemanticReview":
@@ -166,6 +228,10 @@ class CoverageManifest(ContractModel):
     truncated: bool = False
     unresolved_candidates: int = Field(default=0, ge=0)
     trigger_state: Literal["Verified trigger", "No trigger found", "Research incomplete", "Unavailable"] = "Research incomplete"
+    research_policy_id: str | None = None
+    research_policy_version: str | None = None
+    research_policy_hash: str | None = None
+    settled_receipt_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def completed_checks_are_declared(self) -> "CoverageManifest":
@@ -183,6 +249,7 @@ class CoverageManifest(ContractModel):
             and self.unresolved_candidates == 0
             and set(self.provider_states) >= set(self.required_checks)
             and all(self.provider_states.get(check) == "available" for check in self.required_checks)
+            and bool(self.research_policy_id and self.research_policy_version and self.research_policy_hash and self.settled_receipt_ids)
         )
 
 
@@ -194,7 +261,13 @@ class RankContribution(ContractModel):
     weight: float = Field(ge=0)
     contribution: float
     supporting_claim_ids: list[str] = Field(default_factory=list)
+    supporting_review_ids: list[str] = Field(default_factory=list)
     offer_criterion: str = Field(min_length=1)
+    scoring_policy_id: str = "account-intelligence"
+    scoring_policy_version: str = "1"
+    scoring_policy_hash: str | None = None
+    normalized_inputs: dict[str, Any] = Field(default_factory=dict)
+    confidence_adjustment: float = 0.0
 
 
 class RankAudit(ContractModel):
@@ -537,6 +610,8 @@ class AccountHypothesis(ContractModel):
     counterevidence_claim_ids: list[str] = Field(default_factory=list)
     confidence: Confidence
     speculative: bool = False
+    validation_step: str | None = None
+    decision_relevant_gap: str | None = None
 
 
 class AccountThesis(ContractModel):
@@ -548,6 +623,7 @@ class AccountThesis(ContractModel):
     structural_fit: float = Field(ge=0, le=100)
     opportunity_potential: float | None = Field(default=None, ge=0, le=100)
     indicators: list[AccountIndicator] = Field(default_factory=list)
+    material_assertions: list[MaterialAssertion] = Field(default_factory=list)
     hypotheses: list[AccountHypothesis] = Field(default_factory=list)
     direct_intent: str | None = None
     confidence: Confidence

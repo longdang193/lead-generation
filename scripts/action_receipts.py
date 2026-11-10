@@ -136,3 +136,18 @@ def replay_receipts(receipts: Iterable[ActionReceipt]) -> dict[str, Any]:
 
 def replay_run(root: Path, run_id: str) -> dict[str, Any]:
     return replay_receipts(read_receipts(root, run_id))
+
+
+def settled_receipt_ids_for_checks(root: Path, run_id: str, company_id: str, required_checks: Iterable[str]) -> tuple[bool, list[str]]:
+    """Prove each required check has a settled terminal receipt for this account."""
+
+    receipts = [receipt for receipt in read_receipts(root, run_id) if receipt.company_id == company_id]
+    errors: list[str] = []
+    receipt_ids: list[str] = []
+    for check in required_checks:
+        matched = [receipt for receipt in receipts if receipt.terminal_status in {"Completed", "Partial"} and (check in receipt.coverage_delta or check in receipt.scope or check == receipt.action_type)]
+        if not matched:
+            errors.append(f"missing settled receipt for check: {check}")
+            continue
+        receipt_ids.extend(f"{receipt.action_id}:{receipt.attempt_id}" for receipt in matched)
+    return not errors, sorted(set(receipt_ids))

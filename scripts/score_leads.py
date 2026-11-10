@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from campaign_spec import qualification_eligibility
 from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
-from typed_contracts import RankAudit, RankContribution, SemanticReview
+from typed_contracts import AccountThesis, Confidence, EvidenceClaim, RankAudit, RankContribution, SemanticReview
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
 COMMERCIAL_WEIGHTS = {
@@ -20,6 +21,16 @@ COMMERCIAL_WEIGHTS = {
     "access": 5.0,
     "evidence_confidence": 5.0,
 }
+SCORING_POLICY_ID = "account-intelligence-commercial"
+SCORING_POLICY_VERSION = "1"
+SCORING_POLICY = {
+    "id": SCORING_POLICY_ID,
+    "version": SCORING_POLICY_VERSION,
+    "weights": COMMERCIAL_WEIGHTS,
+    "missing": "zero_with_research_required_state",
+    "confidence": {"low": 0.7, "medium": 0.85, "high": 1.0},
+}
+SCORING_POLICY_HASH = hashlib.sha256(json.dumps(SCORING_POLICY, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
 def stamp() -> str:
@@ -123,6 +134,34 @@ def _commercial_dimension_value(record: dict[str, object], dimension: str) -> fl
         return 0.0
 
 
+def project_commercial_dimensions(thesis: AccountThesis | dict[str, object], claims: list[EvidenceClaim | dict[str, object]], *, signal_state: str = "Research incomplete") -> dict[str, dict[str, object]]:
+    """Derive commercial dimensions from validated thesis indicators, not flat scores."""
+
+    validated = thesis if isinstance(thesis, AccountThesis) else AccountThesis.model_validate(thesis)
+    indicators = validated.indicators
+    by_type = {name: [item for item in indicators if item.indicator_type == name] for name in ("direct_intent", "trigger", "need_indicator", "change_readiness")}
+    confidence_factor = {"low": 0.7, "medium": 0.85, "high": 1.0}[validated.confidence.value]
+
+    def dimension(name: str, items: list[object], fallback: float = 0.0) -> dict[str, object]:
+        values = [float(getattr(item, "strength", 0.0)) for item in items]
+        selected = max(values, default=fallback)
+        selected_items = [item for item in items if float(getattr(item, "strength", 0.0)) == selected and selected > 0]
+        claim_ids = sorted({claim_id for item in selected_items for claim_id in getattr(item, "supporting_claim_ids", [])})
+        criteria = sorted({str(getattr(item, "offer_criterion", "")) for item in selected_items if getattr(item, "offer_criterion", None)})
+        return {"value": round(selected * confidence_factor, 6), "supporting_claim_ids": claim_ids, "offer_criterion": criteria[0] if criteria else name, "normalized_inputs": {"raw_strength": selected, "confidence_factor": confidence_factor, "signal_state": signal_state}}
+
+    result = {
+        "fit": {"value": float(validated.structural_fit), "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "target_customer", "normalized_inputs": {"structural_fit": float(validated.structural_fit)}},
+        "opportunity": {"value": float(validated.opportunity_potential or 0.0) * confidence_factor, "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "value_propositions", "normalized_inputs": {"opportunity_potential": float(validated.opportunity_potential or 0.0), "confidence_factor": confidence_factor}},
+        "need": dimension("need_indicator", by_type["need_indicator"]),
+        "change": dimension("change_readiness", by_type["change_readiness"] + by_type["trigger"]),
+        "direct_intent": dimension("direct_intent", by_type["direct_intent"]),
+        "access": {"value": 100.0 if validated.access_summary else 0.0, "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "economic_buyer_roles", "normalized_inputs": {"access_present": bool(validated.access_summary)}},
+        "evidence_confidence": {"value": {"low": 40.0, "medium": 70.0, "high": 100.0}[validated.confidence.value], "supporting_claim_ids": list(validated.strongest_claim_ids), "offer_criterion": "evidence_confidence", "normalized_inputs": {"confidence": validated.confidence.value}},
+    }
+    return result
+
+
 def priority_reason(record: dict[str, object]) -> str:
     why_account = str(record.get("why_this_account") or "Offer fit is not stated")
     why_now = str(record.get("why_now") or "Timing is not established")
@@ -130,15 +169,23 @@ def priority_reason(record: dict[str, object]) -> str:
     return f"{why_account}; {why_now}; supporting claims: {claims or 'none'}"
 
 
-def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: str, *, semantic_reviews: list[dict[str, object]] | None = None) -> RankAudit:
+def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: str, *, semantic_reviews: list[dict[str, object]] | None = None, projected_dimensions: dict[str, dict[str, object]] | None = None) -> RankAudit:
     if semantic_reviews is None:
         raise ValueError("validated semantic reviews are required before ranking")
     if record.get("offer_id") != offer_id or record.get("offer_version") != offer_version:
         raise ValueError("rank record offer context does not match requested offer")
     reviews = [item if isinstance(item, SemanticReview) else SemanticReview.model_validate(item) for item in semantic_reviews]
-    review_ids = {review.assertion_id for review in reviews if review.decision == "approved"}
+    approved_reviews = [review for review in reviews if review.decision == "approved"]
+    review_ids = {review.semantic_review_id for review in approved_reviews if review.semantic_review_id}
+    review_aliases = {
+        alias: review.semantic_review_id
+        for review in approved_reviews
+        for alias in (review.assertion_id, review.semantic_review_id)
+        if review.semantic_review_id
+    }
     declared_review_ids = {str(value) for value in record.get("semantic_review_ids", []) if value}
-    if not declared_review_ids or not declared_review_ids.issubset(review_ids):
+    canonical_review_ids = {review_aliases.get(value, value) for value in declared_review_ids}
+    if not declared_review_ids or not canonical_review_ids.issubset(review_ids):
         raise ValueError("ranking requires approved semantic review IDs")
     company_id = str(record.get("company_id") or "")
     if any(review.company_id != company_id or (review.offer_id, review.offer_version) != (offer_id, offer_version) for review in reviews):
@@ -146,21 +193,27 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     claim_ids = [str(value) for value in record.get("strongest_claim_ids", []) if value]
     if not claim_ids:
         raise ValueError("rank record requires supporting claim IDs")
-    reviewed_claim_ids = {claim_id for review in reviews if review.assertion_id in declared_review_ids for claim_id in review.reviewed_claim_ids}
+    reviewed_claim_ids = {claim_id for review in approved_reviews if review.semantic_review_id in canonical_review_ids for claim_id in review.reviewed_claim_ids}
     if not set(claim_ids).issubset(reviewed_claim_ids):
         raise ValueError("rank claims must be covered by approved semantic reviews")
-    dimensions = {
-        name: _commercial_dimension_value(record, name)
+    source_dimensions = projected_dimensions or {
+        name: {"value": _commercial_dimension_value(record, name), "supporting_claim_ids": claim_ids, "offer_criterion": name, "normalized_inputs": {"legacy_record": True}}
         for name in COMMERCIAL_WEIGHTS
     }
+    dimensions = {name: float(source_dimensions.get(name, {}).get("value", 0.0)) for name in COMMERCIAL_WEIGHTS}
     contributions = [
         RankContribution(
             dimension=name,
             value=value,
             weight=COMMERCIAL_WEIGHTS[name],
             contribution=round(value * COMMERCIAL_WEIGHTS[name] / 100.0, 6),
-            supporting_claim_ids=claim_ids,
-            offer_criterion=name,
+            supporting_claim_ids=list(source_dimensions[name].get("supporting_claim_ids") or claim_ids),
+            supporting_review_ids=sorted(canonical_review_ids),
+            offer_criterion=str(source_dimensions[name].get("offer_criterion") or name),
+            scoring_policy_id=SCORING_POLICY_ID,
+            scoring_policy_version=SCORING_POLICY_VERSION,
+            scoring_policy_hash=SCORING_POLICY_HASH,
+            normalized_inputs=dict(source_dimensions[name].get("normalized_inputs") or {}),
         )
         for name, value in dimensions.items()
     ]
@@ -187,8 +240,32 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     )
 
 
-def rank_account(record: dict[str, object], offer_id: str, offer_version: str) -> RankAudit:
-    return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None)
+def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *, dossier: dict[str, object] | None = None) -> RankAudit:
+    projected = None
+    if dossier is not None:
+        from account_intelligence import validate_account_thesis
+
+        thesis = dossier.get("thesis")
+        if not isinstance(thesis, dict):
+            raise ValueError("dossier must contain a validated thesis")
+        dossier_reviews = [item for item in dossier.get("semantic_reviews", []) if isinstance(item, dict)]
+        dossier_claims = list(dossier.get("claims") or [])
+        validated_thesis = validate_account_thesis(
+            thesis,
+            dossier_claims,
+            enforce_structural_fit=True,
+            require_source_assurance=True,
+            require_material_assertions=True,
+            semantic_reviews=dossier_reviews,
+        )
+        projected = project_commercial_dimensions(validated_thesis, dossier_claims, signal_state=str(record.get("buying_signal") or "Research incomplete"))
+        record = {
+            **record,
+            "semantic_reviews": dossier_reviews,
+            "semantic_review_ids": [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in dossier_reviews],
+            "strongest_claim_ids": list(validated_thesis.strongest_claim_ids),
+        }
+    return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None, projected_dimensions=projected)
 
 
 def derive_account_signal(company_audit: dict[str, str], matched_events: list[dict[str, object]], default_search_status: str) -> tuple[str, str]:
@@ -244,12 +321,22 @@ def main() -> int:
     else:
         events = event_payload if isinstance(event_payload, list) else []
         provider_unavailable = False
-    events_by_id = {str(event.get("event_id")): event for event in events if isinstance(event, dict) and event.get("event_id")}
+    events_by_identity = {
+        (str(event.get("company_id") or event.get("buyer") or ""), str(event.get("event_id"))): event
+        for event in events
+        if isinstance(event, dict) and event.get("event_id")
+    }
     links = list(csv.DictReader(args.event_links.open(encoding="utf-8-sig", newline=""))) if args.event_links.exists() else []
     links_by_company: dict[str, list[dict[str, object]]] = {}
     for link in links:
         if link.get("match_confidence") == "Verified":
-            links_by_company.setdefault(link.get("company_id", ""), []).append(events_by_id.get(link.get("event_id", ""), link))
+                company_id = str(link.get("company_id") or "")
+                event = events_by_identity.get((company_id, str(link.get("event_id") or "")))
+                if event is None:
+                    continue
+                if str(event.get("company_id") or event.get("buyer") or company_id) != company_id:
+                    continue
+                links_by_company.setdefault(company_id, []).append(event)
     signal_audit: dict[str, dict[str, str]] = {}
     if args.signal_audit and args.signal_audit.exists():
         for row in csv.DictReader(args.signal_audit.open(encoding="utf-8-sig", newline="")):

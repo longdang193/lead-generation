@@ -12,6 +12,8 @@ from typing import Mapping
 
 from openpyxl import load_workbook
 
+from lead_contract import has_complete_production_lineage
+
 
 FULL_COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
@@ -401,7 +403,8 @@ def _validate_finalization_artifacts(
     priority_ids: set[str] = set()
     priority_path = artifacts.get("priority")
     if priority_path:
-        for row in csv_rows(priority_path, "ranked leads"):
+        priority_rows = csv_rows(priority_path, "ranked leads")
+        for row in priority_rows:
             company_id = str(row.get("company_id") or "")
             if not company_id:
                 errors.append("ranked leads contain a row without company_id")
@@ -411,6 +414,22 @@ def _validate_finalization_artifacts(
                 errors.append("ranked leads contain a company absent from projection scores")
             if accepted and company_id not in accepted:
                 errors.append("ranked leads contain a company outside the admitted run scope")
+        if str(manifest.get("account_intelligence_mode") or "") == "production":
+            dossier_path = artifacts.get("dossier")
+            dossier_records = json_records(dossier_path) if dossier_path else []
+            dossiers_by_company = {
+                str(item.get("company_id") or (item.get("thesis") or {}).get("company_id") or ""): item
+                for item in dossier_records
+            }
+            for row in priority_rows:
+                company_id = str(row.get("company_id") or "")
+                if not has_complete_production_lineage(row):
+                    errors.append(f"ranked leads lack complete dossier lineage: {company_id}")
+                dossier = dossiers_by_company.get(company_id)
+                if not dossier:
+                    errors.append(f"ranked leads lack a matching dossier artifact: {company_id}")
+                elif str(row.get("dossier_hash") or "") != str(dossier.get("dossier_hash") or ""):
+                    errors.append(f"ranked leads dossier hash does not match dossier artifact: {company_id}")
 
     if evidence_ids and not evidence_ids.issubset(scores_ids):
         errors.append("projection scores do not cover every verified-evidence company")
@@ -445,6 +464,8 @@ def _validate_finalization_artifacts(
         try:
             workbook = load_workbook(workbook_path.resolve(), read_only=True, data_only=True)
             expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources"]
+            if str(manifest.get("account_intelligence_mode") or "") == "production":
+                expected_sheets = ["01_All_Leads", "02_Qualification", "03_Priority_Leads", "04_Contacts", "05_Methodology_Sources", "06_Account_Dossiers", "07_Account_Theses", "08_Account_Timeline", "09_Evidence_Ledger", "10_Research_Gaps"]
             if workbook.sheetnames != expected_sheets:
                 errors.append("workbook tabs do not match the native export contract")
 
@@ -532,6 +553,8 @@ def reconstruct_finalization_readiness(root: Path, manifest_path: Path, delivery
             "qa_report": "QA report",
             "qa_sample": "QA sample",
         }
+        if str(manifest.get("account_intelligence_mode") or "") == "production":
+            required_outputs.update({"dossier": "account dossier", "ranking": "ranking audit"})
         output_bucket = outputs if isinstance(outputs, dict) else {}
         validated_artifacts: dict[str, Path] = {}
         for key, label in required_outputs.items():
@@ -617,6 +640,15 @@ def finalization_eligibility(manifest: Mapping[str, object], delivery_policy: st
     if delivery_policy not in {"strict", "personal"}:
         return False, [f"unknown delivery policy: {delivery_policy}"]
     errors: list[str] = []
+    if str(manifest.get("account_intelligence_mode") or "") == "production":
+        outputs = manifest.get("outputs")
+        if not isinstance(outputs, dict):
+            errors.append("production account-intelligence finalization requires recorded outputs")
+        else:
+            for name in ("dossier", "ranking", "workbook"):
+                artifact = outputs.get(name)
+                if not isinstance(artifact, dict) or not artifact.get("path") or not re.fullmatch(r"[0-9a-f]{64}", str(artifact.get("sha256") or "")):
+                    errors.append(f"production finalization requires manifest-bound {name} artifact")
     barriers = manifest.get("barriers")
     if not isinstance(barriers, dict):
         errors.append("manifest barriers are missing")

@@ -16,6 +16,7 @@ from typed_contracts import (
     AssuranceLevel,
     CoverageManifest,
     EvidenceClaim,
+    MaterialAssertion,
     OfferProfile,
     SemanticReview,
     normalize_native_claim,
@@ -158,7 +159,7 @@ def validate_account_hypothesis(hypothesis: AccountHypothesis | dict[str, Any], 
     return validated
 
 
-def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None) -> SemanticReview:
+def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None, material_assertions: Iterable[MaterialAssertion | dict[str, Any]] = ()) -> SemanticReview:
     validated = review if isinstance(review, SemanticReview) else SemanticReview.model_validate(review)
     by_id = {claim.claim_id: claim for claim in (_claim_model(item) for item in claims)}
     missing = sorted(set(validated.reviewed_claim_ids) - set(by_id))
@@ -170,6 +171,16 @@ def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: It
         profile = offer_profile if isinstance(offer_profile, OfferProfile) else OfferProfile.model_validate(offer_profile)
         if (validated.offer_id, validated.offer_version) != (profile.offer_id, profile.offer_version):
             raise ValueError("semantic review offer context does not match offer profile")
+    assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in material_assertions]
+    if assertions:
+        matches = [item for item in assertions if item.assertion_id == validated.assertion_id and item.company_id == validated.company_id and (item.offer_id, item.offer_version) == (validated.offer_id, validated.offer_version)]
+        if len(matches) != 1:
+            raise ValueError("semantic review must reference exactly one material assertion")
+        assertion = matches[0]
+        if validated.assertion_hash != assertion.content_hash:
+            raise ValueError("semantic review assertion hash does not match immutable assertion content")
+        if not set(validated.reviewed_claim_ids).issubset(set(assertion.supporting_claim_ids) | set(assertion.counterevidence_claim_ids)):
+            raise ValueError("semantic review claims exceed the material assertion claim set")
     return validated
 
 
@@ -197,6 +208,8 @@ def validate_account_thesis(
     claims: Iterable[EvidenceClaim | dict[str, Any]],
     *,
     enforce_structural_fit: bool = False,
+    require_source_assurance: bool = False,
+    require_material_assertions: bool = False,
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
 ) -> AccountThesis:
@@ -225,7 +238,9 @@ def validate_account_thesis(
     if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
         raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
     reviews = [validate_semantic_review(item, claim_list, offer_profile=profile) for item in semantic_reviews]
-    reviews_by_id = {review.assertion_id: review for review in reviews}
+    assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in validated.material_assertions]
+    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, material_assertions=assertions) for item in reviews]
+    reviews_by_id = {key: review for review in reviews for key in {review.assertion_id, review.semantic_review_id or ""} if key}
     missing_reviews = sorted(set(validated.semantic_review_ids) - set(reviews_by_id))
     if missing_reviews:
         raise ValueError(f"thesis references missing semantic review IDs: {', '.join(missing_reviews)}")
@@ -238,10 +253,48 @@ def validate_account_thesis(
         for review in selected_reviews
     ):
         raise ValueError("thesis semantic reviews must match the enclosing company and offer")
+    if assertions:
+        assertion_ids = {item.assertion_id for item in assertions}
+        if not assertion_ids.issubset({review.assertion_id for review in selected_reviews}):
+            raise ValueError("every material assertion requires a matching semantic review")
+        assertion_claims = {claim_id for item in assertions for claim_id in item.supporting_claim_ids + item.counterevidence_claim_ids}
+        if not assertion_claims.issubset(claim_ids | set(validated.counterevidence_claim_ids)):
+            raise ValueError("material assertions reference claims outside the thesis")
     reviewed_claim_ids = {claim_id for review in selected_reviews for claim_id in review.reviewed_claim_ids}
     unsupported_claims = sorted((set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)) - reviewed_claim_ids)
     if unsupported_claims:
         raise ValueError("thesis material claims lack semantic review support: " + ", ".join(unsupported_claims))
+    if enforce_structural_fit:
+        deterministic_fit = calculate_structural_fit(claim_list)
+        if abs(validated.structural_fit - deterministic_fit) > 0.01:
+            raise ValueError(f"structural_fit does not match deterministic fact score: expected {deterministic_fit}, observed {validated.structural_fit}")
+    if require_source_assurance:
+        unassured = sorted(
+            claim.claim_id
+            for claim in claim_list
+            if claim.claim_id in referenced
+            and (claim.assurance_level != AssuranceLevel.source or claim.candidate_status not in {"Verified", "Supported"})
+        )
+        if unassured:
+            raise ValueError("thesis material claims lack source assurance: " + ", ".join(unassured))
+    if require_material_assertions:
+        if not assertions:
+            raise ValueError("production thesis requires material assertions")
+        conclusion_values = {
+            "why_this_account": validated.why_this_account,
+            "why_now": validated.why_now,
+            "problem_hypothesis": validated.problem_hypothesis,
+        }
+        assertion_kinds = {item.assertion_kind for item in assertions}
+        missing_kinds = sorted(set(conclusion_values) - assertion_kinds)
+        if missing_kinds:
+            raise ValueError("production thesis is missing reviewed conclusions: " + ", ".join(missing_kinds))
+        for assertion in assertions:
+            expected = conclusion_values.get(assertion.assertion_kind)
+            if expected is None:
+                raise ValueError(f"unsupported material assertion kind: {assertion.assertion_kind}")
+            if assertion.statement != expected:
+                raise ValueError(f"material assertion does not bind exported conclusion: {assertion.assertion_kind}")
     reviews_by_criterion = {
         review.offer_criterion: review
         for review in reviews
@@ -258,11 +311,7 @@ def validate_account_thesis(
         review = reviews_by_criterion.get(indicator.offer_criterion)
         if review is None or not set(indicator.supporting_claim_ids).issubset(review.reviewed_claim_ids):
             raise ValueError("indicator lacks an approved semantic review for its offer criterion")
-    if enforce_structural_fit:
-        deterministic_fit = calculate_structural_fit(claim_list)
-        if abs(validated.structural_fit - deterministic_fit) > 0.01:
-            raise ValueError(f"structural_fit does not match deterministic fact score: expected {deterministic_fit}, observed {validated.structural_fit}")
-    return validated.model_copy(update={"hypotheses": hypotheses})
+    return validated.model_copy(update={"hypotheses": hypotheses, "material_assertions": assertions})
 
 
 def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> float:
@@ -298,6 +347,8 @@ def project_account_intelligence(
         thesis,
         claim_list,
         enforce_structural_fit=True,
+        require_source_assurance=True,
+        require_material_assertions=True,
         semantic_reviews=review_list,
         offer_profile=offer_profile,
     )
@@ -307,11 +358,16 @@ def project_account_intelligence(
         "company_id": validated_thesis.company_id,
         "offer_id": validated_thesis.offer_id,
         "offer_version": validated_thesis.offer_version,
+        "claims": [_claim_model(item).model_dump(mode="json") for item in claim_list],
         "timeline": timeline,
         "thesis": validated_thesis.model_dump(mode="json"),
         "semantic_reviews": [review.model_dump(mode="json") for review in validated_reviews],
         "structural_fit_fact_score": calculate_structural_fit(claim_list),
+        "dossier_version": "1",
+        "run_id": next((claim.research_run_id for claim in (_claim_model(item) for item in claim_list) if claim.research_run_id), None),
     }
+    result["projection_run_id"] = result["run_id"]
+    result["dossier_hash"] = hashlib.sha256(json.dumps(result, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")).hexdigest()
     if timeline_path is not None:
         timeline_path.parent.mkdir(parents=True, exist_ok=True)
         with timeline_path.open("w", encoding="utf-8", newline="\n") as handle:

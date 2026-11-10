@@ -53,6 +53,12 @@ class AccountIntelligenceTests(unittest.TestCase):
         }
         self.assertEqual(account_signal_state([], manifest), "Research incomplete")
         manifest["completed_checks"] = ["official_site", "public_news"]
+        manifest.update({
+            "research_policy_id": "policy-1",
+            "research_policy_version": "1",
+            "research_policy_hash": "p" * 64,
+            "settled_receipt_ids": ["action-1:attempt-1", "action-2:attempt-1"],
+        })
         self.assertEqual(account_signal_state([], manifest), "No trigger found")
 
     def test_indicator_requires_approved_offer_bound_semantic_review(self):

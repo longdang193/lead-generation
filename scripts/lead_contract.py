@@ -16,10 +16,20 @@ ACTIONABILITY = ("Ready", "Research", "Monitor", "Unknown")
 SALES_PRIORITIES = ("Pursue", "Research", "Defer")
 TIME_SENSITIVE_CLAIMS = {"buying_signal", "event"}
 QUANTITATIVE_CLAIMS = {"portfolio_size", "portfolio_value"}
+PRODUCTION_LINEAGE_FIELDS = ("rank_audit", "dossier_hash", "semantic_review_ids", "strongest_claim_ids", "projection_run_id")
+PRODUCTION_LINEAGE_FIELDS = ("rank_audit", "dossier_hash", "semantic_review_ids", "strongest_claim_ids", "projection_run_id")
 
 
 def is_unknown(value: object) -> bool:
     return value in (None, "", "Unknown")
+
+
+def has_complete_production_lineage(row: dict[str, object]) -> bool:
+    return all(not is_unknown(row.get(field)) for field in PRODUCTION_LINEAGE_FIELDS)
+
+
+def has_complete_production_lineage(row: dict[str, object]) -> bool:
+    return all(not is_unknown(row.get(field)) for field in PRODUCTION_LINEAGE_FIELDS)
 
 
 def parse_evidence_urls(value: object) -> list[str]:

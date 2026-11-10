@@ -36,3 +36,24 @@ semantic-review IDs, rank-audit contributions, stakeholder judgments, threshold
 calculations, and unresolved research gaps. No hidden chain-of-thought is
 persisted; exported rationale is limited to concise claims, counterevidence,
 uncertainty, confidence, and recommended action.
+
+## Current Acceptance Record (2026-11-10)
+
+- Local implementation state: `verified`; the repository suite completed with
+  238 passing tests on the active implementation.
+- Semantic benchmark state: `not run`; no same-cohort 10–20-account sample,
+  blinded structural-baseline comparison, stakeholder pairwise judgments, or
+  adjudicated denominators are recorded here, so no ranking-quality threshold
+  is claimed as met.
+- Native runtime state: `incomplete`; fixture lifecycle tests prove the
+  deterministic boundary, but an actual native Codex execution trace showing
+  parent action selection and stopping is still required for production
+  readiness.
+- Live-provider/CRM state: `blocked`; the existing bounded provider probe is
+  unavailable as current acceptance evidence because it lacks an independent
+  source-verification decision and CRM boundary proof. Provider failure is not
+  converted into a negative buying signal.
+- Release decision: `blocked pending semantic benchmark, native runtime trace,
+  and live-provider/CRM boundary evidence`; the local implementation result
+  must not be presented as production-ready account intelligence until those
+  independent gates are recorded.

@@ -199,6 +199,18 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         if not isinstance(thesis, dict):
             raise ValueError("thesis must be an object")
         return project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
+    if action == "persist_dossier":
+        claims = payload.pop("claims", [])
+        thesis = payload.pop("thesis", None)
+        offer_profile = payload.pop("offer_profile", None)
+        semantic_reviews = payload.pop("semantic_reviews", [])
+        output = _resolve_path(root, payload.pop("output"))
+        if not isinstance(thesis, dict):
+            raise ValueError("thesis must be an object")
+        dossier = project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(dossier, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")) + "\n", encoding="utf-8")
+        return {"dossier": dossier, "artifact": _artifact(root, output, "account_dossier")}
     if action == "calculate_fit":
         claims = payload.get("claims", [])
         return {"structural_fit": calculate_structural_fit(claims)}
@@ -215,27 +227,65 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
             raise ValueError("scores and qualification are required")
         offer_id = str(payload.get("offer_id") or "")
         offer_version = str(payload.get("offer_version") or "")
+        production = bool(payload.get("production", False))
+        compatibility_mode = bool(payload.get("compatibility_mode", False))
+        dossiers = payload.get("dossiers")
+        if production and (not offer_id or not offer_version or not isinstance(dossiers, (dict, list))):
+            raise ValueError("production ranking requires offer context and one validated dossier per company")
+        if not production and not compatibility_mode and not isinstance(dossiers, (dict, list)):
+            raise ValueError("flat structural ranking is compatibility-only; pass compatibility_mode=true or dossiers")
         semantic_reviews = payload.get("semantic_reviews")
-        if offer_id and offer_version:
+        if offer_id and offer_version and (isinstance(dossiers, (dict, list)) or compatibility_mode):
+            if isinstance(dossiers, dict):
+                dossiers_by_company = {str(key): value for key, value in dossiers.items() if isinstance(value, dict)}
+            elif isinstance(dossiers, list):
+                dossiers_by_company = {str(value.get("company_id") or (value.get("thesis") or {}).get("company_id")): value for value in dossiers if isinstance(value, dict)}
+            else:
+                dossiers_by_company = {}
+            from typed_contracts import OfferProfile
             if not isinstance(semantic_reviews, list):
-                raise ValueError("semantic_reviews are required for commercial ranking")
-            reviews_by_company: dict[str, list[dict[str, object]]] = {}
-            for review in semantic_reviews:
-                if isinstance(review, dict):
-                    reviews_by_company.setdefault(str(review.get("company_id") or ""), []).append(review)
+                semantic_reviews = []
             commercial_scores = []
             for score in scores:
                 company_id = str(score.get("company_id") or "")
                 enriched = dict(score)
-                enriched["semantic_reviews"] = reviews_by_company.get(company_id, [])
-                audit = rank_account(enriched, offer_id, offer_version)
+                dossier = dossiers_by_company.get(company_id)
+                if dossier is None and compatibility_mode:
+                    reviews_by_company: dict[str, list[dict[str, object]]] = {}
+                    for review in semantic_reviews:
+                        if isinstance(review, dict):
+                            reviews_by_company.setdefault(str(review.get("company_id") or ""), []).append(review)
+                    enriched["semantic_reviews"] = reviews_by_company.get(company_id, [])
+                    audit = rank_account(enriched, offer_id, offer_version)
+                    enriched["rank_audit"] = audit.model_dump(mode="json")
+                    enriched["_commercial_score"] = audit.total_score
+                    commercial_scores.append(enriched)
+                    continue
+                if not isinstance(dossier, dict):
+                    raise ValueError(f"missing validated dossier for company: {company_id}")
+                claims = dossier.get("claims") or []
+                reviews = dossier.get("semantic_reviews") or []
+                if not isinstance(dossier.get("thesis"), dict):
+                    raise ValueError(f"dossier thesis is missing for company: {company_id}")
+                validate_account_thesis(
+                    dossier["thesis"], claims, enforce_structural_fit=True,
+                    require_source_assurance=True, require_material_assertions=True,
+                    semantic_reviews=reviews, offer_profile=payload.get("offer_profile"),
+                )
+                audit = rank_account(enriched, offer_id, offer_version, dossier=dossier)
                 enriched["rank_audit"] = audit.model_dump(mode="json")
                 enriched["_commercial_score"] = audit.total_score
+                enriched["dossier_hash"] = dossier.get("dossier_hash")
+                enriched["semantic_review_ids"] = [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in reviews if isinstance(item, dict)]
+                enriched["strongest_claim_ids"] = list(dossier["thesis"].get("strongest_claim_ids") or [])
+                enriched["projection_run_id"] = dossier.get("projection_run_id") or dossier.get("run_id")
                 commercial_scores.append(enriched)
             scores = commercial_scores
+        elif offer_id and offer_version and not compatibility_mode:
+            raise ValueError("commercial ranking requires validated dossiers; compatibility_mode is explicit and non-production")
         accepted = payload.get("accepted_company_ids")
         accepted_ids = set(str(item) for item in accepted) if isinstance(accepted, list) else None
-        ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"))
+        ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"), production=production)
         return {"leads": ranked, "count": len(ranked)}
     if action == "export_workbook":
         output = _resolve_path(root, payload.get("output"))
@@ -249,6 +299,11 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
             "--sources", str(_resolve_path(root, payload.get("sources"))),
             "--output", str(output), "--build-report", str(build_report),
         ]
+        if payload.get("production_account_intelligence"):
+            dossier = payload.get("dossier")
+            if not dossier:
+                raise ValueError("production workbook export requires dossier artifact")
+            command.extend(["--dossier", str(_resolve_path(root, dossier)), "--production-account-intelligence"])
         if payload.get("run_manifest"):
             command.extend(["--run-manifest", str(_resolve_path(root, payload.get("run_manifest")))])
         completed = subprocess.run(command, cwd=root, check=False, capture_output=True, text=True)
