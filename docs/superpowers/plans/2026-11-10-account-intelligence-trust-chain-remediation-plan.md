@@ -121,6 +121,32 @@ The consolidated source-validated findings are:
     blinded benchmark, and live-provider/CRM boundary evidence are recorded;
     unavailable external proof must not be represented as successful.
 
+## Implementation Wave Evidence
+
+The first remediation wave is implemented at
+`541887698673d4cf0506fc62ed1437f5d3895fe6` and the same full SHA was exercised
+for fresh test evidence. The committed change includes receipt-authoritative
+coverage, production semantic-review receipt gates, validated signal-state
+precedence, dossier-first production selection, native-facade manifest binding,
+and regression coverage for the corrected production dossier persistence path.
+
+Fresh evidence at that SHA:
+
+- `py -3 -m unittest discover -s tests -p "test_*.py" -v` — 253 tests passed.
+- `py -3 -m unittest tests.test_harness_e2e tests.test_artifact_manifest_side_effects tests.test_production_contracts tests.test_task1_workbook -v` — 15 tests passed.
+- `py -3 -m py_compile scripts/account_intelligence.py scripts/action_receipts.py scripts/canonical_projection.py scripts/harness_tools.py scripts/run_manifest.py scripts/score_leads.py scripts/select_for_enrichment.py scripts/typed_contracts.py` — passed.
+
+The production dossier persistence regression initially exposed an unimported
+`update_manifest` symbol in `scripts/harness_tools.py`; systematic debugging
+confirmed the defect was on the native facade's manifest-bound path, and the
+canonical `run_manifest.update` import plus a focused binding test were added.
+
+The following acceptance evidence remains intentionally unresolved and is not
+claimed by this wave: an actual parent-directed Codex runtime trace rather than
+fixture replay, the blinded same-cohort benchmark, and live provider/CRM
+boundary proof. These remain Task 5/6 completion gates; no external writes were
+performed.
+
 Unverified claims are excluded from this plan. In particular, no exact lead
 count discrepancy is treated as a defect, no direct procurement event is
 required for every good lead, no commercial-uplift claim is made without the
