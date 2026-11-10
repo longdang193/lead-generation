@@ -46,22 +46,26 @@ promotion, validation, projection, ranking, QA, and export.
 
 ## Review Basis
 
-The reviewed revision is `7b065fa54a21a30278444306bc818e39873c41f9` on
-`longdang193/lead-generation`; `origin/main` reaches the same full SHA and no
-publication was required before review.
+The reviewed revision is `93e46d845b8f78749cc36292a6222482917e1cd3` on
+`longdang193/lead-generation`; it is published at
+`origin/codex/account-intelligence-trust-chain` and the full SHA is reachable
+from GitHub. The review was read-only; no external provider or CRM write was
+performed.
 
 Both requested reviews completed in one authenticated repository-bound context
 with `High` effort and fresh tabs:
 
-- `GPT-5.6-Sol`, `High`, run `run-L3GaCF`, chat
-  `6af25b8e-3b04-83eb-91d8-ce425f8bc7b0`; bounded result `completed`, visible
-  response final and pinned to the reviewed SHA.
-- `GPT-6`, `High`, run `run-vl4yc3`, chat
-  `6af25c3e-9108-83eb-8685-0db3a42cab44`; bounded result `completed`, visible
-  response final and pinned to the reviewed SHA.
+- `GPT-5.6-Sol`, `High`, run `run-qspcJk`, chat
+  `6af2742c-88d4-83ed-aac5-2030018e5be9`; bounded result `completed`, visible
+  response final and pinned to the reviewed SHA; cleanup completed.
+- `GPT-6`, `High`, run `run-QouaOE`, chat
+  `6af274fe-6ee8-83ed-92b8-042fbcaf071c`; bounded result `completed`, visible
+  response final and pinned to the reviewed SHA; cleanup completed.
 
-No run was timed out, incomplete, ambiguous, or retried. The consolidated
-source-validated findings are:
+No run was timed out, incomplete, ambiguous, or retried. Both chats were
+submitted exactly once in the dedicated profile
+`C:\Users\HOANG PHI LONG DANG\.codex\profiles\github-review\longdang193-lead-generation`.
+The consolidated source-validated findings are:
 
 1. Every production ranking/export path must close over the canonical chain
    `validated dossier → dimension projection → rank audit → shortlist → workbook → strict QA`;
@@ -97,10 +101,25 @@ source-validated findings are:
     execution dates remain.
 12. Benchmark samples must be stratified by structural fit, trigger
     availability, and evidence completeness before outcomes are observed.
+13. The native `qa_workbook` facade must forward production mode and dossier
+    identity; otherwise strict QA is optional in the very path the skills tell
+    Codex to use.
+14. Normal score output must carry offer identity into commercial ranking, and
+    production mode must reject compatibility fallback rather than mixing
+    dossier-backed and flat-score rows.
+15. Workbook priority sheets must derive their own headers so validated
+    dossier/rank lineage is physically delivered to stakeholders.
+16. Identity normalization, review selection, dossier hashing, event merging,
+    and event strength must be deterministic and conflict-aware.
+17. The production acceptance gate remains blocked until native execution,
+    blinded benchmark, and live-provider/CRM boundary evidence are recorded;
+    unavailable external proof must not be represented as successful.
 
 Unverified claims are excluded from this plan. In particular, no exact lead
 count discrepancy is treated as a defect, no direct procurement event is
-required for every good lead, and no new orchestration runtime is proposed.
+required for every good lead, no commercial-uplift claim is made without the
+benchmark, no live-provider/CRM readiness claim is made without a probe, and
+no new orchestration runtime is proposed.
 
 ## Implementation Outcomes
 
@@ -145,22 +164,22 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 - Mode: `inline sequential`
 - Coordination: `git-tracked`
 - Required skills: `skill-systematic-debugging`, `skill-test-driven-development`, `skill-backend-verification`, `skill-code-standards`, `skill-verification-before-completion`, `skill-plan-document-reviewer`, `spreadsheets:Spreadsheets`
-- Isolation: `current workspace`; preserve unrelated changes and stop if the base is no longer `7b065fa54a21a30278444306bc818e39873c41f9`
+- Isolation: `current workspace`; preserve unrelated changes and stop if the base is no longer `93e46d845b8f78749cc36292a6222482917e1cd3`
 - Commit policy: `no commits during execution`; the lead controller decides branch disposition after fresh verification
 - Preauthorized local actions: edit declared files, run declared tests, inspect configured local fixtures and schemas, and produce bounded fixture artifacts
 - User-approval actions: push, merge, live external provider calls, CRM writes, paid enrichment, destructive cleanup, or changing the approved product scope
 - Parallel ownership: `none`; `typed_contracts.py`, `account_intelligence.py`, and the canonical projection are shared owners and are serialized
-- Sequential fallback: execute Tasks 1–5 in order, then run Task 6 only after all producer and consumer tests pass
+- Sequential fallback: execute Tasks 7–10 in order, then complete Tasks 5–6 only after all producer and consumer tests pass
 
 ## Coordination State
 
 - Coordination owner: `single lead controller`
 - Coordination schema: `2`
-- Branch: `main`
-- Base commit: `7b065fa54a21a30278444306bc818e39873c41f9`
-- Expected workspace: `clean before implementation; this plan file is the only planned addition at authoring time`
-- Next action: `complete Task 5 native-runtime evidence, then execute the benchmark gates in Task 6`
-- Blockers: `local implementation is verified through 238 passing tests; actual native Codex trace and live-provider/CRM probe remain unavailable without the required authenticated external boundary and approval`
+- Branch: `codex/account-intelligence-trust-chain`
+- Base commit: `93e46d845b8f78749cc36292a6222482917e1cd3`
+- Expected workspace: `preserve the published review commit; apply only the post-review remediation wave`
+- Next action: `execute Tasks 7–10, then complete native trace and benchmark gates in Tasks 5–6`
+- Blockers: `the current local suite passed before this review; post-review regressions, native Codex trace, blinded benchmark, and live-provider/CRM probe remain outstanding`
 
 | Task | State | Workspace | Executor | Depends On | Required Proof | Evidence |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -170,6 +189,10 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 | Task 4 | `completed` | current | `Codex` | Tasks 2–3 | workbook and QA regression tests | production lineage gates, five account-intelligence sheets, and finalization tests pass |
 | Task 5 | `active` | current | `Codex` | Tasks 1–4 | native trace and artifact integrity proof | fixture trace passes; actual native Codex execution trace remains outstanding |
 | Task 6 | `pending` | current | `unresolved` | Task 5 | benchmark record and final verification | blocked pending native trace, blinded benchmark, and external-boundary decision |
+| Task 7 | `pending` | current | `unresolved` | Tasks 1–4 | promoted-claim, offer-context, strict-QA, and facade integration tests | added from commit-pinned review; not implemented |
+| Task 8 | `pending` | current | `unresolved` | Task 7 | dimension provenance, selection, trigger, and receipt regression tests | added from commit-pinned review; not implemented |
+| Task 9 | `pending` | current | `unresolved` | Task 7 | deterministic identity, review mapping, conflict, and hash tests | added from commit-pinned review; not implemented |
+| Task 10 | `pending` | current | `unresolved` | Tasks 7–9 | workbook lineage, portability, zero-row, and preview tests | added from commit-pinned review; not implemented |
 
 ## Task Breakdown
 
@@ -503,6 +526,129 @@ fails or when live-provider/CRM proof is unavailable but claimed as complete.
 
 **Exit Criteria:**
 - The release decision states whether the harness meets the semantic product objective, with every failed threshold or unavailable external proof visible and no unverified claim presented as complete.
+
+## Post-review Remediation Wave
+
+The following tasks are added from the two completed commit-pinned reviews. They
+are required before the existing completion criteria can be treated as true;
+they do not add a planner, scheduler, CRM application, or alternative runtime.
+
+### Task 7: Close production trust-chain and facade integration gaps
+
+**Purpose:** Ensure every production dossier, rank result, and QA result is derived from the active promoted-evidence and offer context rather than caller-labelled or compatibility data.
+
+**Task Function:** Implement the canonical production admission boundary and wire every native facade path to it.
+
+**Template Profile:** Controller-selected from `agents/*.toml`; choose the lowest profile that can reliably handle cross-module contract changes.
+
+**Specification Coverage:** Source assurance, dossier-first ranking, strict QA, offer binding, and structural-only compatibility behavior.
+
+**Required Skills:** `skill-systematic-debugging`, `skill-test-driven-development`, `skill-backend-verification`.
+
+**Files And Symbols:** Inspect and modify `scripts/promote_evidence.py:promote_verified_claims`, `scripts/account_intelligence.py:validate_account_thesis/project_account_intelligence`, `scripts/harness_tools.py:invoke`, `scripts/score_leads.py:build_rank_audit/main`, `scripts/qa_leads.py:main`; add focused coverage in `tests/test_account_intelligence.py`, `tests/test_harness_tools.py`, and `tests/test_scoring.py`.
+
+**Dependencies:** Tasks 1–4; the current promoted-evidence, run-manifest, and receipt contracts remain canonical.
+
+**Authority:** Local source and test changes are preauthorized. Stop before any provider, CRM, or destructive write.
+
+**Steps:**
+- Add one shared production claim-set validator owned by `scripts/promote_evidence.py` that resolves every claim ID against the active manifest-bound promoted artifact, checks candidate hash, verifier decision, research run, company/offer scope, policy hash, and artifact lineage, and rejects mixed run identities.
+- Make `project_account_intelligence()` require the validated parent run/manifest identity; keep any unpromoted path explicitly provisional and non-rankable.
+- Make `harness_tools.invoke("rank_leads")` reject `production=true` with `compatibility_mode=true`, reject missing dossiers per company, validate dossier offer identity, and populate canonical offer fields before calling `rank_account()`.
+- Make `harness_tools.invoke("qa_workbook")` forward production mode, dossier, and manifest arguments; infer the production requirement from workbook/manifest lineage when possible.
+- Add regression tests that feed actual `score_leads.py` CSV output into production ranking and that prove missing promoted claims, mixed runs, missing dossiers, and non-production QA all fail closed.
+
+**Verification:** `py -3 -m unittest tests.test_account_intelligence tests.test_harness_tools tests.test_scoring -v`
+
+**Exit Criteria:** No production priority row can be produced from caller-labelled evidence, flat scores, mixed runs, or a QA invocation that skipped the dossier gate.
+
+### Task 8: Make commercial ranking dimension-specific and signal-aware
+
+**Purpose:** Make the shortlist explain why each commercial dimension is high and prevent structural observability from acting as an unintended negative intent signal.
+
+**Task Function:** Replace generic claim/review reuse and legacy selection gates with evidence-bound projections and explicit signal precedence.
+
+**Template Profile:** Controller-selected from `agents/*.toml`; choose the lowest profile that can reliably change scoring and selection contracts.
+
+**Specification Coverage:** Evidence-derived commercial ranking, account intelligence explanations, independent environmental triggers, and uncertainty-preserving selection.
+
+**Required Skills:** `skill-systematic-debugging`, `skill-test-driven-development`, `skill-backend-verification`.
+
+**Files And Symbols:** Modify `scripts/score_leads.py:project_commercial_dimensions/build_rank_audit/_commercially_strong_event/classify_signal`, `scripts/select_for_enrichment.py:eligible_for_enrichment`, and `scripts/canonical_projection.py:project_verified_evidence`; add regression coverage in `tests/test_scoring.py`, `tests/test_selection.py`, and `tests/test_canonical_projection.py`.
+
+**Dependencies:** Task 7; promoted claims and production dossier identity must be trustworthy first.
+
+**Authority:** Local scoring and selection changes are preauthorized. Do not claim commercial uplift until Task 11 benchmark evidence exists.
+
+**Steps:**
+- Return exact claim IDs and semantic-review IDs for each fit, opportunity, need, change, direct-intent, access, and confidence contribution; never substitute the thesis-wide strongest-claim list.
+- Derive opportunity from an explicit versioned evidence rubric; distinguish identified buyer, verified contact route, and hypothetical access; return `Research required` or zero for unsupported dimensions according to the scoring policy.
+- Apply each indicator’s confidence, recency, and counterevidence in the dimension transformation and record those inputs in `normalized_inputs`.
+- Admit dossier-validated accounts using commercial `RankAudit` state plus delivery policy while retaining identity/geography safety checks; move structural coverage into uncertainty/actionability instead of unconditional exclusion.
+- Project verified environmental event claims independently of direct buying-intent claims; direct intent remains a stronger separate signal.
+- Require both source assurance and verified attribution for strong events and preserve `Research incomplete` when coverage is not receipt-complete.
+
+**Verification:** `py -3 -m unittest tests.test_scoring tests.test_selection tests.test_canonical_projection -v`
+
+**Exit Criteria:** Every ranked commercial contribution has dimension-specific evidence, and a verified non-procurement trigger cannot disappear merely because no duplicate direct-intent claim exists.
+
+### Task 9: Make identity, review mapping, conflict handling, and hashes deterministic
+
+**Purpose:** Prevent duplicate accounts, order-dependent validation, and unstable lineage from weakening dossier joins and stakeholder trust.
+
+**Task Function:** Reuse canonical identity logic and make all semantic/event/dossier aggregation collision-aware.
+
+**Template Profile:** Controller-selected from `agents/*.toml`; choose the lowest profile that can reliably update shared identity and lineage helpers.
+
+**Specification Coverage:** Collision-safe account identity, semantic review stability, event integrity, and reproducible artifacts.
+
+**Required Skills:** `skill-systematic-debugging`, `skill-test-driven-development`.
+
+**Files And Symbols:** Inspect `scripts/normalize_dedupe.py:main/company_id`, `scripts/harness_tools.py:_normalize_company/invoke`, `scripts/account_intelligence.py:validate_account_thesis/calculate_structural_fit/build_account_timeline/project_account_intelligence`; add tests in `tests/test_harness_tools.py`, `tests/test_account_intelligence.py`, and `tests/test_normalize_dedupe.py`.
+
+**Dependencies:** Task 7; production claim and run identity must already be explicit.
+
+**Authority:** Local identity and deterministic serialization changes are preauthorized. Route ambiguous identities to manual review; never silently merge them.
+
+**Steps:**
+- Expose one canonical company normalization/deduplication helper and call it from the native facade; reject or quarantine same-ID conflicting variants.
+- Index approved semantic reviews as criterion-to-set, or bind each indicator to a specific review instance; reversing equivalent review input must not change validation.
+- Resolve competing fact claims using explicit source precedence and effective dates; retain unresolved conflicts in the dossier instead of allowing iteration order to decide.
+- Require matching company, event type, and date identity attributes before merging event corroboration.
+- Require an explicit parent run ID and canonical-sort claims/reviews before dossier hashing and projection lineage generation.
+
+**Verification:** `py -3 -m unittest tests.test_harness_tools tests.test_account_intelligence tests.test_normalize_dedupe -v`
+
+**Exit Criteria:** Equivalent research sets produce identical IDs/hashes and every identity or evidence conflict is either resolved by policy or visible as a review state.
+
+### Task 10: Preserve lineage and portability in the stakeholder export
+
+**Purpose:** Deliver the evidence trail that differentiates the harness from a generic lead spreadsheet without making workbook generation machine-specific or unnecessarily expensive.
+
+**Task Function:** Make priority-sheet schema, metadata, defaults, and preview behavior explicit and testable.
+
+**Template Profile:** Controller-selected from `agents/*.toml`; choose the lowest profile that can reliably update the export and its regression proof.
+
+**Specification Coverage:** Traceable workbook delivery, manifest-derived provenance, and personal-use operational stability.
+
+**Required Skills:** `skill-test-driven-development`, `skill-backend-verification`.
+
+**Files And Symbols:** Modify `scripts/build_task1_workbook.mjs:writeTableSheet/input metadata/preview generation`; add or extend `tests/test_task1_workbook.py` and the workbook QA fixtures.
+
+**Dependencies:** Task 7; the workbook must consume canonical dossier and rank lineage.
+
+**Authority:** Local export changes are preauthorized. Do not publish or write to Google Sheets/CRM as part of this task.
+
+**Steps:**
+- Give `writeTableSheet()` an explicit header list and derive Top-30 headers independently from priority rows, including rank audit, dossier hash, semantic reviews, strongest claims, projection run, and explanation columns.
+- Resolve the spreadsheet dependency and default paths from the current runtime/project rather than a user-specific absolute cache path.
+- Derive overview counts and retrieval metadata from the input manifest; remove the hard-coded accepted-company count.
+- Make full-sheet PNG preview generation opt-in and handle zero-row overview and priority inputs without invalid ranges.
+- Add an export regression that opens the generated workbook and asserts that priority lineage columns and source hyperlinks are physically present.
+
+**Verification:** `py -3 -m unittest tests.test_task1_workbook -v`; then run the repository workbook QA command against the generated artifact.
+
+**Exit Criteria:** The stakeholder-facing Top-30 sheet contains the exact evidence and rank lineage validated during preflight, regardless of overview schema, machine path, or row count.
 
 ## Verification
 
