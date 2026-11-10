@@ -1,0 +1,36 @@
+{
+  "run_id": "account-research-top5b-2026-11-10",
+  "head_sha": "b9372bde166ed80c4751dee0693f7466e78e6829",
+  "git_revision": "b9372bde166ed80c4751dee0693f7466e78e6829",
+  "status": "prepared",
+  "budget_limit": 5,
+  "execution_authorization": {
+    "budget_limit": 5
+  },
+  "authorization": {
+    "accepted_company_ids": [
+      "DE-BER-15575a79c979",
+      "DE-BER-471e471ace63",
+      "DE-BER-32a50b5315bf",
+      "DE-BER-01808a09ff7b",
+      "DE-BER-070d9382f72a"
+    ],
+    "allowed_action_types": [
+      "official_source_fetch",
+      "contact_verification"
+    ],
+    "scope_prefixes": {
+      "official_source_fetch": "official_source_fetch:",
+      "contact_verification": "contact_verification:"
+    },
+    "contract_version": "1",
+    "strategy_version": "account-intelligence-v1",
+    "profile_versions": {
+      "official_source_fetch": "1",
+      "contact_verification": "1"
+    },
+    "campaign_id": "berlin-hausverwaltung",
+    "campaign_version": "2026-11-08",
+    "scope_version": "2026-11-10-top5"
+  }
+}
