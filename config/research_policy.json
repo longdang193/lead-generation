@@ -1,7 +1,7 @@
 {
   "policy_version": "1",
   "allowed_source_kinds": ["official_site", "permitted_directory", "ted", "public_professional_profile"],
-  "blocked_canonical_domain_hosts": ["google.com", "bing.com", "linkedin.com", "northdata.de", "unternehmensregister.de"],
+  "discovery_only_hosts": ["google.com", "bing.com", "linkedin.com", "northdata.de", "unternehmensregister.de"],
   "research_caps": {
     "max_companies_per_lane": 100,
     "max_queries_per_company": 20,

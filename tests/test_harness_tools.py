@@ -54,6 +54,17 @@ class HarnessToolTests(unittest.TestCase):
             "access_person": "A. Buyer", "access_role": "Managing Director", "access_channel": "official email",
             "access_claim_ids": ["c1"], "comparative_rationale": "Best fit in the admitted set", "next_alternative_company_id": "C2",
             "reversal_condition": "Reconsider if the official contact is not attributable",
+            "selection_rationale": {
+                "summary": "Strong account thesis",
+                "observations": [{"observation": "Portfolio growth", "implication": "Higher operating complexity", "claim_id": "c1", "source_url": "https://example.com/source"}],
+                "opportunity_hypothesis": "The operating model may need scalable support",
+                "counterevidence": ["Incumbent workflow is unknown"],
+                "confidence": "high",
+                "comparative_basis": "Best fit in the admitted set",
+                "reversal_condition": "Reconsider if the official contact is not attributable",
+                "recommended_action": "Research the current operating stack",
+                "unresolved_gaps": ["Buyer identity"],
+            },
         }, semantic_reviews=reviews)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -184,6 +195,16 @@ class HarnessToolTests(unittest.TestCase):
         signal = next(item for item in profiles if item["name"] == "signal-researcher")
         self.assertEqual(signal["task_function"], "account-scoped buying-signal evidence collection")
         self.assertIn("buying-signal-research", signal["skills"])
+        self.assertIn("procurement_search", signal["capabilities"])
+        self.assertTrue(all((Path(__file__).resolve().parents[1] / ".agents" / "skills" / skill / "SKILL.md").is_file() for skill in signal["skills"]))
+
+    def test_json_boundary_exposes_capability_resolution_without_selecting_provider(self):
+        root = Path(__file__).resolve().parents[1]
+        listed = invoke({"action": "list_capabilities", "payload": {}}, root)
+        self.assertIn("web_search", listed["registry"]["capabilities"])
+        resolved = invoke({"action": "resolve_capability", "payload": {"capability": "web_search", "available_providers": ["apify"]}}, root)
+        self.assertEqual(resolved["resolution"]["available_providers"], ["apify"])
+        self.assertEqual(resolved["resolution"]["provider_selection"], "parent_runtime")
 
     def test_profile_registry_uses_canonical_runtime_schema(self):
         root = Path(__file__).resolve().parents[1]

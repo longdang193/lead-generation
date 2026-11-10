@@ -606,7 +606,12 @@ def _fixture_decisions(claims: list[dict[str, object]], run_id: str) -> list[dic
 
 
 def _native_command_builder(item: dict[str, object], output_path: Path, config: object) -> list[str]:
-    return [str(config.executable), *getattr(config, "adapter_args", ()), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--campaign-id", str(item.get("campaign_id") or "legacy"), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--company-name", str(item.get("company_name") or ""), "--trusted-domain", str(item["trusted_domain"]), "--location", str(item["location"]), "--scope-version", str(item.get("scope_version") or ""), "--scope-hash", str(item["scope_hash"]), "--output", str(output_path)]
+    command = [str(config.executable), *getattr(config, "adapter_args", ()), "--profile", str(config.profile), "--run-id", str(item["run_id"]), "--campaign-id", str(item.get("campaign_id") or "legacy"), "--lane", str(item["lane"]), "--company-id", str(item["company_id"]), "--company-name", str(item.get("company_name") or ""), "--trusted-domain", str(item["trusted_domain"]), "--location", str(item["location"]), "--scope-version", str(item.get("scope_version") or ""), "--scope-hash", str(item["scope_hash"]), "--output", str(output_path)]
+    if item.get("capability"):
+        command.extend(["--capability", str(item["capability"])])
+        if item.get("provider"):
+            command.extend(["--provider", str(item["provider"])])
+    return command
 
 
 def validate_final_priority_rows(priority_rows: list[dict[str, object]], accepted_ids: set[str], target_count: int | None = None, delivery_policy: str = "strict") -> None:

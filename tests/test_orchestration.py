@@ -294,6 +294,14 @@ class OrchestrationTests(unittest.TestCase):
             self.assertIn("official.example", command)
             self.assertIn("--scope-hash", command)
 
+    def test_worker_command_carries_parent_selected_capability_and_provider(self):
+        item = {"run_id": "run-1", "lane": "signals", "company_id": "A", "trusted_domain": "official.example", "location": "Berlin", "scope_hash": "a" * 64, "capability": "procurement_search", "provider": "ted"}
+        command = _native_command_builder(item, Path("output.json"), type("Config", (), {"executable": "python", "adapter_args": (), "profile": "signal-researcher"})())
+        self.assertIn("--capability", command)
+        self.assertIn("procurement_search", command)
+        self.assertIn("--provider", command)
+        self.assertIn("ted", command)
+
     def test_manifest_requires_clean_committed_revision(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

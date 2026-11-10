@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from action_receipts import append_receipt, canonical_json, replay_run
+from capability_registry import authorize_capability
 from run_manifest import load
 from typed_contracts import ActionReceipt, LifecycleEvent, NativeActionRequest, WorkerResult
 
@@ -179,7 +180,14 @@ def _manifest_budget(manifest_path: Path, run_id: str) -> int:
     return raw
 
 
-def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeActionRequest) -> None:
+def _validate_manifest_authorization(root: Path, manifest: dict[str, Any], request: NativeActionRequest) -> None:
+    provenance = request.provenance
+    capability = provenance.get("capability")
+    provider = provenance.get("provider")
+    if provider and not capability:
+        raise ValueError("provider provenance requires capability provenance")
+    if capability:
+        authorize_capability(root, request.profile_name or "", capability, provider)
     authorization = manifest.get("authorization")
     if not isinstance(authorization, dict):
         return
@@ -205,7 +213,6 @@ def _validate_manifest_authorization(manifest: dict[str, Any], request: NativeAc
         expected = profile_versions.get(request.action_type)
         if expected is not None and request.profile_version != str(expected):
             raise ValueError("request profile_version does not match manifest authorization")
-    provenance = request.provenance
     for request_key, manifest_key in (("campaign_id", "campaign_id"), ("campaign_version", "campaign_version"), ("scope_version", "scope_version")):
         expected = authorization.get(manifest_key)
         if expected is not None and provenance.get(request_key) != str(expected):
@@ -232,7 +239,7 @@ def admit_action(root: Path, request: NativeActionRequest | dict[str, object], m
         manifest = load(manifest_path)
         if str(manifest.get("run_id") or "") != validated.run_id:
             raise ValueError("run_id does not match manifest")
-        _validate_manifest_authorization(manifest, validated)
+        _validate_manifest_authorization(root, manifest, validated)
         events = _state_events(root, validated.run_id)
         admissions = [event for event in events if event.event_type == "admitted"]
         if validated.parent_action_id is not None:

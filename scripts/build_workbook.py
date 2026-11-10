@@ -180,6 +180,15 @@ def main() -> int:
                 "why_this_account": thesis.get("why_this_account", "") if isinstance(thesis, dict) else "",
                 "why_now": thesis.get("why_now", "") if isinstance(thesis, dict) else "",
                 "recommended_action": thesis.get("recommended_action", "") if isinstance(thesis, dict) else "",
+                "selection_summary": ((thesis.get("selection_rationale") or {}).get("summary", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "selection_observations": ((thesis.get("selection_rationale") or {}).get("observations", []) if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else []),
+                "opportunity_hypothesis": ((thesis.get("selection_rationale") or {}).get("opportunity_hypothesis", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "counterevidence": ((thesis.get("selection_rationale") or {}).get("counterevidence", []) if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else []),
+                "comparative_basis": ((thesis.get("selection_rationale") or {}).get("comparative_basis", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "selection_reversal_condition": ((thesis.get("selection_rationale") or {}).get("reversal_condition", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "selection_confidence": ((thesis.get("selection_rationale") or {}).get("confidence", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "selection_next_action": ((thesis.get("selection_rationale") or {}).get("recommended_action", "") if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else ""),
+                "unresolved_gaps": ((thesis.get("selection_rationale") or {}).get("unresolved_gaps", []) if isinstance(thesis, dict) and isinstance(thesis.get("selection_rationale"), dict) else []),
             })
             thesis_rows.append({"company_id": company_id, **(thesis if isinstance(thesis, dict) else {})})
             for event in item.get("timeline", []) if isinstance(item, dict) else []:

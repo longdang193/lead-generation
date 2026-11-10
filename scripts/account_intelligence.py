@@ -327,7 +327,11 @@ def validate_account_thesis(
     missing_access_claims = sorted(set(validated.access_claim_ids) - claim_ids)
     if missing_access_claims:
         raise ValueError("thesis references missing access claim IDs: " + ", ".join(missing_access_claims))
-    referenced = set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids) | set(validated.access_claim_ids)
+    selection_claim_ids = {
+        observation.claim_id
+        for observation in (validated.selection_rationale.observations if validated.selection_rationale is not None else [])
+    }
+    referenced = set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids) | set(validated.access_claim_ids) | selection_claim_ids
     missing = sorted(referenced - claim_ids)
     if missing:
         raise ValueError(f"thesis references missing claim IDs: {', '.join(missing)}")
@@ -335,6 +339,16 @@ def validate_account_thesis(
         raise ValueError("thesis references claims from another company")
     if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
         raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
+    if validated.selection_rationale is not None:
+        claims_by_id = {claim.claim_id: claim for claim in claim_list}
+        for observation in validated.selection_rationale.observations:
+            claim = claims_by_id.get(observation.claim_id)
+            if claim is None:
+                raise ValueError("selection rationale references missing claim IDs: " + observation.claim_id)
+            if claim.company_id != validated.company_id:
+                raise ValueError("selection rationale references a claim from another company")
+            if observation.source_url != str(claim.source_url):
+                raise ValueError("selection rationale source URL does not match its claim")
     reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, require_receipt=require_receipts, receipt_root=receipt_root, receipt_run_id=receipt_run_id) for item in semantic_reviews]
     assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in validated.material_assertions]
     if assertions:
@@ -360,7 +374,7 @@ def validate_account_thesis(
         if not assertion_claims.issubset(claim_ids | set(validated.counterevidence_claim_ids)):
             raise ValueError("material assertions reference claims outside the thesis")
     reviewed_claim_ids = {claim_id for review in selected_reviews for claim_id in review.reviewed_claim_ids}
-    unsupported_claims = sorted((set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)) - reviewed_claim_ids)
+    unsupported_claims = sorted((set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids) | selection_claim_ids) - reviewed_claim_ids)
     if unsupported_claims:
         raise ValueError("thesis material claims lack semantic review support: " + ", ".join(unsupported_claims))
     if enforce_structural_fit:

@@ -5,6 +5,24 @@ description: Run bounded research for one accepted company at a time.
 
 # Account Research
 
+## Capability selection
+
+Select capabilities from the evidence gap; do not encode a fixed provider
+sequence. The runtime resolves the configured provider and the parent Codex
+agent chooses the next action.
+
+- identity gap -> `identity_resolution`, then `official_source_fetch`
+- known official URL -> `official_source_fetch`
+- broad company/news/hiring discovery -> `web_search`, `news_search`, or `jobs_search`
+- possible procurement intent -> `procurement_search`
+- location or place discovery -> `place_discovery`
+- named stakeholder gap -> `contact_verification`
+
+Search and directory results are `DISCOVERY`; fetched company-bound pages are
+`CANDIDATE_EVIDENCE`; only a verifier or semantic review may produce
+`VERIFIED_EVIDENCE`. Search discovers. Sources prove. Verifiers promote. Codex
+decides what to do next.
+
 - Ownership: parent-selected bounded action scope, account coverage, and stop
   evidence. The parent agent chooses the account and the next bounded action;
   this skill never encodes a fixed TED/portfolio/contact sequence.

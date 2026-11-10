@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
 from lead_contract import contact_claim_valid, email_owner_matches_person, has_complete_production_lineage, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
-from score_leads import priority_reason
+from score_leads import priority_reason, selection_rationale_for
 from provider_clients import ProviderError, hunter_domain_search
 
 
@@ -131,8 +131,17 @@ def main() -> int:
         if not person_verified:
             person = ""
         contact_role = role_evidence if person_verified else ("Published business mailbox" if email and is_generic_mailbox(email) else "Potential contact" if email else "Unknown")
-        reason = priority_reason(row) if row.get("why_this_account") or row.get("why_now") else "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order"
-        priority_rows.append({**row, "priority_reason": reason, "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
+        rationale = selection_rationale_for(row)
+        reason = priority_reason(row) if rationale or row.get("why_this_account") or row.get("why_now") else "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order"
+        unresolved_gaps = "; ".join(str(item) for item in (rationale or {}).get("unresolved_gaps", []) if item)
+        if not person:
+            research_gap = "Named contact unavailable"
+        elif unresolved_gaps:
+            research_gap = unresolved_gaps
+        else:
+            research_gap = "Personal email unavailable"
+        next_action = str((rationale or {}).get("recommended_action") or "Review official contact page and validate outreach owner")
+        priority_rows.append({**row, "priority_reason": reason, "key_evidence": row.get("evidence_urls", ""), "research_gap": research_gap, "next_action": next_action})
         verified_date = row.get("last_verified") or "Unknown"
         contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if email_owner_match else "Unverified", "linkedin_url": "Unknown", "last_verified": verified_date if email else "Unknown"})
         evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": verified_date if email else "Unknown"})

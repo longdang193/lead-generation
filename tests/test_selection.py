@@ -82,6 +82,18 @@ class SelectionTests(unittest.TestCase):
         qualification = {"C1": {"resolution_status": "Accepted", "eligible": True}}
         self.assertEqual(select_accounts([row], qualification, 1, production=True), [])
         row.update({"decision_class": "sales_ready", "readiness_decision": "sales_ready"})
+        row["selection_rationale"] = '{"summary":"Strong account thesis","observations":[{"observation":"Portfolio growth","implication":"Higher operating complexity","claim_id":"claim-1","source_url":"https://example.com/account"}],"opportunity_hypothesis":"The operating model may need scalable support","counterevidence":["Incumbent workflow is unknown"],"confidence":"medium","comparative_basis":"Stronger change evidence than the alternative","reversal_condition":"Deprioritize if the workflow is already integrated","recommended_action":"Research the current operating stack","unresolved_gaps":["Buyer identity"]}'
+        self.assertEqual([item["company_id"] for item in select_accounts([row], qualification, 1, production=True)], ["C1"])
+
+    def test_production_selection_admits_proactive_account_with_valid_rationale(self):
+        row = {
+            "company_id": "C1", "lead_tier": "A", "evidence_coverage": "100",
+            "decision_class": "proactive_account", "readiness_decision": "proactive_qualified",
+            "rank_audit": "rank-1", "dossier_hash": "dossier-1", "semantic_review_ids": "review-1",
+            "strongest_claim_ids": "claim-1", "projection_run_id": "run-1", "_commercial_score": "80",
+            "selection_rationale": '{"summary":"Strong account thesis","observations":[{"observation":"Portfolio growth","implication":"Higher operating complexity","claim_id":"claim-1","source_url":"https://example.com/account"}],"opportunity_hypothesis":"The operating model may need scalable support","counterevidence":[],"confidence":"medium","comparative_basis":"Stronger change evidence than the alternative","reversal_condition":"Deprioritize if the workflow is already integrated","recommended_action":"Research the current operating stack","unresolved_gaps":["Buyer identity"]}',
+        }
+        qualification = {"C1": {"resolution_status": "Accepted", "eligible": True}}
         self.assertEqual([item["company_id"] for item in select_accounts([row], qualification, 1, production=True)], ["C1"])
 
 

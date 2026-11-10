@@ -1,0 +1,109 @@
+{
+  "registry_version": "1",
+  "evidence_statuses": {
+    "DISCOVERY": {
+      "description": "Locates possible companies, URLs, people, or events; cannot support canonical claims.",
+      "promotable_without_verification": false
+    },
+    "CANDIDATE_EVIDENCE": {
+      "description": "Captures a company-bound source excerpt for later verification.",
+      "promotable_without_verification": false
+    },
+    "VERIFIED_EVIDENCE": {
+      "description": "A verifier confirmed identity, entailment, freshness, offer relevance, and contradictions.",
+      "promotable_without_verification": true
+    }
+  },
+  "capabilities": {
+    "web_search": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    },
+    "search_engine": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    },
+    "news_search": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    },
+    "jobs_search": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    },
+    "place_discovery": {
+      "providers": ["overpass"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "candidate_discovery"
+    },
+    "procurement_search": {
+      "providers": ["ted"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_or_candidate_intent"
+    },
+    "official_source_fetch": {
+      "providers": ["website_fetch"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "candidate_evidence"
+    },
+    "source_fetch": {
+      "providers": ["website_fetch"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "candidate_evidence"
+    },
+    "identity_resolution": {
+      "providers": ["website_fetch"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "candidate_evidence"
+    },
+    "identity_check": {
+      "providers": ["evidence_verifier"],
+      "default_evidence_status": "VERIFIED_EVIDENCE",
+      "evidence_role": "identity_verification"
+    },
+    "contact_enrichment": {
+      "providers": ["hunter"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "supplemental_contact"
+    },
+    "contact_verification": {
+      "providers": ["website_fetch"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "candidate_evidence"
+    },
+    "professional_profile_search": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    },
+    "capture_evidence": {
+      "providers": ["lead_evidence"],
+      "default_evidence_status": "CANDIDATE_EVIDENCE",
+      "evidence_role": "candidate_evidence"
+    },
+    "validate_evidence": {
+      "providers": ["evidence_verifier"],
+      "default_evidence_status": "VERIFIED_EVIDENCE",
+      "evidence_role": "verification"
+    },
+    "semantic_review": {
+      "providers": ["codex_parent_or_subagent"],
+      "default_evidence_status": "VERIFIED_EVIDENCE",
+      "evidence_role": "semantic_verification"
+    },
+    "promote_evidence": {
+      "providers": ["promote_evidence"],
+      "default_evidence_status": "VERIFIED_EVIDENCE",
+      "evidence_role": "deterministic_promotion"
+    },
+    "permitted_directory": {
+      "providers": ["apify"],
+      "default_evidence_status": "DISCOVERY",
+      "evidence_role": "discovery_only"
+    }
+  }
+}

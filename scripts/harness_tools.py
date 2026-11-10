@@ -12,6 +12,7 @@ from typing import Any
 from action_lifecycle import admit_action as admit_lifecycle_action, replay_lifecycle, settle_action, validate_result as validate_lifecycle_result
 from action_receipts import replay_run
 from account_intelligence import calculate_structural_fit, project_account_intelligence, validate_account_thesis
+from capability_registry import load_capability_registry, resolve_capability, validate_profile_capabilities
 from import_discovery import read_rows
 from lead_contract import is_plausible_company_name, run_scope_matches
 from normalize_dedupe import clean_name, company_id, explicit_berlin_evidence, trusted_company_domain
@@ -51,14 +52,19 @@ def discover_profiles(root: Path) -> list[dict[str, Any]]:
         skills = role.get("skills") or []
         if not isinstance(skills, list) or not all(isinstance(skill, str) and skill for skill in skills):
             raise ValueError(f"agent role skills must be a list of non-empty strings: {name}")
+        missing_skills = [skill for skill in skills if not (root / ".agents" / "skills" / skill / "SKILL.md").is_file()]
+        if missing_skills:
+            raise ValueError(f"agent role skills are not installed: {name}: {', '.join(missing_skills)}")
         task_function = role.get("task_function")
         if not isinstance(task_function, str) or not task_function.strip():
             raise ValueError(f"agent role task_function must be a non-empty string: {name}")
+        capabilities = validate_profile_capabilities(root, role.get("capabilities") or [])
         profiles.append({
             "name": name,
             "path": path.relative_to(root).as_posix(),
             "task_function": task_function,
             "skills": list(skills),
+            "capabilities": capabilities,
         })
     return profiles
 
@@ -221,6 +227,14 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         return {"valid": not errors, "errors": errors, "company": normalized}
     if action == "validate_goal":
         return {"goal": Goal.model_validate(payload).model_dump(mode="json")}
+    if action == "list_capabilities":
+        return {"registry": load_capability_registry(root)}
+    if action == "resolve_capability":
+        capability = str(payload.get("capability") or "")
+        available = payload.get("available_providers")
+        if available is not None and (not isinstance(available, list) or not all(isinstance(item, str) for item in available)):
+            raise ValueError("available_providers must be a string list")
+        return {"resolution": resolve_capability(root, capability, available)}
     if action == "admit_action":
         manifest_raw = str(payload.pop("manifest_path", "manifest.json"))
         manifest_path = Path(manifest_raw)
@@ -395,6 +409,7 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                 enriched["readiness_decision"] = audit.readiness_decision
                 enriched["comparative_rationale"] = audit.comparative_rationale or ""
                 enriched["reversal_condition"] = audit.reversal_condition or ""
+                enriched["selection_rationale"] = audit.selection_rationale.model_dump(mode="json") if audit.selection_rationale else None
                 enriched["dossier_hash"] = dossier.get("dossier_hash")
                 enriched["semantic_review_ids"] = [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in reviews if isinstance(item, dict)]
                 enriched["strongest_claim_ids"] = list(dossier["thesis"].get("strongest_claim_ids") or [])

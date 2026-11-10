@@ -49,6 +49,26 @@ class ScoringTests(unittest.TestCase):
         self.assertGreater(rank_account(smaller, offer_id, offer_version).total_score, rank_account(larger, offer_id, offer_version).total_score)
         self.assertIn("Current change", priority_reason(smaller))
 
+    def test_priority_reason_explains_semantic_selection(self):
+        row = {
+            "selection_rationale": {
+                "summary": "Portfolio growth creates operating complexity",
+                "observations": [{"observation": "New mandates", "implication": "More administrative load", "claim_id": "c1", "source_url": "https://example.com/account"}],
+                "opportunity_hypothesis": "Scalable process support may be relevant",
+                "counterevidence": ["Current software stack is unknown"],
+                "confidence": "medium",
+                "comparative_basis": "Stronger change evidence than comparable accounts",
+                "reversal_condition": "Deprioritize if the workflow is already integrated",
+                "recommended_action": "Research the current operating stack",
+                "unresolved_gaps": ["Buyer identity"],
+            }
+        }
+        reason = priority_reason(row)
+        self.assertIn("Portfolio growth creates operating complexity", reason)
+        self.assertIn("Stronger change evidence", reason)
+        self.assertIn("Deprioritize if", reason)
+        self.assertIn("Research the current operating stack", reason)
+
     def test_rank_audit_exposes_reproducible_dimension_contributions(self):
         row = {
             "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",

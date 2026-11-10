@@ -19,6 +19,7 @@ from typed_contracts import (
     RankContribution,
     SemanticReview,
 )
+from account_intelligence import project_account_intelligence
 
 
 class AccountIntelligenceContractTests(unittest.TestCase):
@@ -214,6 +215,42 @@ class AccountIntelligenceContractTests(unittest.TestCase):
                 research_gap_impact="Buyer identity unresolved", recommended_action="research",
                 decision_class="sales_ready", readiness_decision="sales_ready",
             )
+
+    def test_proactive_account_requires_selection_rationale(self):
+        with self.assertRaisesRegex(ValidationError, "selection_rationale"):
+            AccountThesis(
+                company_id="C1", offer_id="offer-1", offer_version="2026-11-09", structural_fit=80,
+                confidence="high", why_this_account="Fit", why_now="Now", problem_hypothesis="Need",
+                strongest_claim_ids=["claim-1"], semantic_review_ids=["review-1"], access_summary="Buyer unknown",
+                research_gap_impact="Buyer identity unresolved", recommended_action="research",
+                decision_class="proactive_account", readiness_decision="proactive_qualified",
+            )
+
+    def test_selection_rationale_observations_bind_to_same_claim_source(self):
+        claim = {
+            "candidate_claim_id": "c1", "company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1"},
+            "source_url": "https://example.com/source", "source_kind": "other", "evidence_excerpt": "Observed",
+            "confidence": "high", "retrieved_at": "2026-11-09T00:00:00Z", "candidate_status": "Verified",
+            "assurance_level": "source", "research_run_id": "run-1:signals:C1",
+        }
+        rationale = {
+            "summary": "Strong account thesis", "observations": [{"observation": "Growth", "implication": "More complexity", "claim_id": "c1", "source_url": "https://example.com/other"}],
+            "opportunity_hypothesis": "Support may be relevant", "counterevidence": [], "confidence": "medium",
+            "comparative_basis": "Stronger evidence", "reversal_condition": "Deprioritize if already solved",
+            "recommended_action": "Research the stack", "unresolved_gaps": [],
+        }
+        with self.assertRaisesRegex(ValueError, "source URL"):
+            project_account_intelligence([claim], {
+                "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 80,
+                "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+                "strongest_claim_ids": ["c1"], "semantic_review_ids": ["a1"], "access_summary": "Unknown",
+                "research_gap_impact": "Buyer unresolved", "recommended_action": "Research", "selection_rationale": rationale,
+            }, semantic_reviews=[{
+                "assertion_id": "a1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+                "reviewed_claim_ids": ["c1"], "offer_criterion": "relevant_triggers", "entailment": "supported",
+                "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none",
+                "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+            }])
 
     def test_semantic_review_requires_entailment_offer_temporal_and_contradiction_decisions(self):
         fields = {

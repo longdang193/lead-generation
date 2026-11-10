@@ -13,6 +13,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--profile", required=True)
+    parser.add_argument("--capability")
+    parser.add_argument("--provider")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--campaign-id", default="legacy")
     parser.add_argument("--lane", required=True)

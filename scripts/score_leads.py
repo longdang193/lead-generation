@@ -9,7 +9,7 @@ from pathlib import Path
 
 from campaign_spec import qualification_eligibility
 from lead_contract import actionability_for, parse_evidence_urls, sales_priority_for, signal_rank
-from typed_contracts import AccountThesis, Confidence, EvidenceClaim, RankAudit, RankContribution, SemanticReview
+from typed_contracts import AccountThesis, Confidence, EvidenceClaim, RankAudit, RankContribution, SelectionRationale, SemanticReview
 
 WEIGHTS = {"service_fit": 35, "residential_weg": 30, "portfolio_potential": 25, "geographic_fit": 10}
 COMMERCIAL_WEIGHTS = {
@@ -178,7 +178,32 @@ def project_commercial_dimensions(thesis: AccountThesis | dict[str, object], cla
     return result
 
 
+def selection_rationale_for(record: dict[str, object]) -> dict[str, object] | None:
+    raw = record.get("selection_rationale")
+    if isinstance(raw, SelectionRationale):
+        return raw.model_dump(mode="json")
+    if isinstance(raw, dict):
+        try:
+            return SelectionRationale.model_validate(raw).model_dump(mode="json")
+        except (TypeError, ValueError):
+            return None
+    if isinstance(raw, str) and raw.strip():
+        try:
+            return SelectionRationale.model_validate(json.loads(raw)).model_dump(mode="json")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+    return None
+
+
 def priority_reason(record: dict[str, object]) -> str:
+    rationale = selection_rationale_for(record)
+    if rationale:
+        counterevidence = "; ".join(str(item) for item in rationale.get("counterevidence", []) if item) or "None recorded"
+        return (
+            f"{rationale['summary']} Opportunity: {rationale['opportunity_hypothesis']} "
+            f"Priority basis: {rationale['comparative_basis']} Counterevidence: {counterevidence} "
+            f"Reversal: {rationale['reversal_condition']} Next action: {rationale['recommended_action']}"
+        )
     why_account = str(record.get("why_this_account") or "Offer fit is not stated")
     why_now = str(record.get("why_now") or "Timing is not established")
     claims = ", ".join(str(value) for value in record.get("strongest_claim_ids", []) if value)
@@ -236,6 +261,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     signal = str(record.get("validated_signal_state") or record.get("buying_signal") or "")
     decision_class = str(record.get("decision_class") or "research_candidate")
     readiness_decision = str(record.get("readiness_decision") or "research_required")
+    selection_rationale = selection_rationale_for(record)
     fit = dimensions["fit"]
     if fit < 40:
         state = "Disqualify"
@@ -257,6 +283,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
         readiness_decision=readiness_decision,
         comparative_rationale=record.get("comparative_rationale"),
         reversal_condition=record.get("reversal_condition"),
+        selection_rationale=selection_rationale,
     )
 
 
@@ -292,6 +319,7 @@ def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *
             "readiness_decision": validated_thesis.readiness_decision,
             "comparative_rationale": validated_thesis.comparative_rationale,
             "reversal_condition": validated_thesis.reversal_condition,
+            "selection_rationale": validated_thesis.selection_rationale,
         }
     return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None, projected_dimensions=projected)
 

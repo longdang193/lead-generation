@@ -7,6 +7,7 @@ from pathlib import Path
 
 from campaign_spec import qualification_eligibility
 from lead_contract import has_complete_production_lineage, priority_rank, signal_rank, tier_rank, update_run_manifest
+from score_leads import selection_rationale_for
 
 
 def read_qualification(path: Path) -> dict[str, dict[str, object]]:
@@ -29,8 +30,12 @@ def number(value: object, default: float = -1.0) -> float:
 
 
 def eligible_for_enrichment(row: dict[str, str], qualification: dict[str, object], delivery_policy: str = "strict", *, production: bool = False) -> bool:
-    if production and (row.get("decision_class") != "sales_ready" or row.get("readiness_decision") != "sales_ready"):
-        return False
+    if production:
+        decision = (row.get("decision_class"), row.get("readiness_decision"))
+        if decision not in {("sales_ready", "sales_ready"), ("proactive_account", "proactive_qualified")}:
+            return False
+        if selection_rationale_for(row) is None:
+            return False
     if production and not has_complete_production_lineage(row):
         return False
     if production and row.get("_commercial_score") in (None, ""):

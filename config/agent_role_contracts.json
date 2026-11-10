@@ -1,22 +1,27 @@
 {
   "account-intelligence-researcher": {
     "task_function": "bounded account-intelligence composition",
-    "skills": ["account-research", "lead-evidence", "contact-verification"]
+    "skills": ["account-research", "lead-evidence", "contact-verification"],
+    "capabilities": ["identity_resolution", "official_source_fetch", "web_search", "news_search", "jobs_search", "procurement_search", "place_discovery", "contact_verification", "professional_profile_search", "semantic_review"]
   },
   "contact-researcher": {
     "task_function": "shortlist-scoped contact evidence collection",
-    "skills": ["lead-evidence", "contact-verification"]
+    "skills": ["lead-evidence", "contact-verification"],
+    "capabilities": ["official_source_fetch", "contact_verification", "professional_profile_search", "contact_enrichment"]
   },
   "evidence-verifier": {
     "task_function": "precision evidence verification",
-    "skills": ["lead-evidence"]
+    "skills": ["lead-evidence", "evidence-verifier"],
+    "capabilities": ["source_fetch", "identity_check", "validate_evidence", "semantic_review"]
   },
   "portfolio-researcher": {
     "task_function": "account-scoped portfolio evidence collection",
-    "skills": ["lead-evidence", "account-research"]
+    "skills": ["lead-evidence", "account-research", "portfolio-research"],
+    "capabilities": ["official_source_fetch", "web_search", "permitted_directory"]
   },
   "signal-researcher": {
     "task_function": "account-scoped buying-signal evidence collection",
-    "skills": ["buying-signal-research", "lead-evidence", "account-research"]
+    "skills": ["buying-signal-research", "lead-evidence", "account-research"],
+    "capabilities": ["web_search", "news_search", "jobs_search", "procurement_search", "official_source_fetch", "capture_evidence"]
   }
 }

@@ -287,6 +287,25 @@ class RankContribution(ContractModel):
     confidence_adjustment: float = 0.0
 
 
+class SelectionObservation(ContractModel):
+    observation: str = Field(min_length=1)
+    implication: str = Field(min_length=1)
+    claim_id: str = Field(min_length=1)
+    source_url: str = Field(min_length=1)
+
+
+class SelectionRationale(ContractModel):
+    summary: str = Field(min_length=1)
+    observations: list[SelectionObservation] = Field(min_length=1)
+    opportunity_hypothesis: str = Field(min_length=1)
+    counterevidence: list[str]
+    confidence: Confidence
+    comparative_basis: str = Field(min_length=1)
+    reversal_condition: str = Field(min_length=1)
+    recommended_action: str = Field(min_length=1)
+    unresolved_gaps: list[str]
+
+
 class RankAudit(ContractModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
@@ -310,12 +329,15 @@ class RankAudit(ContractModel):
     rationale_claim_ids: list[str] = Field(min_length=1)
     comparative_rationale: str | None = None
     reversal_condition: str | None = None
+    selection_rationale: SelectionRationale | None = None
 
     @model_validator(mode="after")
     def contributions_sum_to_total(self) -> "RankAudit":
         total = round(sum(item.contribution for item in self.contributions), 6)
         if abs(total - self.total_score) > 0.01:
             raise ValueError(f"rank contributions do not sum to total_score: expected {total}, observed {self.total_score}")
+        if self.decision_class in {"proactive_account", "sales_ready"} and self.selection_rationale is None:
+            raise ValueError(f"{self.decision_class} rank requires selection_rationale")
         return self
 
 
@@ -672,26 +694,34 @@ class AccountThesis(ContractModel):
     comparative_rationale: str | None = None
     next_alternative_company_id: str | None = None
     reversal_condition: str | None = None
+    selection_rationale: SelectionRationale | None = None
 
     @model_validator(mode="after")
-    def enforce_sales_ready_contract(self) -> "AccountThesis":
-        if self.decision_class != "sales_ready":
+    def enforce_selection_contract(self) -> "AccountThesis":
+        if self.decision_class not in {"proactive_account", "sales_ready"}:
             return self
+        if self.selection_rationale is None:
+            raise ValueError(f"{self.decision_class} thesis requires selection_rationale")
         missing = [
             name for name, value in (
-                ("readiness_decision", self.readiness_decision == "sales_ready"),
-                ("access_verified", self.access_verified),
-                ("access_person", bool(self.access_person)),
-                ("access_role", bool(self.access_role)),
-                ("access_channel", bool(self.access_channel)),
-                ("comparative_rationale", bool(self.comparative_rationale)),
-                ("next_alternative_company_id", bool(self.next_alternative_company_id)),
-                ("reversal_condition", bool(self.reversal_condition)),
+                ("readiness_decision", self.readiness_decision == ("sales_ready" if self.decision_class == "sales_ready" else "proactive_qualified")),
             ) if not value
         ]
+        if self.decision_class == "sales_ready":
+            missing.extend(
+                name for name, value in (
+                    ("access_verified", self.access_verified),
+                    ("access_person", bool(self.access_person)),
+                    ("access_role", bool(self.access_role)),
+                    ("access_channel", bool(self.access_channel)),
+                    ("comparative_rationale", bool(self.comparative_rationale)),
+                    ("next_alternative_company_id", bool(self.next_alternative_company_id)),
+                    ("reversal_condition", bool(self.reversal_condition)),
+                ) if not value
+            )
         if missing:
-            raise ValueError("sales_ready thesis requires: " + ", ".join(missing))
-        if not self.access_claim_ids:
+            raise ValueError(f"{self.decision_class} thesis requires: " + ", ".join(missing))
+        if self.decision_class == "sales_ready" and not self.access_claim_ids:
             raise ValueError("sales_ready thesis requires access_claim_ids")
         return self
 

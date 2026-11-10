@@ -13,14 +13,22 @@ typed JSON tool boundary and receipt journal for admission, result validation,
 promotion, projection, ranking, and finalization. Python must not recreate a
 planner, scheduler, retry loop, or fixed lane sequence.
 
+## Capability-aware dispatch
+
+Before dispatch, inspect `list_capabilities` and the selected profile's allowed
+capabilities. Use `resolve_capability` for the evidence gap and available
+provider inventory; it returns options and trust status, not a provider choice.
+The parent runtime chooses one bounded action. Search discovers, sources prove,
+verifiers promote, and Codex owns the next-action decision.
+
 ## Operating loop
 
 1. Read the campaign config and select `personal` or `strict` delivery policy.
 2. Inspect the manifest-bound discovery, qualification, source register, and
    canonical company identity before dispatching research.
 3. Prioritize material evidence gaps by expected value: identity and company
-   fit first, then location/service facts, buying events, contacts, and optional
-   portfolio details.
+   fit first, then scale/complexity, account change, operational implication,
+   counterevidence, buying events, contacts, and optional portfolio details.
 4. Use approved sources for the claim class. Official company sources own
    company facts; approved procurement/news sources may support time-sensitive
    events. Preserve URLs, excerpts, timestamps, source class, and run scope.
@@ -34,6 +42,7 @@ planner, scheduler, retry loop, or fixed lane sequence.
 7. Preserve `Unknown`, `Partial`, `Unavailable`, and `Needs review` gaps.
    Reserve `None found` for a completed account-scoped search. Structural or
    replay evidence must not rank like source verification.
+   Missing buying intent lowers timing certainty, not account attractiveness.
 8. Bind projection and QA to the manifest-selected evidence artifact and hash.
    Preserve historical contact provenance; current runs may add observed claims
    but must not rewrite older baselines without a newer verified claim.
@@ -53,8 +62,9 @@ planner, scheduler, retry loop, or fixed lane sequence.
 
 The final workbook must be produced by the canonical scoring, QA, and workbook
 utilities. It must include a deterministic ranked shortlist, explicit unknowns
-and research gaps, claim-level provenance, contact verification state, event
-identifiers, and the run-manifest hashes that bind inputs and outputs.
+and research gaps, a stakeholder-readable selection rationale for every admitted
+account, claim-level provenance, contact verification state, event identifiers,
+and the run-manifest hashes that bind inputs and outputs.
 
 Personal mode may return the best defensible reserve-backed shortlist and make
 partial or unavailable state visible; it cannot silently publish zero or

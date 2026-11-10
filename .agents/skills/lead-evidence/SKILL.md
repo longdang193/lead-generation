@@ -5,6 +5,14 @@ description: Capture and verify page-local, company-bound lead evidence.
 
 # Lead Evidence
 
+## Evidence boundary
+
+Use the deterministic `capture_evidence`, `validate_evidence`, and
+`promote_evidence` boundaries for the assigned source action. This skill does
+not perform general discovery. Search results are `DISCOVERY`; source excerpts
+are `CANDIDATE_EVIDENCE`; only verifier decisions can promote them to
+`VERIFIED_EVIDENCE`.
+
 - Ownership: page-local claims and semantic-support review input. Consume the
   parent-selected bounded action from `account-research`; do not own action
   scope, account coverage, stop decisions, contact verification, or commercial

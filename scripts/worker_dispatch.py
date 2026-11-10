@@ -36,7 +36,7 @@ def _execution_fingerprints(item: dict[str, object], run_id: str, lane: str) -> 
     identity_fields = (
         "campaign_id", "company_id", "scope", "scope_version", "scope_hash",
         "trusted_domain", "location", "adapter", "adapter_capability",
-        "profile", "worker_profile", "provider", "provider_status",
+        "profile", "worker_profile", "capability", "provider", "provider_status",
         "input_fingerprint", "claims_path", "executable", "adapter_args",
         "head_sha", "campaign_sha256", "input_hashes", "verifier_profile",
     )
@@ -179,6 +179,10 @@ def _lifecycle_request(root: Path, manifest_path: Path, item: dict[str, object],
             "scope_version": str(authorization.get("scope_version") or item.get("scope_version") or "native-v1"),
         },
     }
+    if item.get("capability"):
+        request["provenance"]["capability"] = str(item["capability"])
+    if item.get("capability") and item.get("provider"):
+        request["provenance"]["provider"] = str(item["provider"])
     request["request_hash"] = canonical_request_hash(request)
     return NativeActionRequest.model_validate(request)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import sys
 import tempfile
 import unittest
@@ -83,6 +84,29 @@ class ActionLifecycleTests(unittest.TestCase):
         self.assertEqual(replay["budget_settled"], 1)
         self.assertEqual(replay["coverage"], {"signals": 1})
         self.assertEqual(replay["actions"][0]["status"], "Completed")
+
+    def test_admission_enforces_parent_selected_capability_and_provider(self):
+        repository_root = Path(__file__).resolve().parents[1]
+        (self.root / "config").mkdir()
+        for name in ("tool_capabilities.json", "agent_role_contracts.json"):
+            shutil.copy2(repository_root / "config" / name, self.root / "config" / name)
+        request = action(
+            profile_name="signal-researcher",
+            provenance={"source": "test", "capability": "procurement_search", "provider": "ted"},
+        )
+        admit_action(self.root, request, self.manifest)
+        with self.assertRaisesRegex(ValueError, "not allowed capability"):
+            admit_action(
+                self.root,
+                action(
+                    action_id="action-2",
+                    attempt_id="attempt-2",
+                    idempotency_key="run-1/action-2/attempt-2",
+                    profile_name="contact-researcher",
+                    provenance={"source": "test", "capability": "procurement_search"},
+                ),
+                self.manifest,
+            )
 
     def test_parent_selected_profile_and_stop_chain_replays_without_scheduler(self):
         atomic_write(self.manifest, {"run_id": "run-1", "budget_limit": 2})
