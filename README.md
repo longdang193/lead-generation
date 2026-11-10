@@ -13,7 +13,7 @@ operating context, uncertainty, and recommended next action.
 ## Current Deliverables
 
 - [Final stakeholder workbook](output/berlin-hausverwaltungen-task1-2026-11-10-account-validation-final.xlsx)
-- [Task 3 methodology presentation](output/berlin-hausverwaltungen-task3-approach.pptx)
+- [Task 3 methodology presentation](output/berlin-hausverwaltungen-task3-approach-revised.pptx)
 - [Semantic rerank evidence](evidence/account_validation_rerank_2026-11-10.json)
 - [Normalized account-validation records](data/processed/account_validation_2026-11-10.jsonl)
 
