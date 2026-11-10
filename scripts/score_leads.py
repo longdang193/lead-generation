@@ -217,7 +217,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
         )
         for name, value in dimensions.items()
     ]
-    signal = str(record.get("buying_signal") or "")
+    signal = str(record.get("validated_signal_state") or record.get("buying_signal") or "")
     fit = dimensions["fit"]
     if fit < 40:
         state = "Disqualify"
@@ -258,9 +258,13 @@ def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *
             require_material_assertions=True,
             semantic_reviews=dossier_reviews,
         )
-        projected = project_commercial_dimensions(validated_thesis, dossier_claims, signal_state=str(record.get("buying_signal") or "Research incomplete"))
+        from account_intelligence import derive_validated_signal_state
+
+        signal_state = derive_validated_signal_state(dossier_claims)
+        projected = project_commercial_dimensions(validated_thesis, dossier_claims, signal_state=signal_state)
         record = {
             **record,
+            "validated_signal_state": signal_state,
             "semantic_reviews": dossier_reviews,
             "semantic_review_ids": [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in dossier_reviews],
             "strongest_claim_ids": list(validated_thesis.strongest_claim_ids),

@@ -83,6 +83,7 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         and policy_complete
     )
     return CoverageManifest(
+        run_id=str(source.get("run_id") or research_run.get("run_id") or "") or None,
         company_id=company_id,
         offer_id=offer_id,
         offer_version=offer_version,
@@ -95,6 +96,8 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         research_policy_version=str(source.get("research_policy_version") or "") or None,
         research_policy_hash=str(source.get("research_policy_hash") or "") or None,
         settled_receipt_ids=[str(value) for value in source.get("settled_receipt_ids", []) if value] if isinstance(source.get("settled_receipt_ids"), list) else [],
+        receipt_check_map={str(key): [str(value) for value in values if value] for key, values in (source.get("receipt_check_map") or {}).items() if isinstance(values, list)} if isinstance(source.get("receipt_check_map"), dict) else {},
+        receipt_context={str(key): str(value) for key, value in (source.get("receipt_context") or {}).items() if value is not None} if isinstance(source.get("receipt_context"), dict) else {},
         trigger_state="No trigger found" if coverage_status == "complete" and permits_no_trigger else "Research incomplete",
     )
 
@@ -240,7 +243,13 @@ def project_verified_evidence(
         if signal_claim and source_event_claim:
             signal_value = str(_claim_value(signal_claim))
         elif coverage_manifest is not None:
-            signal_value = account_signal_state([], coverage_manifest)
+            signal_value = account_signal_state(
+                [],
+                coverage_manifest,
+                receipt_root=root if root is not None else None,
+                receipt_run_id=run_id if root is not None else None,
+                require_receipts=root is not None,
+            )
             if signal_value == "No trigger found":
                 research_status = "Completed"
             elif signal_value == "Unavailable":

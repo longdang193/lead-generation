@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -227,6 +228,26 @@ class AccountIntelligenceContractTests(unittest.TestCase):
                 with self.assertRaises(ValidationError):
                     SemanticReview(**incomplete)
 
+    def test_production_approved_review_requires_settled_receipt(self):
+        review = {
+            "company_id": "C1", "assertion_id": "assertion-1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+            "reviewed_claim_ids": ["claim-1"], "offer_criterion": "relevant_triggers", "entailment": "supported",
+            "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none",
+            "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+        }
+        from account_intelligence import validate_semantic_review
+        with self.assertRaisesRegex(ValueError, "settled review receipt"):
+            validate_semantic_review(review, [{"candidate_claim_id": "claim-1", "company_id": "C1", "claim_type": "event", "claim_value": "Observed", "source_url": "https://example.com", "source_kind": "other", "evidence_excerpt": "Observed", "retrieved_at": "2026-11-09T00:00:00Z"}], require_receipt=True)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "not present exactly once"):
+                validate_semantic_review(
+                    {**review, "receipt_id": "missing-action:missing-attempt"},
+                    [{"candidate_claim_id": "claim-1", "company_id": "C1", "claim_type": "event", "claim_value": "Observed", "source_url": "https://example.com", "source_kind": "other", "evidence_excerpt": "Observed", "retrieved_at": "2026-11-09T00:00:00Z"}],
+                    require_receipt=True,
+                    receipt_root=Path(directory),
+                    receipt_run_id="run-1",
+                )
+
     def test_no_trigger_found_requires_complete_clean_coverage_manifest(self):
         base = {
             "company_id": "C1",
@@ -239,12 +260,18 @@ class AccountIntelligenceContractTests(unittest.TestCase):
             "research_policy_version": "1",
             "research_policy_hash": "p" * 64,
             "settled_receipt_ids": ["action-1:attempt-1", "action-2:attempt-1"],
+            "run_id": "run-1",
+            "receipt_check_map": {"official_site": ["action-1:attempt-1"], "public_news": ["action-2:attempt-1"]},
+            "receipt_context": {"run_id": "run-1", "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "research_policy_id": "policy-1", "research_policy_version": "1", "research_policy_hash": "p" * 64},
             "truncated": False,
             "unresolved_candidates": 0,
             "trigger_state": "No trigger found",
         }
 
         self.assertEqual(CoverageManifest(**base).trigger_state, "No trigger found")
+        from account_intelligence import account_signal_state
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(account_signal_state([], base, receipt_root=Path(directory), receipt_run_id="run-1", require_receipts=True), "Research incomplete")
 
         invalid_manifests = (
             {**base, "completed_checks": ["official_site"]},

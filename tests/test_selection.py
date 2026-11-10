@@ -29,6 +29,15 @@ class SelectionTests(unittest.TestCase):
         qualification = {"resolution_status": "Accepted", "eligible": True}
         self.assertFalse(eligible_for_enrichment(row, qualification, production=True))
 
+    def test_production_selection_rejects_structural_sort_without_commercial_audit(self):
+        row = {
+            "company_id": "C1", "lead_tier": "A", "evidence_coverage": "90",
+            "rank_audit": "{\"priority_state\": \"Priority\"}", "dossier_hash": "dossier-1",
+            "semantic_review_ids": "review-1", "strongest_claim_ids": "claim-1", "projection_run_id": "run-1",
+        }
+        qualification = {"C1": {"resolution_status": "Accepted", "eligible": True}}
+        self.assertEqual(select_accounts([row], qualification, 1, production=True), [])
+
     def test_missing_qualification_is_not_eligible(self):
         row = {"company_id": "C1", "lead_tier": "A", "evidence_coverage": "75"}
         self.assertFalse(eligible_for_enrichment(row, {}))

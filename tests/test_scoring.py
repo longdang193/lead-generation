@@ -20,7 +20,7 @@ class ScoringTests(unittest.TestCase):
             "assertion_id": assertion_id, "company_id": company_id, "offer_id": "offer-1", "offer_version": "2026-11-09",
             "reviewed_claim_ids": [claim_id], "offer_criterion": "relevant_triggers", "entailment": "supported",
             "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none",
-            "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+            "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1", "receipt_id": "review-action:attempt-1",
         }
 
     def test_rank_requires_offer_bound_semantic_thesis(self):
@@ -92,6 +92,15 @@ class ScoringTests(unittest.TestCase):
         dossier = project_account_intelligence([claim], thesis, semantic_reviews=reviews)
         audit = rank_account({"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "buying_signal": "Verified trigger"}, "offer-1", "2026-11-09", dossier=dossier)
         self.assertTrue(audit.contributions)
+    def test_rank_audit_uses_validated_signal_projection_not_forged_record_signal(self):
+        row = {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09",
+            "semantic_review_ids": ["r1"], "strongest_claim_ids": ["c1"],
+            "buying_signal": "Verified trigger", "validated_signal_state": "Research incomplete",
+        }
+        projected = {name: {"value": 80, "supporting_claim_ids": ["c1"], "offer_criterion": name} for name in ("fit", "opportunity", "need", "change", "direct_intent", "access", "evidence_confidence")}
+        audit = build_rank_audit(row, "offer-1", "2026-11-09", semantic_reviews=[self.review("C1", "c1", "r1")], projected_dimensions=projected)
+        self.assertEqual(audit.priority_state, "Research required")
 
     def test_production_thesis_rejects_unassured_supporting_claim(self):
         claim = {

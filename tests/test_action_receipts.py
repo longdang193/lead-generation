@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from action_receipts import append_receipt, read_receipts, replay_run
+from action_receipts import append_receipt, read_receipts, replay_run, settled_receipt_ids_for_checks
 
 
 def receipt(**overrides: object) -> dict[str, object]:
@@ -39,6 +39,24 @@ class ActionReceiptTests(unittest.TestCase):
             append_receipt(root, receipt())
             with self.assertRaises(ValueError):
                 append_receipt(root, receipt(result_hash="c" * 64))
+
+    def test_coverage_requires_one_completed_receipt_per_check(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            append_receipt(root, receipt(action_type="official_site", scope="official_site:C1", coverage_delta={"official_site": 1}))
+            append_receipt(root, receipt(action_id="action-2", attempt_id="attempt-1", action_type="public_news", scope="public_news:C1", coverage_delta={"public_news": 1}))
+            complete, receipt_ids = settled_receipt_ids_for_checks(root, "run-1", "C1", ["official_site", "public_news"])
+            self.assertTrue(complete)
+            self.assertEqual(len(receipt_ids), 2)
+
+    def test_partial_or_scope_only_receipts_do_not_prove_coverage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            append_receipt(root, receipt(terminal_status="Partial", coverage_delta={"official_site": 1}))
+            append_receipt(root, receipt(action_id="action-2", attempt_id="attempt-1", action_type="public_news", scope="public_news:C1", coverage_delta={}))
+            complete, receipt_ids = settled_receipt_ids_for_checks(root, "run-1", "C1", ["official_site", "public_news"])
+            self.assertFalse(complete)
+            self.assertEqual(receipt_ids, [])
 
 
 if __name__ == "__main__":
