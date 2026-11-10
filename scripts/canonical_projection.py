@@ -243,7 +243,13 @@ def project_verified_evidence(
         if signal_claim and source_event_claim:
             signal_value = str(_claim_value(signal_claim))
         elif coverage_manifest is not None:
-            signal_value = account_signal_state([], coverage_manifest)
+            signal_value = account_signal_state(
+                [],
+                coverage_manifest,
+                receipt_root=root if root is not None else None,
+                receipt_run_id=run_id if root is not None else None,
+                require_receipts=root is not None,
+            )
             if signal_value == "No trigger found":
                 research_status = "Completed"
             elif signal_value == "Unavailable":

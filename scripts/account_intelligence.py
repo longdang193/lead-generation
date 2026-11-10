@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
+from action_receipts import settled_receipt_ids_for_checks, validate_settled_receipt
 from score_leads import calculate_fit
 from typed_contracts import (
     AccountHypothesis,
@@ -24,6 +25,7 @@ from typed_contracts import (
 
 
 _ALLOWED_STATUSES = {"Candidate", "Rejected", "Unresolved", "Verified", "Supported"}
+_SIGNAL_STATES = {"Verified trigger", "Strong", "Medium", "Weak", "No trigger found", "Research incomplete", "Unavailable", "Unknown"}
 
 
 def _claim_model(value: EvidenceClaim | dict[str, Any]) -> EvidenceClaim:
@@ -159,7 +161,7 @@ def validate_account_hypothesis(hypothesis: AccountHypothesis | dict[str, Any], 
     return validated
 
 
-def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None, material_assertions: Iterable[MaterialAssertion | dict[str, Any]] = (), require_receipt: bool = False) -> SemanticReview:
+def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: Iterable[EvidenceClaim | dict[str, Any]], *, offer_profile: OfferProfile | dict[str, Any] | None = None, material_assertions: Iterable[MaterialAssertion | dict[str, Any]] = (), require_receipt: bool = False, receipt_root: Path | None = None, receipt_run_id: str | None = None) -> SemanticReview:
     validated = review if isinstance(review, SemanticReview) else SemanticReview.model_validate(review)
     by_id = {claim.claim_id: claim for claim in (_claim_model(item) for item in claims)}
     missing = sorted(set(validated.reviewed_claim_ids) - set(by_id))
@@ -173,6 +175,16 @@ def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: It
             raise ValueError("semantic review offer context does not match offer profile")
     if require_receipt and validated.decision == "approved" and not validated.receipt_id:
         raise ValueError("approved semantic review requires a settled review receipt")
+    if require_receipt and validated.decision == "approved":
+        if receipt_root is None or not receipt_run_id:
+            raise ValueError("approved semantic review requires a receipt journal context")
+        validate_settled_receipt(
+            receipt_root,
+            receipt_run_id,
+            str(validated.receipt_id),
+            validated.company_id,
+            provenance={"offer_id": validated.offer_id, "offer_version": validated.offer_version},
+        )
     assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in material_assertions]
     if assertions:
         matches = [item for item in assertions if item.assertion_id == validated.assertion_id and item.company_id == validated.company_id and (item.offer_id, item.offer_version) == (validated.offer_id, validated.offer_version)]
@@ -186,20 +198,52 @@ def validate_semantic_review(review: SemanticReview | dict[str, Any], claims: It
     return validated
 
 
-def validate_coverage_manifest(manifest: CoverageManifest | dict[str, Any]) -> CoverageManifest:
-    return manifest if isinstance(manifest, CoverageManifest) else CoverageManifest.model_validate(manifest)
+def validate_coverage_manifest(
+    manifest: CoverageManifest | dict[str, Any],
+    *,
+    receipt_root: Path | None = None,
+    receipt_run_id: str | None = None,
+    require_receipts: bool = False,
+) -> CoverageManifest:
+    validated = manifest if isinstance(manifest, CoverageManifest) else CoverageManifest.model_validate(manifest)
+    if require_receipts:
+        if receipt_root is None or not receipt_run_id:
+            raise ValueError("coverage validation requires a receipt journal context")
+        complete, receipt_ids = settled_receipt_ids_for_checks(
+            receipt_root,
+            receipt_run_id,
+            validated.company_id,
+            validated.required_checks,
+            offer_id=validated.offer_id,
+            offer_version=validated.offer_version,
+            research_policy_id=validated.research_policy_id,
+            research_policy_version=validated.research_policy_version,
+            research_policy_hash=validated.research_policy_hash,
+        )
+        if not complete or set(receipt_ids) != set(validated.settled_receipt_ids):
+            raise ValueError("coverage manifest is not backed by the settled receipt journal")
+    return validated
 
 
 def account_signal_state(
     matched_events: Iterable[dict[str, Any]],
     manifest: CoverageManifest | dict[str, Any] | None,
+    *,
+    receipt_root: Path | None = None,
+    receipt_run_id: str | None = None,
+    require_receipts: bool = False,
 ) -> str:
     events = list(matched_events)
     if events:
         return "Verified trigger"
     if manifest is None:
         return "Research incomplete"
-    coverage = validate_coverage_manifest(manifest)
+    try:
+        coverage = validate_coverage_manifest(manifest, receipt_root=receipt_root, receipt_run_id=receipt_run_id, require_receipts=require_receipts)
+    except ValueError:
+        if require_receipts:
+            return "Research incomplete"
+        raise
     if all(state in {"unavailable", "invalid"} for state in coverage.provider_states.values()) and coverage.provider_states:
         return "Unavailable"
     return "No trigger found" if coverage.permits_no_trigger() else "Research incomplete"
@@ -215,6 +259,8 @@ def validate_account_thesis(
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
     require_receipts: bool = False,
+    receipt_root: Path | None = None,
+    receipt_run_id: str | None = None,
 ) -> AccountThesis:
     validated = thesis if isinstance(thesis, AccountThesis) else AccountThesis.model_validate(thesis)
     claim_list = [_claim_model(item) for item in claims]
@@ -240,10 +286,10 @@ def validate_account_thesis(
         raise ValueError("thesis references claims from another company")
     if set(validated.strongest_claim_ids) & set(validated.counterevidence_claim_ids):
         raise ValueError("a thesis claim cannot be both strongest evidence and counterevidence")
-    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, require_receipt=require_receipts) for item in semantic_reviews]
+    reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, require_receipt=require_receipts, receipt_root=receipt_root, receipt_run_id=receipt_run_id) for item in semantic_reviews]
     assertions = [item if isinstance(item, MaterialAssertion) else MaterialAssertion.model_validate(item) for item in validated.material_assertions]
     if assertions:
-        reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, material_assertions=assertions, require_receipt=require_receipts) for item in reviews]
+        reviews = [validate_semantic_review(item, claim_list, offer_profile=profile, material_assertions=assertions, require_receipt=require_receipts, receipt_root=receipt_root, receipt_run_id=receipt_run_id) for item in reviews]
     reviews_by_id = {key: review for review in reviews for key in {review.assertion_id, review.semantic_review_id or ""} if key}
     missing_reviews = sorted(set(validated.semantic_review_ids) - set(reviews_by_id))
     if missing_reviews:
@@ -337,6 +383,22 @@ def calculate_structural_fit(claims: Iterable[EvidenceClaim | dict[str, Any]]) -
     return round(fit or 0.0, 2)
 
 
+def derive_validated_signal_state(claims: Iterable[EvidenceClaim | dict[str, Any]]) -> str:
+    """Derive signal state only from validated, source-assured claim content."""
+
+    for raw_claim in claims:
+        claim = _claim_model(raw_claim)
+        if claim.assurance_level != AssuranceLevel.source or _claim_status(raw_claim, claim) not in {"Verified", "Supported"}:
+            continue
+        if claim.claim_type == "event":
+            return "Verified trigger"
+        if claim.claim_type == "buying_signal":
+            value = claim.value.get("value") if isinstance(claim.value, dict) else claim.value
+            if str(value) in _SIGNAL_STATES:
+                return str(value)
+    return "Research incomplete"
+
+
 def project_account_intelligence(
     claims: Iterable[EvidenceClaim | dict[str, Any]],
     thesis: AccountThesis | dict[str, Any],
@@ -345,6 +407,9 @@ def project_account_intelligence(
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
     production: bool = False,
+    coverage_manifest: CoverageManifest | dict[str, Any] | None = None,
+    receipt_root: Path | None = None,
+    receipt_run_id: str | None = None,
 ) -> dict[str, Any]:
     claim_list = list(claims)
     review_list = list(semantic_reviews)
@@ -357,9 +422,26 @@ def project_account_intelligence(
         semantic_reviews=review_list,
         offer_profile=offer_profile,
         require_receipts=production,
+        receipt_root=receipt_root,
+        receipt_run_id=receipt_run_id,
     )
-    validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile, require_receipt=production) for item in review_list]
+    validated_reviews = [validate_semantic_review(item, claim_list, offer_profile=offer_profile, require_receipt=production, receipt_root=receipt_root, receipt_run_id=receipt_run_id) for item in review_list]
     timeline = build_account_timeline(claim_list)
+    signal_state = derive_validated_signal_state(claim_list)
+    if coverage_manifest is not None and signal_state == "Research incomplete":
+        coverage = validate_coverage_manifest(
+            coverage_manifest,
+            receipt_root=receipt_root,
+            receipt_run_id=receipt_run_id,
+            require_receipts=production,
+        )
+        signal_state = account_signal_state(
+            [],
+            coverage,
+            receipt_root=receipt_root,
+            receipt_run_id=receipt_run_id,
+            require_receipts=production,
+        )
     result = {
         "company_id": validated_thesis.company_id,
         "offer_id": validated_thesis.offer_id,
@@ -368,6 +450,7 @@ def project_account_intelligence(
         "timeline": timeline,
         "thesis": validated_thesis.model_dump(mode="json"),
         "semantic_reviews": [review.model_dump(mode="json") for review in validated_reviews],
+        "signal_state": signal_state,
         "structural_fit_fact_score": calculate_structural_fit(claim_list),
         "dossier_version": "1",
         "run_id": next((claim.research_run_id for claim in (_claim_model(item) for item in claim_list) if claim.research_run_id), None),

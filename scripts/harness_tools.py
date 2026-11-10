@@ -13,7 +13,7 @@ from action_lifecycle import admit_action as admit_lifecycle_action, replay_life
 from action_receipts import replay_run
 from account_intelligence import calculate_structural_fit, project_account_intelligence, validate_account_thesis
 from import_discovery import read_rows
-from lead_contract import is_plausible_company_name
+from lead_contract import is_plausible_company_name, run_scope_matches
 from normalize_dedupe import clean_name, company_id, explicit_berlin_evidence, trusted_company_domain
 from promote_evidence import promote_verified_claims
 from run_manifest import file_sha256, finalization_eligibility, finalize_run, load, reconstruct_finalization_readiness, update as update_manifest
@@ -95,6 +95,53 @@ def _records(path: Path) -> list[dict[str, object]]:
     if isinstance(value, dict):
         return [value]
     return []
+
+
+def _production_manifest_context(root: Path, raw_manifest: object) -> tuple[Path, dict[str, object], dict[str, dict[str, object]]]:
+    manifest_path = _resolve_path(root, raw_manifest)
+    manifest = load(manifest_path)
+    run_id = str(manifest.get("run_id") or "")
+    if not run_id:
+        raise ValueError("production manifest is missing run_id")
+    outputs = manifest.get("outputs")
+    dossier_ref = outputs.get("dossier") if isinstance(outputs, dict) else None
+    if not isinstance(dossier_ref, dict):
+        raise ValueError("production manifest is missing the dossier artifact")
+    dossier_path = _resolve_path(root, dossier_ref.get("path"))
+    recorded_hash = str(dossier_ref.get("sha256") or "")
+    if not dossier_path.exists() or not recorded_hash or file_sha256(dossier_path) != recorded_hash:
+        raise ValueError("production manifest dossier artifact hash is missing or stale")
+    dossiers = {
+        str(item.get("company_id") or (item.get("thesis") or {}).get("company_id") or ""): item
+        for item in _records(dossier_path)
+        if isinstance(item, dict)
+    }
+    return manifest_path, manifest, dossiers
+
+
+def _validate_manifest_dossier(
+    dossier: dict[str, object],
+    manifest: dict[str, object],
+    manifest_dossiers: dict[str, dict[str, object]],
+    offer_id: str,
+    offer_version: str,
+) -> None:
+    company_id_value = str(dossier.get("company_id") or (dossier.get("thesis") or {}).get("company_id") or "")
+    if not company_id_value:
+        raise ValueError("production dossier is missing company_id")
+    recorded = manifest_dossiers.get(company_id_value)
+    if not recorded or str(recorded.get("dossier_hash") or "") != str(dossier.get("dossier_hash") or ""):
+        raise ValueError(f"production dossier is not the manifest-bound artifact: {company_id_value}")
+    if str(dossier.get("offer_id") or (dossier.get("thesis") or {}).get("offer_id") or "") != offer_id or str(dossier.get("offer_version") or (dossier.get("thesis") or {}).get("offer_version") or "") != offer_version:
+        raise ValueError(f"production dossier offer context does not match: {company_id_value}")
+    run_id = str(manifest.get("run_id") or "")
+    dossier_run_id = str(dossier.get("projection_run_id") or dossier.get("run_id") or "")
+    if not run_scope_matches(dossier_run_id, run_id):
+        raise ValueError(f"production dossier run context does not match manifest: {company_id_value}")
+    bindings = manifest.get("dossier_bindings")
+    binding = bindings.get(company_id_value) if isinstance(bindings, dict) else None
+    if isinstance(binding, dict) and str(binding.get("dossier_hash") or "") != str(dossier.get("dossier_hash") or ""):
+        raise ValueError(f"production dossier binding hash does not match manifest: {company_id_value}")
 
 
 def _normalize_company(row: dict[str, object]) -> dict[str, object]:
@@ -204,6 +251,8 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         manifest_raw = payload.get("manifest_path") or payload.get("run_manifest")
         if production and not manifest_raw:
             raise ValueError("production dossier persistence requires an active run manifest")
+        manifest_path = _resolve_path(root, manifest_raw) if manifest_raw else None
+        manifest = load(manifest_path) if manifest_path else {}
         claims = payload.pop("claims", [])
         thesis = payload.pop("thesis", None)
         offer_profile = payload.pop("offer_profile", None)
@@ -211,20 +260,39 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         output = _resolve_path(root, payload.pop("output"))
         if not isinstance(thesis, dict):
             raise ValueError("thesis must be an object")
-        dossier = project_account_intelligence(claims, thesis, semantic_reviews=semantic_reviews, offer_profile=offer_profile, production=production)
+        dossier = project_account_intelligence(
+            claims,
+            thesis,
+            semantic_reviews=semantic_reviews,
+            offer_profile=offer_profile,
+            production=production,
+            coverage_manifest=payload.get("coverage_manifest"),
+            receipt_root=root if production else None,
+            receipt_run_id=str(manifest.get("run_id") or "") if production else None,
+        )
         output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(dossier, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")) + "\n", encoding="utf-8")
-        if manifest_raw:
-            manifest_path = _resolve_path(root, manifest_raw)
+        serialized = json.dumps(dossier, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")) + "\n"
+        if manifest_path:
+            existing_outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
+            existing_dossier = existing_outputs.get("dossier") if isinstance(existing_outputs, dict) else None
+            if isinstance(existing_dossier, dict) and str(existing_dossier.get("path") or "") != output.relative_to(root.resolve()).as_posix():
+                raise ValueError("production dossier output does not match the manifest-bound dossier artifact")
+            with output.open("a", encoding="utf-8", newline="") as handle:
+                handle.write(serialized)
+            bindings = dict(manifest.get("dossier_bindings") or {}) if isinstance(manifest.get("dossier_bindings"), dict) else {}
+            company_id_value = str(dossier.get("company_id") or "")
+            bindings[company_id_value] = {
+                "dossier_hash": str(dossier.get("dossier_hash") or ""),
+                "offer_id": str(dossier.get("offer_id") or ""),
+                "offer_version": str(dossier.get("offer_version") or ""),
+                "run_id": str(dossier.get("run_id") or ""),
+                "manifest_revision": str(manifest.get("head_sha") or manifest.get("git_revision") or ""),
+            }
             update_manifest(manifest_path, root, outputs={"dossier": output}, registries={"dossier_bindings": {
-                str(dossier.get("company_id") or ""): {
-                    "dossier_hash": str(dossier.get("dossier_hash") or ""),
-                    "offer_id": str(dossier.get("offer_id") or ""),
-                    "offer_version": str(dossier.get("offer_version") or ""),
-                    "run_id": str(dossier.get("run_id") or ""),
-                    "manifest_revision": str(load(manifest_path).get("head_sha") or load(manifest_path).get("git_revision") or ""),
-                }
+                **bindings,
             }}, status="dossier_staged")
+        else:
+            output.write_text(serialized, encoding="utf-8")
         return {"dossier": dossier, "artifact": _artifact(root, output, "account_dossier")}
     if action == "calculate_fit":
         claims = payload.get("claims", [])
@@ -243,8 +311,16 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
         offer_id = str(payload.get("offer_id") or "")
         offer_version = str(payload.get("offer_version") or "")
         production = bool(payload.get("production", False))
+        production_manifest_path = None
+        production_manifest: dict[str, object] = {}
+        manifest_dossiers: dict[str, dict[str, object]] = {}
         if production and not (payload.get("run_manifest") or payload.get("manifest_path")):
             raise ValueError("production ranking requires an active run manifest")
+        if production:
+            production_manifest_path, production_manifest, manifest_dossiers = _production_manifest_context(
+                root,
+                payload.get("run_manifest") or payload.get("manifest_path"),
+            )
         compatibility_mode = bool(payload.get("compatibility_mode", False))
         dossiers = payload.get("dossiers")
         if production and (not offer_id or not offer_version or not isinstance(dossiers, (dict, list))):
@@ -280,6 +356,8 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                     continue
                 if not isinstance(dossier, dict):
                     raise ValueError(f"missing validated dossier for company: {company_id}")
+                if production:
+                    _validate_manifest_dossier(dossier, production_manifest, manifest_dossiers, offer_id, offer_version)
                 claims = dossier.get("claims") or []
                 reviews = dossier.get("semantic_reviews") or []
                 if not isinstance(dossier.get("thesis"), dict):
@@ -288,6 +366,8 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                     dossier["thesis"], claims, enforce_structural_fit=True,
                     require_source_assurance=True, require_material_assertions=True,
                     semantic_reviews=reviews, offer_profile=payload.get("offer_profile"), require_receipts=production,
+                    receipt_root=root if production else None,
+                    receipt_run_id=str(production_manifest.get("run_id") or "") if production else None,
                 )
                 audit = rank_account(enriched, offer_id, offer_version, dossier=dossier)
                 enriched["rank_audit"] = audit.model_dump(mode="json")

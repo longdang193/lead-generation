@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -237,6 +238,15 @@ class AccountIntelligenceContractTests(unittest.TestCase):
         from account_intelligence import validate_semantic_review
         with self.assertRaisesRegex(ValueError, "settled review receipt"):
             validate_semantic_review(review, [{"candidate_claim_id": "claim-1", "company_id": "C1", "claim_type": "event", "claim_value": "Observed", "source_url": "https://example.com", "source_kind": "other", "evidence_excerpt": "Observed", "retrieved_at": "2026-11-09T00:00:00Z"}], require_receipt=True)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "not present exactly once"):
+                validate_semantic_review(
+                    {**review, "receipt_id": "missing-action:missing-attempt"},
+                    [{"candidate_claim_id": "claim-1", "company_id": "C1", "claim_type": "event", "claim_value": "Observed", "source_url": "https://example.com", "source_kind": "other", "evidence_excerpt": "Observed", "retrieved_at": "2026-11-09T00:00:00Z"}],
+                    require_receipt=True,
+                    receipt_root=Path(directory),
+                    receipt_run_id="run-1",
+                )
 
     def test_no_trigger_found_requires_complete_clean_coverage_manifest(self):
         base = {
@@ -259,6 +269,9 @@ class AccountIntelligenceContractTests(unittest.TestCase):
         }
 
         self.assertEqual(CoverageManifest(**base).trigger_state, "No trigger found")
+        from account_intelligence import account_signal_state
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(account_signal_state([], base, receipt_root=Path(directory), receipt_run_id="run-1", require_receipts=True), "Research incomplete")
 
         invalid_manifests = (
             {**base, "completed_checks": ["official_site"]},

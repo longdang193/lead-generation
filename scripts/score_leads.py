@@ -258,7 +258,9 @@ def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *
             require_material_assertions=True,
             semantic_reviews=dossier_reviews,
         )
-        signal_state = str(dossier.get("signal_state") or record.get("validated_signal_state") or "Research incomplete")
+        from account_intelligence import derive_validated_signal_state
+
+        signal_state = derive_validated_signal_state(dossier_claims)
         projected = project_commercial_dimensions(validated_thesis, dossier_claims, signal_state=signal_state)
         record = {
             **record,

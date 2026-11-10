@@ -178,3 +178,35 @@ def settled_receipt_ids_for_checks(
             continue
         receipt_ids.extend(f"{receipt.action_id}:{receipt.attempt_id}" for receipt in matched)
     return not errors, sorted(set(receipt_ids))
+
+
+def validate_settled_receipt(
+    root: Path,
+    run_id: str,
+    receipt_id: str,
+    company_id: str,
+    *,
+    action_type: str | None = None,
+    provenance: dict[str, str] | None = None,
+) -> None:
+    """Validate one receipt reference against the durable journal."""
+
+    action_id, separator, attempt_id = str(receipt_id).partition(":")
+    if not separator or not action_id or not attempt_id:
+        raise ValueError("receipt_id must contain action_id and attempt_id")
+    expected = {str(key): str(value) for key, value in (provenance or {}).items() if value is not None}
+    matches = [
+        receipt for receipt in read_receipts(root, run_id)
+        if receipt.action_id == action_id and receipt.attempt_id == attempt_id
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"receipt_id is not present exactly once in settled journal: {receipt_id}")
+    receipt = matches[0]
+    if receipt.terminal_status != "Completed":
+        raise ValueError(f"receipt_id is not completed: {receipt_id}")
+    if receipt.company_id != company_id:
+        raise ValueError(f"receipt_id company scope does not match: {receipt_id}")
+    if action_type is not None and receipt.action_type != action_type:
+        raise ValueError(f"receipt_id action type does not match: {receipt_id}")
+    if any(receipt.provenance.get(key) != value for key, value in expected.items()):
+        raise ValueError(f"receipt_id provenance does not match: {receipt_id}")
