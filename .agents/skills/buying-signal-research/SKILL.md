@@ -32,6 +32,30 @@ gap-driven action; this skill does not run a provider sequence.
 - relevant hiring, leadership change, and organizational growth
 - references, client announcements, public projects, and procurement/RFPs
 
+## Temporal interpretation
+
+Choose the temporal strategy that matches the trigger family; do not treat
+every signal as a point event. A single dated observation proves only the
+activity stated on that source. Repeated comparable observations may support a
+pattern, and an increasing pattern may support acceleration, but neither may
+be inferred from one posting or from missing history.
+
+- one hiring posting -> hiring activity
+- repeated comparable postings -> possible capacity pressure
+- increasing comparable postings -> possible hiring acceleration
+- portfolio size or service footprint -> current snapshot unless a dated
+  baseline exists
+- acquisitions, leadership changes, launches, or procurement -> dated event
+- modernization or software replacement -> dated event sequence when multiple
+  milestones are available
+
+For trend or sequence work, capture the explicit lookback window, comparison
+basis, observation dates, source coverage, and deduplicated observation IDs.
+Compare like with like (same company identity, trigger definition, geography,
+and source family where possible). Record `Unknown` when the baseline,
+comparable coverage, or date is insufficient. Never convert provider limits,
+search truncation, or no matching result into a claim that no trigger exists.
+
 For every candidate, capture the exact company-bound page-local excerpt, source
 URL, publication or event date, retrieval time, source family, and why the
 signal matches an immutable offer criterion. TED/procurement is one optional

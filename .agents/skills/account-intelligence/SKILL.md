@@ -35,6 +35,11 @@ parent Codex agent chooses the next action.
 6. Write `why_this_account`, `why_now`, problem hypothesis, strongest claims,
    counterevidence, uncertainty, confidence, access summary, research-gap
    impact, recommended action, and the next decision-relevant gap.
+   For any temporal interpretation, include the current observation, historical
+   baseline or event date, comparison method, confidence, counterevidence, and
+   the condition that would reverse the interpretation. If no comparable
+   baseline exists, preserve `Unknown` instead of describing the account as
+   stable, growing, accelerating, or lacking a trigger.
 7. For every `proactive_account` or `sales_ready` thesis, provide a
    `selection_rationale` with verified observations, operational implications,
    offer-specific opportunity hypothesis, counterevidence, comparative basis,

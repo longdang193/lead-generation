@@ -1,11 +1,22 @@
 {
-  "taxonomy_version": "1",
+  "taxonomy_version": "2",
   "categories": {
     "portfolio_expansion": ["portfolio expansion", "new properties", "acquisition", "mandate"],
     "modernization": ["modernization", "digitalization", "digitization", "software", "automation"],
     "metering_project": ["metering", "heat meter", "heating cost", "fernablesung", "zähler"],
     "supplier_change": ["supplier", "procurement", "tender", "framework agreement"],
     "relevant_hiring": ["property manager", "weg manager", "immobilienverwalter", "hausverwalter"]
+  },
+  "temporal_semantics": {
+    "portfolio_size": {"temporal_mode": "snapshot"},
+    "portfolio_growth": {"temporal_mode": "trend", "lookback_window": "12-24 months"},
+    "acquisition": {"temporal_mode": "event", "lookback_window": "12 months"},
+    "hiring_acceleration": {"temporal_mode": "trend", "lookback_window": "3-6 months"},
+    "leadership_change": {"temporal_mode": "event", "lookback_window": "12 months"},
+    "digital_transformation": {"temporal_mode": "event_sequence", "lookback_window": "6-18 months"},
+    "software_replacement": {"temporal_mode": "event_or_sequence", "lookback_window": "12 months"},
+    "operational_pressure": {"temporal_mode": "bounded_trend_or_inference", "lookback_window": "3-12 months"},
+    "procurement": {"temporal_mode": "current_event"}
   },
   "required_account_scopes": ["official_site", "public_events", "public_jobs"],
   "none_found_requires": ["all_queries_completed", "no_truncation", "no_provider_error", "zero_verified_claims"]

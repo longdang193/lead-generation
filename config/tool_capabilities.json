@@ -1,5 +1,16 @@
 {
-  "registry_version": "1",
+  "registry_version": "2",
+  "historical_search_policy": {
+    "purpose": "Describe bounded historical-search capability without implying complete historical coverage.",
+    "discovery_is_not_verification": true,
+    "required_verification": [
+      "exact company-bound source",
+      "original publication or event date",
+      "retrieval time",
+      "coverage and truncation status"
+    ],
+    "completeness_claims": "Do not claim historical completeness unless the provider explicitly proves coverage for the requested window."
+  },
   "evidence_statuses": {
     "DISCOVERY": {
       "description": "Locates possible companies, URLs, people, or events; cannot support canonical claims.",
@@ -18,7 +29,8 @@
     "web_search": {
       "providers": ["apify"],
       "default_evidence_status": "DISCOVERY",
-      "evidence_role": "discovery_only"
+      "evidence_role": "discovery_only",
+      "historical_support": "bounded_search_only; snippets and result ordering are not a historical baseline"
     },
     "search_engine": {
       "providers": ["apify"],
@@ -28,12 +40,14 @@
     "news_search": {
       "providers": ["apify"],
       "default_evidence_status": "DISCOVERY",
-      "evidence_role": "discovery_only"
+      "evidence_role": "discovery_only",
+      "historical_support": "bounded dated-result discovery; provider coverage may be incomplete"
     },
     "jobs_search": {
       "providers": ["apify"],
       "default_evidence_status": "DISCOVERY",
-      "evidence_role": "discovery_only"
+      "evidence_role": "discovery_only",
+      "historical_support": "current or bounded dated-result discovery; do not infer hiring trends from one result"
     },
     "place_discovery": {
       "providers": ["overpass"],
@@ -43,12 +57,14 @@
     "procurement_search": {
       "providers": ["ted"],
       "default_evidence_status": "DISCOVERY",
-      "evidence_role": "discovery_or_candidate_intent"
+      "evidence_role": "discovery_or_candidate_intent",
+      "historical_support": "bounded dated-event discovery; absence is not evidence of no procurement"
     },
     "official_source_fetch": {
       "providers": ["website_fetch"],
       "default_evidence_status": "CANDIDATE_EVIDENCE",
-      "evidence_role": "candidate_evidence"
+      "evidence_role": "candidate_evidence",
+      "historical_support": "only dates and historical comparisons explicitly present on the fetched source"
     },
     "source_fetch": {
       "providers": ["website_fetch"],

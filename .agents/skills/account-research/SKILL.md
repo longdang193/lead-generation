@@ -18,6 +18,21 @@ agent chooses the next action.
 - location or place discovery -> `place_discovery`
 - named stakeholder gap -> `contact_verification`
 
+Before choosing a temporal research action, the parent controller must classify
+the decision-relevant gap as one of:
+
+- `snapshot` for the current state or scale;
+- `dated_event` for a discrete company-bound change;
+- `trend` for comparable observations across time; or
+- `event_sequence` for related milestones that form a change narrative.
+
+The parent controller owns that choice. This skill must not impose a universal
+lane order. For every non-snapshot action, record the explicit lookback window,
+comparison basis, minimum observation requirement, and stop condition. If the
+available sources cannot meet those requirements, return `Unknown` with the
+coverage limitation rather than infer stability, growth, acceleration, or
+absence of a trigger.
+
 Search and directory results are `DISCOVERY`; fetched company-bound pages are
 `CANDIDATE_EVIDENCE`; only a verifier or semantic review may produce
 `VERIFIED_EVIDENCE`. Search discovers. Sources prove. Verifiers promote. Codex

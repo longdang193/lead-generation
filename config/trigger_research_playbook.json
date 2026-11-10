@@ -1,0 +1,114 @@
+{
+  "playbook_version": "1",
+  "purpose": "Advisory guidance for parent-selected bounded trigger research; this file does not promote evidence or calculate commercial scores.",
+  "families": {
+    "portfolio_size": {
+      "temporal_mode": "snapshot",
+      "lookback_window": "current",
+      "minimum_observations": 1,
+      "comparison_method": "current company-bound portfolio observation",
+      "capabilities": ["official_source_fetch", "semantic_review"],
+      "query_concepts": ["managed units", "portfolio", "properties under management"],
+      "deduplication_rules": ["same company identity", "same as-of date", "do not add syndicated copies"],
+      "comparability_rules": ["separate units, properties, and doors", "retain the source's metric definition"],
+      "verification_requirements": ["exact company-bound source", "as-of date or retrieval time"],
+      "interpretation_guardrails": ["snapshot does not prove growth or buying intent"]
+    },
+    "portfolio_growth": {
+      "temporal_mode": "trend",
+      "lookback_window": "12-24 months",
+      "minimum_observations": 2,
+      "comparison_method": "compare dated, like-for-like portfolio observations",
+      "capabilities": ["web_search", "news_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["portfolio growth", "new mandates", "managed units", "acquisition"],
+      "deduplication_rules": ["collapse the same announcement across publishers", "retain all source IDs as lineage"],
+      "comparability_rules": ["same company identity", "same metric and geography", "dated observations only"],
+      "verification_requirements": ["exact company-bound source for each observation", "original dates", "coverage manifest"],
+      "interpretation_guardrails": ["one observation is not a trend", "missing history is Unknown"]
+    },
+    "acquisition": {
+      "temporal_mode": "event",
+      "lookback_window": "12 months",
+      "minimum_observations": 1,
+      "comparison_method": "dated discrete acquisition or mandate event",
+      "capabilities": ["news_search", "web_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["acquired", "merger", "new mandate", "portfolio transfer"],
+      "deduplication_rules": ["deduplicate by event, company, and date", "preserve primary source over copies"],
+      "comparability_rules": ["separate acquisition from later portfolio-size claims"],
+      "verification_requirements": ["company identity", "event date", "page-local entailment"],
+      "interpretation_guardrails": ["event indicates change, not purchase intent"]
+    },
+    "hiring_acceleration": {
+      "temporal_mode": "trend",
+      "lookback_window": "3-6 months",
+      "minimum_observations": 2,
+      "comparison_method": "compare deduplicated, comparable hiring observations over time",
+      "capabilities": ["jobs_search", "web_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["property manager hiring", "WEG manager jobs", "property accounting hiring"],
+      "deduplication_rules": ["collapse reposts and syndicated job copies", "retain first and latest observed dates"],
+      "comparability_rules": ["same employer", "same role family", "distinguish open, closed, and evergreen postings"],
+      "verification_requirements": ["company-bound posting", "posting date or observed date", "coverage/truncation status"],
+      "interpretation_guardrails": ["one posting means hiring activity", "repetition may indicate pressure", "increasing observations may indicate acceleration"]
+    },
+    "leadership_change": {
+      "temporal_mode": "event",
+      "lookback_window": "12 months",
+      "minimum_observations": 1,
+      "comparison_method": "dated leadership or authority change",
+      "capabilities": ["web_search", "news_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["new managing director", "authorized signatory", "leadership change"],
+      "deduplication_rules": ["one change event per effective date", "preserve source lineage"],
+      "comparability_rules": ["separate legal-register authority from operating responsibility"],
+      "verification_requirements": ["dated source", "identity match", "role semantics"],
+      "interpretation_guardrails": ["authority change is not direct purchase intent"]
+    },
+    "digital_transformation": {
+      "temporal_mode": "event_sequence",
+      "lookback_window": "6-18 months",
+      "minimum_observations": 2,
+      "comparison_method": "ordered sequence of dated transformation milestones",
+      "capabilities": ["web_search", "news_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["digitalization", "automation", "platform", "process transformation", "ESG technology"],
+      "deduplication_rules": ["deduplicate the same milestone across sources", "retain milestone order"],
+      "comparability_rules": ["same company and transformation theme", "distinguish marketing language from operational milestone"],
+      "verification_requirements": ["company-bound milestone", "date for each step", "semantic entailment"],
+      "interpretation_guardrails": ["sequence supports change readiness, not procurement certainty"]
+    },
+    "software_replacement": {
+      "temporal_mode": "event_or_sequence",
+      "lookback_window": "12 months",
+      "minimum_observations": 1,
+      "comparison_method": "dated replacement, implementation, or migration event; sequence when multiple milestones exist",
+      "capabilities": ["web_search", "news_search", "official_source_fetch", "procurement_search", "semantic_review"],
+      "query_concepts": ["software replacement", "new property-management software", "migration", "implementation"],
+      "deduplication_rules": ["deduplicate by company, product, and event date"],
+      "comparability_rules": ["separate confirmed replacement from generic software use"],
+      "verification_requirements": ["exact company-bound evidence", "event date", "offer relevance"],
+      "interpretation_guardrails": ["generic digital language is insufficient"]
+    },
+    "operational_pressure": {
+      "temporal_mode": "bounded_trend_or_inference",
+      "lookback_window": "3-12 months",
+      "minimum_observations": 2,
+      "comparison_method": "triangulate comparable operational observations and label inference",
+      "capabilities": ["jobs_search", "news_search", "web_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["service expansion", "backlog", "recruitment", "process strain", "new operating capacity"],
+      "deduplication_rules": ["collapse duplicated reports", "keep independent source families distinct"],
+      "comparability_rules": ["do not mix unrelated roles, geographies, or business lines without labeling"],
+      "verification_requirements": ["at least two dated observations", "explicit inference label", "counterevidence"],
+      "interpretation_guardrails": ["pressure is an inference, never a fact from one proxy", "Unknown when coverage is inadequate"]
+    },
+    "procurement": {
+      "temporal_mode": "current_event",
+      "lookback_window": "current or 12 months",
+      "minimum_observations": 1,
+      "comparison_method": "dated procurement or tender event",
+      "capabilities": ["procurement_search", "official_source_fetch", "semantic_review"],
+      "query_concepts": ["tender", "RFP", "framework agreement", "procurement"],
+      "deduplication_rules": ["deduplicate by contracting authority, subject, and event date"],
+      "comparability_rules": ["separate target company from contracting authority and supplier"],
+      "verification_requirements": ["exact event record", "dates", "company relationship"],
+      "interpretation_guardrails": ["absence in TED is not absence of need", "procurement evidence is optional for account selection"]
+    }
+  }
+}
