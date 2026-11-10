@@ -12,6 +12,7 @@ from typed_contracts import (
     AccountIndicator,
     AccountThesis,
     CoverageManifest,
+    MaterialAssertion,
     OfferProfile,
     RankAudit,
     RankContribution,
@@ -20,6 +21,47 @@ from typed_contracts import (
 
 
 class AccountIntelligenceContractTests(unittest.TestCase):
+    def test_material_assertion_hash_is_immutable_and_review_can_bind_to_it(self):
+        assertion = MaterialAssertion(
+            assertion_id="assertion-1",
+            assertion_kind="why_now",
+            statement="Portfolio expansion creates a current operations opportunity",
+            company_id="C1",
+            offer_id="offer-1",
+            offer_version="2026-11-09",
+            offer_criterion="relevant_triggers",
+            supporting_claim_ids=["claim-1"],
+        )
+        review = SemanticReview(
+            assertion_id=assertion.assertion_id,
+            assertion_hash=assertion.content_hash,
+            company_id="C1",
+            offer_id="offer-1",
+            offer_version="2026-11-09",
+            reviewed_claim_ids=["claim-1"],
+            offer_criterion="relevant_triggers",
+            entailment="supported",
+            offer_relevance="relevant",
+            temporal_relevance="current",
+            contradiction_result="none",
+            decision="approved",
+            reason_codes=["supported"],
+            reviewer_id="reviewer-1",
+        )
+        self.assertTrue(review.semantic_review_id)
+        with self.assertRaises(ValidationError):
+            MaterialAssertion(
+                assertion_id=assertion.assertion_id,
+                assertion_kind=assertion.assertion_kind,
+                statement="Changed material conclusion",
+                content_hash=assertion.content_hash,
+                company_id=assertion.company_id,
+                offer_id=assertion.offer_id,
+                offer_version=assertion.offer_version,
+                offer_criterion=assertion.offer_criterion,
+                supporting_claim_ids=assertion.supporting_claim_ids,
+            )
+
     def test_offer_profile_exposes_immutable_identity(self):
         offer = OfferProfile(
             offer_id="offer-1",

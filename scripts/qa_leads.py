@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 
 from campaign_spec import qualification_eligibility
 from runtime_config import RuntimeConfig, provider_limitation
-from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
+from lead_contract import ACTIONABILITY, BUYING_SIGNALS, SEARCH_STATUSES, SALES_PRIORITIES, actionability_for, has_complete_production_lineage, is_generic_mailbox, is_placeholder_email, is_plausible_company_name, is_plausible_full_name, parse_evidence_urls, sales_priority_for, is_valid_business_email, file_sha256, update_run_manifest
 from score_leads import calculate_fit
 from run_manifest import repository_root, validate_manifest_revision
 from validate_deliverables import resolve_manifest_path, verify_manifest_bucket
@@ -179,14 +179,52 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--sample-output", type=Path, required=True)
     parser.add_argument("--run-manifest", type=Path)
+    parser.add_argument("--production-account-intelligence", action="store_true")
+    parser.add_argument("--dossier", type=Path)
     args = parser.parse_args()
     wb = load_workbook(args.workbook, read_only=True, data_only=False)
     companies = rows(wb["01_All_Leads"])
     qualification = rows(wb["02_Qualification"])
     priority = rows(wb["03_Priority_Leads"])
     contacts = rows(wb["04_Contacts"])
+    sheetnames = list(wb.sheetnames)
+    dossier_sheet = rows(wb["06_Account_Dossiers"]) if "06_Account_Dossiers" in wb.sheetnames else []
     wb.close()
     errors: list[str] = []
+    if args.production_account_intelligence:
+        if not args.run_manifest or not args.dossier:
+            errors.append("production account-intelligence QA requires run manifest and dossier")
+        required_dossier_sheets = {"06_Account_Dossiers", "07_Account_Theses", "08_Account_Timeline", "09_Evidence_Ledger", "10_Research_Gaps"}
+        missing_dossier_sheets = sorted(required_dossier_sheets - set(sheetnames))
+        if missing_dossier_sheets:
+            errors.append("production workbook lacks account-intelligence sheets: " + ", ".join(missing_dossier_sheets))
+        required_dossier_fields = {"dossier_hash", "why_this_account", "why_now", "recommended_action"}
+        if dossier_sheet and not required_dossier_fields.issubset(set(dossier_sheet[0])):
+            errors.append("Account Dossiers sheet lacks durable dossier explanation fields")
+        required_priority_fields = {"rank_audit", "dossier_hash", "semantic_review_ids", "strongest_claim_ids", "projection_run_id"}
+        if priority and not required_priority_fields.issubset(set(priority[0])):
+            errors.append("production priority rows lack rank/thesis/claim lineage fields")
+        dossier_records: dict[str, dict[str, object]] = {}
+        if args.dossier and args.dossier.exists():
+            for line in args.dossier.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    errors.append("dossier artifact contains invalid JSON")
+                    continue
+                if isinstance(item, dict):
+                    dossier_records[str(item.get("company_id") or (item.get("thesis") or {}).get("company_id") or "")] = item
+        for row in priority:
+            company_id = str(row.get("company_id") or "")
+            if not has_complete_production_lineage(row):
+                errors.append(f"production priority row lacks complete dossier lineage: {company_id}")
+            dossier = dossier_records.get(company_id)
+            if not dossier:
+                errors.append(f"production priority row lacks matching dossier artifact: {company_id}")
+            elif str(row.get("dossier_hash") or "") != str(dossier.get("dossier_hash") or ""):
+                errors.append(f"production priority row dossier hash mismatch: {company_id}")
     manifest_data: dict[str, object] | None = None
     if args.run_manifest and not args.run_manifest.exists():
         errors.append("run manifest missing")

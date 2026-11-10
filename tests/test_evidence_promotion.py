@@ -13,6 +13,16 @@ from promote_evidence import decision_assurance_level, promote_verified_claims
 
 
 class EvidencePromotionTests(unittest.TestCase):
+    def test_unregistered_source_assurance_cannot_be_claimed_for_active_run(self):
+        self.assertEqual(
+            decision_assurance_level(
+                {"assurance_level": "source", "reason_codes": ["source_bound"], "verifier_run_id": "run-1:verifier"},
+                {},
+                require_registered=True,
+            ),
+            "unknown",
+        )
+
     def test_payload_assurance_cannot_elevate_structural_verifier(self):
         self.assertEqual(
             decision_assurance_level(

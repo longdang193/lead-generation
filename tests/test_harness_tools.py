@@ -20,6 +20,27 @@ from typed_contracts import WorkerResult
 
 
 class HarnessToolTests(unittest.TestCase):
+    def test_production_rank_requires_dossier(self):
+        with self.assertRaisesRegex(ValueError, "validated dossier"):
+            invoke({"action": "rank_leads", "payload": {
+                "production": True,
+                "offer_id": "offer-1",
+                "offer_version": "2026-11-09",
+                "scores": [],
+                "qualification": {},
+            }}, Path.cwd())
+
+    def test_persist_dossier_writes_consumable_jsonl_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "dossier.jsonl"
+            with patch("harness_tools.project_account_intelligence", return_value={"company_id": "C1", "dossier_hash": "hash-1"}):
+                result = invoke({"action": "persist_dossier", "payload": {"thesis": {}, "output": str(output)}}, root)
+            self.assertEqual(result["dossier"]["company_id"], "C1")
+            lines = output.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(json.loads(lines[0])["dossier_hash"], "hash-1")
+
     def test_profile_discovery_uses_existing_registry(self):
         profiles = discover_profiles(Path(__file__).resolve().parents[1])
         self.assertTrue({item["name"] for item in profiles} >= {"signal-researcher", "evidence-verifier"})
@@ -266,7 +287,7 @@ class HarnessToolTests(unittest.TestCase):
             }) + "\n", encoding="utf-8")
             qualification.write_text("company_id,resolution_status,berlin_relevance,verified_company_domain,eligible\nC1,Accepted,Confirmed,example.de,true\n", encoding="utf-8")
             result = invoke({"action": "rank_leads", "payload": {
-                "scores": "scores.jsonl", "qualification": "qualification.csv", "max_accounts": 1,
+                "scores": "scores.jsonl", "qualification": "qualification.csv", "max_accounts": 1, "compatibility_mode": True,
             }}, root)
             self.assertEqual(result["count"], 1)
             self.assertEqual(result["leads"][0]["company_id"], "C1")
@@ -281,7 +302,7 @@ class HarnessToolTests(unittest.TestCase):
             {"assertion_id": "r2", "company_id": "C2", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c2"], "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant", "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved", "reason_codes": ["supported"], "reviewer_id": "reviewer-1"},
         ]
         qualification = {company_id: {"resolution_status": "Accepted", "eligible": True} for company_id in ("C1", "C2")}
-        result = invoke({"action": "rank_leads", "payload": {"scores": scores, "qualification": qualification, "offer_id": "offer-1", "offer_version": "2026-11-09", "semantic_reviews": reviews, "max_accounts": 2}}, Path.cwd())
+        result = invoke({"action": "rank_leads", "payload": {"scores": scores, "qualification": qualification, "offer_id": "offer-1", "offer_version": "2026-11-09", "semantic_reviews": reviews, "max_accounts": 2, "compatibility_mode": True}}, Path.cwd())
         self.assertEqual([row["company_id"] for row in result["leads"]], ["C1", "C2"])
 
     def test_export_and_qa_adapters_return_artifact_references(self):

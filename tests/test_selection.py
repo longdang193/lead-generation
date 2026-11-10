@@ -10,6 +10,25 @@ from select_for_enrichment import eligible_for_enrichment, select_accounts
 
 
 class SelectionTests(unittest.TestCase):
+    def test_production_selection_rejects_structural_only_rows(self):
+        row = {"company_id": "C1", "lead_tier": "A", "evidence_coverage": "90", "rank_audit": "", "dossier_hash": ""}
+        qualification = {"resolution_status": "Accepted", "eligible": True}
+        self.assertFalse(eligible_for_enrichment(row, qualification, production=True))
+
+    def test_production_selection_requires_complete_dossier_lineage(self):
+        row = {
+            "company_id": "C1",
+            "lead_tier": "A",
+            "evidence_coverage": "90",
+            "rank_audit": "rank-1",
+            "dossier_hash": "dossier-1",
+            "semantic_review_ids": "",
+            "strongest_claim_ids": "claim-1",
+            "projection_run_id": "run-1",
+        }
+        qualification = {"resolution_status": "Accepted", "eligible": True}
+        self.assertFalse(eligible_for_enrichment(row, qualification, production=True))
+
     def test_missing_qualification_is_not_eligible(self):
         row = {"company_id": "C1", "lead_tier": "A", "evidence_coverage": "75"}
         self.assertFalse(eligible_for_enrichment(row, {}))

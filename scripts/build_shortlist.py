@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from runtime_config import RuntimeConfig
-from lead_contract import contact_claim_valid, email_owner_matches_person, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
+from lead_contract import contact_claim_valid, email_owner_matches_person, has_complete_production_lineage, is_generic_mailbox, is_plausible_full_name, is_valid_business_email, priority_rank, signal_rank, tier_rank
 from score_leads import priority_reason
 from provider_clients import ProviderError, hunter_domain_search
 
@@ -82,6 +82,7 @@ def main() -> int:
     parser.add_argument("--contacts-output", type=Path, required=True)
     parser.add_argument("--evidence-output", type=Path, required=True)
     parser.add_argument("--max-priority-accounts", type=int, default=30)
+    parser.add_argument("--production-account-intelligence", action="store_true")
     args = parser.parse_args()
     config = RuntimeConfig.from_env()
     with args.scores.open(encoding="utf-8-sig", newline="") as handle:
@@ -92,6 +93,10 @@ def main() -> int:
         portfolio = float(row["portfolio_potential"]) if row.get("portfolio_potential") not in (None, "", "Unknown") else -1
         return priority_rank(row.get("sales_priority")), tier_rank(row.get("lead_tier")), -coverage, -fit, -portfolio, -signal_rank(row.get("buying_signal")), row.get("company_id", "")
     shortlist = sorted(scores, key=sort_key)[: args.max_priority_accounts]
+    if args.production_account_intelligence:
+        missing = [str(row.get("company_id") or "") for row in shortlist if not has_complete_production_lineage(row)]
+        if missing:
+            raise ValueError("production shortlist requires complete dossier lineage: " + ", ".join(missing))
     priority_rows = []
     contacts = []
     evidence = []
@@ -128,8 +133,9 @@ def main() -> int:
         contact_role = role_evidence if person_verified else ("Published business mailbox" if email and is_generic_mailbox(email) else "Potential contact" if email else "Unknown")
         reason = priority_reason(row) if row.get("why_this_account") or row.get("why_now") else "Deterministic sales priority, tier, coverage, fit, portfolio, signal, and company-ID order"
         priority_rows.append({**row, "priority_reason": reason, "key_evidence": row.get("evidence_urls", ""), "research_gap": "Named contact unavailable" if not person else "Personal email unavailable", "next_action": "Review official contact page and validate outreach owner"})
-        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if email_owner_match else "Unverified", "linkedin_url": "Unknown", "last_verified": str(date.today()) if email else "Unknown"})
-        evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": str(date.today()) if email else "Unknown"})
+        verified_date = row.get("last_verified") or "Unknown"
+        contacts.append({"company_id": row.get("company_id", ""), "company_name": row.get("company_name", ""), "contact_name": person or "Unknown", "contact_role": contact_role, "relevance": "Shortlisted account", "contact_email": email or "Unknown", "email_source": evidence_url or row.get("source_url", ""), "verification_status": email_status, "person_verified": "Verified" if person_verified else "Unverified", "company_affiliation_verified": "Verified" if person_verified else "Unverified", "role_verified": "Verified" if person_verified else "Unverified", "email_owner_match": "Verified" if email_owner_match else "Unverified", "linkedin_url": "Unknown", "last_verified": verified_date if email else "Unknown"})
+        evidence.append({"company_id": row.get("company_id", ""), "contact_name": person or "Unknown", "email": email or "Unknown", "source_url": evidence_url or row.get("source_url", ""), "verification_status": email_status, "last_verified": verified_date if email else "Unknown"})
     for path, rows, fallback in [(args.priority_output, priority_rows, ["company_id", "lead_tier"]), (args.contacts_output, contacts, ["company_id", "contact_email"]), (args.evidence_output, evidence, ["company_id", "source_url"])]:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8", newline="") as handle:
