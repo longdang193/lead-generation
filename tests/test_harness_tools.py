@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from harness_tools import discover_profiles, invoke
+from account_intelligence import project_account_intelligence
 from run_manifest import atomic_write, file_sha256, finalization_eligibility, load, reconstruct_finalization_readiness
 from action_lifecycle import admit_action, canonical_request_hash, settle_action, validate_result
 from action_receipts import canonical_json
@@ -20,6 +21,46 @@ from typed_contracts import WorkerResult
 
 
 class HarnessToolTests(unittest.TestCase):
+    def test_production_rank_leads_preserves_dossier_lineage_for_selection(self):
+        claim = {
+            "candidate_claim_id": "c1", "company_id": "C1", "claim_type": "event", "claim_value": {"event_id": "E1"},
+            "source_url": "https://example.com/source", "source_kind": "other", "evidence_excerpt": "Observed",
+            "confidence": "high", "retrieved_at": "2026-11-09T00:00:00Z", "candidate_status": "Verified",
+            "assurance_level": "source", "research_run_id": "run-1:signals:C1",
+        }
+        assertion_rows = [
+            ("m1", "why_this_account", "Fit"), ("m2", "why_now", "Now"), ("m3", "problem_hypothesis", "Need"),
+        ]
+        from typed_contracts import MaterialAssertion
+        assertions = [{
+            "assertion_id": assertion_id, "assertion_kind": kind, "statement": statement, "company_id": "C1",
+            "offer_id": "offer-1", "offer_version": "2026-11-09", "offer_criterion": "relevant_triggers",
+            "supporting_claim_ids": ["c1"],
+        } for assertion_id, kind, statement in assertion_rows]
+        reviews = [{
+            "assertion_id": assertion["assertion_id"], "assertion_hash": MaterialAssertion.model_validate(assertion).content_hash,
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "reviewed_claim_ids": ["c1"],
+            "offer_criterion": "relevant_triggers", "entailment": "supported", "offer_relevance": "relevant",
+            "temporal_relevance": "current", "contradiction_result": "none", "decision": "approved",
+            "reason_codes": ["supported"], "reviewer_id": "reviewer-1",
+        } for assertion in assertions]
+        dossier = project_account_intelligence([claim], {
+            "company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "structural_fit": 0,
+            "confidence": "high", "why_this_account": "Fit", "why_now": "Now", "problem_hypothesis": "Need",
+            "strongest_claim_ids": ["c1"], "access_summary": "Path", "research_gap_impact": "None",
+            "semantic_review_ids": ["m1", "m2", "m3"], "recommended_action": "contact", "material_assertions": assertions,
+        }, semantic_reviews=reviews)
+        result = invoke({"action": "rank_leads", "payload": {
+            "production": True, "offer_id": "offer-1", "offer_version": "2026-11-09", "max_accounts": 1,
+            "delivery_policy": "personal", "scores": [{"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "buying_signal": "Verified trigger", "lead_tier": "A", "evidence_coverage": 100}],
+            "qualification": {"C1": {"eligible": True, "resolution_status": "Accepted", "lead_tier": "A", "evidence_coverage": 100}},
+            "dossiers": {"C1": dossier},
+        }}, Path.cwd())
+        self.assertEqual(result["count"], 1)
+        lead = result["leads"][0]
+        self.assertEqual(lead["dossier_hash"], dossier["dossier_hash"])
+        self.assertTrue(lead["projection_run_id"])
+
     def test_production_rank_requires_dossier(self):
         with self.assertRaisesRegex(ValueError, "validated dossier"):
             invoke({"action": "rank_leads", "payload": {

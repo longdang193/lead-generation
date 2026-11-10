@@ -124,6 +124,31 @@ class CanonicalProjectionTests(unittest.TestCase):
             audit = next(csv.DictReader(outputs["signal_audit"].open(encoding="utf-8")))
             self.assertEqual(audit["signal_state"], "Research incomplete")
 
+    def test_complete_declaration_without_policy_receipts_stays_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, content in (
+                ("promoted.jsonl", ""),
+                ("qualification.jsonl", json.dumps({"company_id": "C1", "resolution_status": "Accepted", "eligible": True}) + "\n"),
+                ("scores.csv", "company_id,buying_signal\nC1,None found\n"),
+                ("contacts.csv", "company_id,contact_name\nC1,Unknown\n"),
+            ):
+                (root / name).write_text(content, encoding="utf-8")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({
+                "run_id": "run-1", "head_sha": "a" * 40,
+                "research_runs": {"run-1:signals:C1": {
+                    "run_id": "run-1:signals:C1", "company_id": "C1", "research_type": "signals",
+                    "status": "Completed", "provider_status": "Available", "coverage_status": "complete",
+                    "offer_id": "offer-1", "offer_version": "2026-11-09",
+                    "required_checks": ["official_site"], "completed_checks": ["official_site"],
+                    "provider_states": {"official_site": "available"},
+                }},
+            }), encoding="utf-8")
+            outputs = project_verified_evidence(root / "promoted.jsonl", root / "qualification.jsonl", root / "scores.csv", root / "contacts.csv", root / "canonical", run_id="run-1", manifest_path=manifest, root=root)
+            audit = next(csv.DictReader(outputs["signal_audit"].open(encoding="utf-8")))
+            self.assertEqual(audit["signal_state"], "Research incomplete")
+
     def test_structural_score_claim_is_retained_but_not_scored(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

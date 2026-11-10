@@ -9,9 +9,17 @@ from openpyxl import Workbook
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from run_manifest import _validate_finalization_artifacts, finalization_eligibility
+from build_workbook import write_sheet
 
 
 class ProductionContractTests(unittest.TestCase):
+    def test_workbook_serializes_dossier_lists_and_objects(self):
+        workbook = Workbook()
+        sheet = workbook.active
+        write_sheet(sheet, [{"company_id": "C1", "claim_ids": ["c1"], "normalized_inputs": {"confidence": "high"}}])
+        self.assertEqual(sheet.cell(2, 2).value, '["c1"]')
+        self.assertEqual(sheet.cell(2, 3).value, '{"confidence": "high"}')
+
     def test_production_finalization_requires_manifest_bound_dossier_and_ranking(self):
         eligible, errors = finalization_eligibility(
             {

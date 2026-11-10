@@ -55,6 +55,8 @@ def write_sheet(ws, rows: list[dict[str, str]], widths: dict[str, int] | None = 
                         pass
             elif header in nullable_unknown_fields and value == "Unknown":
                 value = None
+            elif isinstance(value, (list, dict)):
+                value = json.dumps(value, ensure_ascii=False, sort_keys=True)
             values.append(value)
         ws.append(values)
     ws.freeze_panes = "A2"

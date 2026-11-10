@@ -249,7 +249,7 @@ class CoverageManifest(ContractModel):
             and self.unresolved_candidates == 0
             and set(self.provider_states) >= set(self.required_checks)
             and all(self.provider_states.get(check) == "available" for check in self.required_checks)
-            and (not self.research_policy_id or bool(self.research_policy_hash and self.settled_receipt_ids))
+            and bool(self.research_policy_id and self.research_policy_version and self.research_policy_hash and self.settled_receipt_ids)
         )
 
 

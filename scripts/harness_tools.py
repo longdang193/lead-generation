@@ -267,17 +267,25 @@ def invoke(request: dict[str, Any], root: Path) -> dict[str, Any]:
                 reviews = dossier.get("semantic_reviews") or []
                 if not isinstance(dossier.get("thesis"), dict):
                     raise ValueError(f"dossier thesis is missing for company: {company_id}")
-                validate_account_thesis(dossier["thesis"], claims, semantic_reviews=reviews, offer_profile=payload.get("offer_profile"))
+                validate_account_thesis(
+                    dossier["thesis"], claims, enforce_structural_fit=True,
+                    require_source_assurance=True, require_material_assertions=True,
+                    semantic_reviews=reviews, offer_profile=payload.get("offer_profile"),
+                )
                 audit = rank_account(enriched, offer_id, offer_version, dossier=dossier)
                 enriched["rank_audit"] = audit.model_dump(mode="json")
                 enriched["_commercial_score"] = audit.total_score
+                enriched["dossier_hash"] = dossier.get("dossier_hash")
+                enriched["semantic_review_ids"] = [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in reviews if isinstance(item, dict)]
+                enriched["strongest_claim_ids"] = list(dossier["thesis"].get("strongest_claim_ids") or [])
+                enriched["projection_run_id"] = dossier.get("projection_run_id") or dossier.get("run_id")
                 commercial_scores.append(enriched)
             scores = commercial_scores
         elif offer_id and offer_version and not compatibility_mode:
             raise ValueError("commercial ranking requires validated dossiers; compatibility_mode is explicit and non-production")
         accepted = payload.get("accepted_company_ids")
         accepted_ids = set(str(item) for item in accepted) if isinstance(accepted, list) else None
-        ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"))
+        ranked = select_accounts(scores, qualification, int(payload.get("max_accounts", len(scores))), accepted_ids, str(payload.get("delivery_policy") or "strict"), production=production)
         return {"leads": ranked, "count": len(ranked)}
     if action == "export_workbook":
         output = _resolve_path(root, payload.get("output"))

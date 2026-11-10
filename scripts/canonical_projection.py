@@ -67,12 +67,20 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         for check, state in provider_states.items()
     }
     coverage_status = str(source.get("coverage_status") or "unknown")
+    policy_complete = bool(
+        source.get("research_policy_id")
+        and source.get("research_policy_version")
+        and source.get("research_policy_hash")
+        and isinstance(source.get("settled_receipt_ids"), list)
+        and source.get("settled_receipt_ids")
+    )
     permits_no_trigger = (
         set(str(check) for check in completed_checks) == set(str(check) for check in required_checks)
         and not bool(source.get("truncated", False))
         and int(source.get("unresolved_candidates", 0) or 0) == 0
         and set(normalized_states) >= set(str(check) for check in required_checks)
         and all(normalized_states.get(str(check)) == "available" for check in required_checks)
+        and policy_complete
     )
     return CoverageManifest(
         company_id=company_id,
@@ -83,6 +91,10 @@ def _coverage_manifest_from_research_run(research_run: dict[str, object], compan
         provider_states=normalized_states,
         truncated=bool(source.get("truncated", False)),
         unresolved_candidates=int(source.get("unresolved_candidates", 0) or 0),
+        research_policy_id=str(source.get("research_policy_id") or "") or None,
+        research_policy_version=str(source.get("research_policy_version") or "") or None,
+        research_policy_hash=str(source.get("research_policy_hash") or "") or None,
+        settled_receipt_ids=[str(value) for value in source.get("settled_receipt_ids", []) if value] if isinstance(source.get("settled_receipt_ids"), list) else [],
         trigger_state="No trigger found" if coverage_status == "complete" and permits_no_trigger else "Research incomplete",
     )
 

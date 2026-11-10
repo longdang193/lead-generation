@@ -175,9 +175,17 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     if record.get("offer_id") != offer_id or record.get("offer_version") != offer_version:
         raise ValueError("rank record offer context does not match requested offer")
     reviews = [item if isinstance(item, SemanticReview) else SemanticReview.model_validate(item) for item in semantic_reviews]
-    review_ids = {review.assertion_id for review in reviews if review.decision == "approved"}
+    approved_reviews = [review for review in reviews if review.decision == "approved"]
+    review_ids = {review.semantic_review_id for review in approved_reviews if review.semantic_review_id}
+    review_aliases = {
+        alias: review.semantic_review_id
+        for review in approved_reviews
+        for alias in (review.assertion_id, review.semantic_review_id)
+        if review.semantic_review_id
+    }
     declared_review_ids = {str(value) for value in record.get("semantic_review_ids", []) if value}
-    if not declared_review_ids or not declared_review_ids.issubset(review_ids):
+    canonical_review_ids = {review_aliases.get(value, value) for value in declared_review_ids}
+    if not declared_review_ids or not canonical_review_ids.issubset(review_ids):
         raise ValueError("ranking requires approved semantic review IDs")
     company_id = str(record.get("company_id") or "")
     if any(review.company_id != company_id or (review.offer_id, review.offer_version) != (offer_id, offer_version) for review in reviews):
@@ -185,7 +193,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
     claim_ids = [str(value) for value in record.get("strongest_claim_ids", []) if value]
     if not claim_ids:
         raise ValueError("rank record requires supporting claim IDs")
-    reviewed_claim_ids = {claim_id for review in reviews if review.assertion_id in declared_review_ids for claim_id in review.reviewed_claim_ids}
+    reviewed_claim_ids = {claim_id for review in approved_reviews if review.semantic_review_id in canonical_review_ids for claim_id in review.reviewed_claim_ids}
     if not set(claim_ids).issubset(reviewed_claim_ids):
         raise ValueError("rank claims must be covered by approved semantic reviews")
     source_dimensions = projected_dimensions or {
@@ -200,7 +208,7 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
             weight=COMMERCIAL_WEIGHTS[name],
             contribution=round(value * COMMERCIAL_WEIGHTS[name] / 100.0, 6),
             supporting_claim_ids=list(source_dimensions[name].get("supporting_claim_ids") or claim_ids),
-            supporting_review_ids=[str(value) for value in record.get("semantic_review_ids", []) if value],
+            supporting_review_ids=sorted(canonical_review_ids),
             offer_criterion=str(source_dimensions[name].get("offer_criterion") or name),
             scoring_policy_id=SCORING_POLICY_ID,
             scoring_policy_version=SCORING_POLICY_VERSION,
@@ -235,12 +243,28 @@ def build_rank_audit(record: dict[str, object], offer_id: str, offer_version: st
 def rank_account(record: dict[str, object], offer_id: str, offer_version: str, *, dossier: dict[str, object] | None = None) -> RankAudit:
     projected = None
     if dossier is not None:
+        from account_intelligence import validate_account_thesis
+
         thesis = dossier.get("thesis")
         if not isinstance(thesis, dict):
             raise ValueError("dossier must contain a validated thesis")
-        projected = project_commercial_dimensions(thesis, list(dossier.get("claims") or []), signal_state=str(record.get("buying_signal") or "Research incomplete"))
         dossier_reviews = [item for item in dossier.get("semantic_reviews", []) if isinstance(item, dict)]
-        record = {**record, "semantic_reviews": dossier_reviews, "semantic_review_ids": [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in dossier_reviews], "strongest_claim_ids": list(thesis.get("strongest_claim_ids") or [])}
+        dossier_claims = list(dossier.get("claims") or [])
+        validated_thesis = validate_account_thesis(
+            thesis,
+            dossier_claims,
+            enforce_structural_fit=True,
+            require_source_assurance=True,
+            require_material_assertions=True,
+            semantic_reviews=dossier_reviews,
+        )
+        projected = project_commercial_dimensions(validated_thesis, dossier_claims, signal_state=str(record.get("buying_signal") or "Research incomplete"))
+        record = {
+            **record,
+            "semantic_reviews": dossier_reviews,
+            "semantic_review_ids": [str(item.get("semantic_review_id") or item.get("assertion_id")) for item in dossier_reviews],
+            "strongest_claim_ids": list(validated_thesis.strongest_claim_ids),
+        }
     return build_rank_audit(record, offer_id, offer_version, semantic_reviews=record.get("semantic_reviews") if isinstance(record.get("semantic_reviews"), list) else None, projected_dimensions=projected)
 
 

@@ -208,6 +208,8 @@ def validate_account_thesis(
     claims: Iterable[EvidenceClaim | dict[str, Any]],
     *,
     enforce_structural_fit: bool = False,
+    require_source_assurance: bool = False,
+    require_material_assertions: bool = False,
     semantic_reviews: Iterable[SemanticReview | dict[str, Any]] = (),
     offer_profile: OfferProfile | dict[str, Any] | None = None,
 ) -> AccountThesis:
@@ -262,6 +264,37 @@ def validate_account_thesis(
     unsupported_claims = sorted((set(validated.strongest_claim_ids) | set(validated.counterevidence_claim_ids)) - reviewed_claim_ids)
     if unsupported_claims:
         raise ValueError("thesis material claims lack semantic review support: " + ", ".join(unsupported_claims))
+    if enforce_structural_fit:
+        deterministic_fit = calculate_structural_fit(claim_list)
+        if abs(validated.structural_fit - deterministic_fit) > 0.01:
+            raise ValueError(f"structural_fit does not match deterministic fact score: expected {deterministic_fit}, observed {validated.structural_fit}")
+    if require_source_assurance:
+        unassured = sorted(
+            claim.claim_id
+            for claim in claim_list
+            if claim.claim_id in referenced
+            and (claim.assurance_level != AssuranceLevel.source or claim.candidate_status not in {"Verified", "Supported"})
+        )
+        if unassured:
+            raise ValueError("thesis material claims lack source assurance: " + ", ".join(unassured))
+    if require_material_assertions:
+        if not assertions:
+            raise ValueError("production thesis requires material assertions")
+        conclusion_values = {
+            "why_this_account": validated.why_this_account,
+            "why_now": validated.why_now,
+            "problem_hypothesis": validated.problem_hypothesis,
+        }
+        assertion_kinds = {item.assertion_kind for item in assertions}
+        missing_kinds = sorted(set(conclusion_values) - assertion_kinds)
+        if missing_kinds:
+            raise ValueError("production thesis is missing reviewed conclusions: " + ", ".join(missing_kinds))
+        for assertion in assertions:
+            expected = conclusion_values.get(assertion.assertion_kind)
+            if expected is None:
+                raise ValueError(f"unsupported material assertion kind: {assertion.assertion_kind}")
+            if assertion.statement != expected:
+                raise ValueError(f"material assertion does not bind exported conclusion: {assertion.assertion_kind}")
     reviews_by_criterion = {
         review.offer_criterion: review
         for review in reviews
@@ -278,10 +311,6 @@ def validate_account_thesis(
         review = reviews_by_criterion.get(indicator.offer_criterion)
         if review is None or not set(indicator.supporting_claim_ids).issubset(review.reviewed_claim_ids):
             raise ValueError("indicator lacks an approved semantic review for its offer criterion")
-    if enforce_structural_fit:
-        deterministic_fit = calculate_structural_fit(claim_list)
-        if abs(validated.structural_fit - deterministic_fit) > 0.01:
-            raise ValueError(f"structural_fit does not match deterministic fact score: expected {deterministic_fit}, observed {validated.structural_fit}")
     return validated.model_copy(update={"hypotheses": hypotheses, "material_assertions": assertions})
 
 
@@ -318,6 +347,8 @@ def project_account_intelligence(
         thesis,
         claim_list,
         enforce_structural_fit=True,
+        require_source_assurance=True,
+        require_material_assertions=True,
         semantic_reviews=review_list,
         offer_profile=offer_profile,
     )
@@ -335,6 +366,7 @@ def project_account_intelligence(
         "dossier_version": "1",
         "run_id": next((claim.research_run_id for claim in (_claim_model(item) for item in claim_list) if claim.research_run_id), None),
     }
+    result["projection_run_id"] = result["run_id"]
     result["dossier_hash"] = hashlib.sha256(json.dumps(result, ensure_ascii=False, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")).hexdigest()
     if timeline_path is not None:
         timeline_path.parent.mkdir(parents=True, exist_ok=True)
