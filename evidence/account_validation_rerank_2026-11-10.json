@@ -1,0 +1,198 @@
+{
+  "output": "output\\berlin-hausverwaltungen-task1-2026-11-10-account-validation-final.xlsx",
+  "base_workbook": "output\\berlin-hausverwaltungen-task1-2026-11-10-batch3.xlsx",
+  "validated_accounts": 10,
+  "top30_rows": 30,
+  "semantic_rank_order": [
+    [
+      1,
+      "Cenes Carinta GmbH",
+      "Change-ready account (legal/entity change; procurement unverified)",
+      69.5
+    ],
+    [
+      2,
+      "Borger & Partner GmbH & Co KG",
+      "Change-ready account (capacity-change signal; internal project unverified)",
+      67.5
+    ],
+    [
+      3,
+      "Hermes Hausverwaltung",
+      "Change-ready account (dated staffing signal; procurement may be centralized)",
+      65.5
+    ],
+    [
+      4,
+      "MUREK Immobilienmanagement GmbH",
+      "Change-ready account (group/operating change signal; vendor decision unknown)",
+      64.5
+    ],
+    [
+      5,
+      "SHK Hausverwaltung Berlin",
+      "Change-ready account (dated hiring signal; internal project unverified)",
+      64.5
+    ],
+    [
+      6,
+      "- Sinus Berlin",
+      "Problem-evidenced account (scale/workflow complexity; change intent unknown)",
+      63.5
+    ],
+    [
+      7,
+      "micasio Home",
+      "Problem-evidenced account (digital/package workflow surface; buying intent unknown)",
+      62.5
+    ],
+    [
+      8,
+      "Velvo Immobilienmanagement",
+      "Problem-evidenced account (explicit Problem-WEG positioning; buying intent unknown)",
+      61.5
+    ],
+    [
+      9,
+      "Elovate Immobilien",
+      "Problem-evidenced account (workflow complexity; current project unverified)",
+      56.0
+    ],
+    [
+      10,
+      "Anton Schmittlein Construction GmbH",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      53.5
+    ],
+    [
+      11,
+      "Mende Grundbesitzverwaltungs GmbH",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      53.5
+    ],
+    [
+      12,
+      "EVERGREEN Immobilienservice GmbH",
+      "Fit-led research candidate (digital positioning; internal project unverified)",
+      53.0
+    ],
+    [
+      13,
+      "Bruno Grüttner Grundstücksverwaltungen Immobilien e.K.",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      39.2
+    ],
+    [
+      14,
+      "Akkurat Hausverwaltung Berlin & Potsdam",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      15,
+      "BalticSea Berlin",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      16,
+      "BENEA. Verwaltung von Immobilien",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      17,
+      "BKM Hausverwaltung , Immobilienverwaltung, aus Berlin",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      18,
+      "BRH Berlin Residential Hausverwaltungen",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      19,
+      "Deutsche Version",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      20,
+      "GWD Immo",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      21,
+      "Hansen & Heinrich AG",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      22,
+      "Hausverwaltung Westbrandenburg",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      23,
+      "Hetzer Immobilien",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      24,
+      "Jeremy Zimmer Immobilien",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      25,
+      "Kelm Immobilienverwaltung",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      26,
+      "Next Generation Real Estate",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      27,
+      "P2 Immobilien Berlin",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      28,
+      "STRABAG Residential Property Services GmbH",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      29,
+      "Wertinvest Immobilien",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ],
+    [
+      30,
+      "WohnService GmbH",
+      "Fit-led research candidate (no account-bound validation in this round)",
+      26.0
+    ]
+  ],
+  "direct_intent_proven": 0,
+  "sales_ready_accounts": 0,
+  "contract_patch": "AccountThesis now rejects proactive_account/sales_ready theses without account evidence beyond structural fit; sales_ready additionally requires need_indicator and change_readiness/trigger.",
+  "normalizer": "scripts/normalize_account_validation.py",
+  "qa": {
+    "workbook_load": "passed",
+    "rows": 30,
+    "validation_action_cap": "passed",
+    "unknown_direct_intent_preserved": true
+  }
+}

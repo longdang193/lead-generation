@@ -1,0 +1,1028 @@
+[
+  {
+    "name": "Borger & Partner GmbH & Co KG",
+    "id": "DE-BER-9eee9b305024",
+    "domain": "borger-partner.de",
+    "fit": "strong_structural_fit",
+    "intent": "Unknown",
+    "trigger": "Current official hiring across property management, office administration, accounting and technical/caretaker roles; capability/change signal only",
+    "need": "Observed multi-lane operating complexity and customer-facing portal; unmet internal need remains a hypothesis",
+    "readiness": "Medium for operating-capacity change; vendor-change readiness Unknown",
+    "access": "Frank Borger is named Geschäftsführer; generic official contact info@borger-partner.de is available; operations/technology owner not verified",
+    "why": "Strong structural fit: Berlin WEG/property management is explicit, the company self-reports approximately 2,500 residential units, and multiple operating lanes plus a customer portal create a defensible workflow-complexity hypothesis.",
+    "why_now": "A current official hiring posture across property management, administration, accounting and technical roles provides a modest capacity/change signal; it is not a buying trigger and vendor readiness remains Unknown.",
+    "next": "Verify the operational or technology owner through Frank Borger or the generic contact route, then run one discovery conversation on the highest-friction workflow; frame the offer as integration/optimization, not confirmed replacement demand.",
+    "gaps": [
+      "Named operational or technology decision-maker",
+      "Specific current workflow pain and measurable impact",
+      "Whether hiring reflects transformation or replacement staffing",
+      "Active internal project, vendor evaluation, budget, and direct purchase intent",
+      "Independent current portfolio baseline and buying-center structure"
+    ],
+    "confidence": "medium-high",
+    "claims": [
+      {
+        "claim_id": "BP-01",
+        "claim_type": "fit",
+        "claim": "Borger & Partner explicitly provides WEG, Sondereigentum, rental-house management, leasing, sales and caretaker services in Berlin.",
+        "source_url": "https://www.borger-partner.de/",
+        "excerpt": "WEG-Verwaltung, Sondereigentumsverwaltung, Miethausverwaltung, Vermietung, Verkauf and Hausmeisterservice.",
+        "status": "verified",
+        "counterevidence": "Self-reported official positioning."
+      },
+      {
+        "claim_id": "BP-02",
+        "claim_type": "fit",
+        "claim": "The official site states that WEG management is the business Schwerpunkt and that approximately 2,500 residential units are managed in Berlin, with properties ranging from 5 to 150 apartments.",
+        "source_url": "https://www.borger-partner.de/",
+        "excerpt": "Zurzeit betreuen wir rund 2.500 Wohneinheiten in Berlin; sizes range from 5 to 150 Wohnungen.",
+        "status": "verified",
+        "counterevidence": "No independent portfolio baseline verified."
+      },
+      {
+        "claim_id": "BP-03",
+        "claim_type": "problem",
+        "claim": "The account exposes multiple recurring owner and property-management workflows and a Borger Home customer portal.",
+        "source_url": "https://www.borger-partner.de/faq/",
+        "excerpt": "FAQ navigation separates property sale, administration and other service matters; homepage exposes Borger Home.",
+        "status": "verified",
+        "counterevidence": "Workflow surface does not prove unmet need."
+      },
+      {
+        "claim_id": "BP-04",
+        "claim_type": "trigger",
+        "claim": "Current official career pages list hiring across property management, office administration, accounting and technical/caretaker work.",
+        "source_url": "https://www.borger-partner.de/karriere/",
+        "excerpt": "Objekt-/Immobilienverwalter:in, Bürokauffrau/-mann, Buchhalter:in and Hausmeister/Haustechniker/technische Objektbetreuer:in.",
+        "status": "verified",
+        "counterevidence": "No dated baseline or stated reason for hiring."
+      },
+      {
+        "claim_id": "BP-05",
+        "claim_type": "access",
+        "claim": "Frank Borger is named as Geschäftsführer and the official site publishes a generic company contact route.",
+        "source_url": "https://www.borger-partner.de/impressum/",
+        "excerpt": "Frank Borger named as Geschäftsführer; contact route includes info@borger-partner.de.",
+        "status": "verified",
+        "counterevidence": "Executive identity is not proof of systems ownership."
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis_id": "BP-H1",
+        "statement": "At 2,500 units across WEG, rental, leasing and technical workflows, Borger may have coordination or reporting friction that could justify workflow integration or optimization.",
+        "support_claim_ids": [
+          "BP-02",
+          "BP-03"
+        ],
+        "confidence": "medium",
+        "reversal_condition": "Reverse if the relevant owner reports no material bottleneck or the current platform already covers the use case without change."
+      },
+      {
+        "hypothesis_id": "BP-H2",
+        "statement": "Current hiring across operational functions may create a change window for process standardization, onboarding or workflow tooling, but it is not evidence of vendor intent.",
+        "support_claim_ids": [
+          "BP-04"
+        ],
+        "confidence": "medium-low",
+        "reversal_condition": "Reverse if hiring is purely replacement staffing and no transformation objective exists."
+      }
+    ],
+    "counter": [
+      "Digitalization is publicly described as nearly complete, which may reduce replacement appetite.",
+      "Portfolio and staffing figures are self-reported and lack an independent baseline.",
+      "No public source proves an active internal project, vendor evaluation, budget, procurement event, or direct purchase intent.",
+      "Named executive access is available, but the operational/technology buying owner is unresolved."
+    ],
+    "urls": [
+      "https://www.borger-partner.de/",
+      "https://www.borger-partner.de/faq/",
+      "https://www.borger-partner.de/impressum/",
+      "https://www.borger-partner.de/karriere/",
+      "https://www.borger-partner.de/kontakt/",
+      "https://www.borger-partner.de/leistungen/",
+      "https://www.borger-partner.de/objektbetreuer/"
+    ],
+    "turns": 5
+  },
+  {
+    "name": "EVERGREEN Immobilienservice GmbH",
+    "id": "DE-BER-93c59abf174e",
+    "domain": "evergreen-immobilienservice.de",
+    "fit": "confirmed_structural_fit",
+    "intent": "Unknown",
+    "trigger": "No dated company-bound trigger verified; current digital/AI and switching-page positioning is a readiness hypothesis only",
+    "need": "Customer-facing claims about efficient administration and transparent communication; internal unmet need remains Unknown",
+    "readiness": "Low-to-medium for public digital positioning; internal/vendor-change readiness Unknown",
+    "access": "Vivien Russow and Daniel Russow are named owner/partner access points; generic official contact route available; operational/technology owner not verified",
+    "why": "Confirmed structural fit: EVERGREEN is an owner-managed Berlin-relevant property manager with explicit WEG and rental services, plus a public digital/AI positioning that makes workflow-readiness worth testing.",
+    "why_now": "The account publicly markets digital structures, AI support and a property-manager switching journey; these are readiness/positioning signals only, not a verified current buying trigger.",
+    "next": "Use the named owner/partner route—Vivien Russow or Daniel Russow—to verify managed-unit scale, the operational/technology owner and one concrete workflow constraint before any offer-specific follow-up.",
+    "gaps": [
+      "Current managed-unit scale and complexity",
+      "Concrete internal workflow pain and measurable impact",
+      "Whether digital/AI positioning reflects an active internal initiative",
+      "Named operational/technology decision-maker",
+      "Active project, vendor evaluation, budget and direct purchase intent"
+    ],
+    "confidence": "medium",
+    "claims": [
+      {
+        "claim_id": "EG-01",
+        "claim_type": "fit",
+        "claim": "EVERGREEN explicitly provides WEG and rental property management and serves Berlin within a broader regional footprint.",
+        "source_url": "https://www.evergreen-immobilienservice.de/",
+        "excerpt": "WEG-Verwaltung and Mietverwaltung are listed; service geography includes Berlin and Brandenburg.",
+        "status": "verified",
+        "counterevidence": "No verified unit count."
+      },
+      {
+        "claim_id": "EG-02",
+        "claim_type": "problem",
+        "claim": "Public service copy emphasizes efficient administration, transparent communication and individual solutions for owner communities.",
+        "source_url": "https://www.evergreen-immobilienservice.de/",
+        "excerpt": "WEG administration includes efficient administration, transparent communication and individual solutions.",
+        "status": "verified",
+        "counterevidence": "Customer-facing promise, not proof of internal pain."
+      },
+      {
+        "claim_id": "EG-03",
+        "claim_type": "change",
+        "claim": "The official site positions the company as Immobilienverwaltung 2.0 with digital structures and AI support.",
+        "source_url": "https://www.evergreen-immobilienservice.de/",
+        "excerpt": "Digital structures with AI support are presented as enabling fast, transparent and efficient processes.",
+        "status": "verified",
+        "counterevidence": "Marketing positioning; no project, system, timeline or owner disclosed."
+      },
+      {
+        "claim_id": "EG-04",
+        "claim_type": "access",
+        "claim": "Vivien Russow and Daniel Russow are named as owner/partner-level access points and a generic official contact route is available.",
+        "source_url": "https://www.evergreen-immobilienservice.de/",
+        "excerpt": "The official site describes the company as owner-managed and names Vivien Russow and Daniel Russow.",
+        "status": "verified",
+        "counterevidence": "Offer-specific decision authority and technology ownership unresolved."
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis_id": "EG-H1",
+        "statement": "EVERGREEN may be a digitally receptive, owner-managed property manager where WEG/rental coordination and customer communication are relevant workflow topics.",
+        "support_claim_ids": [
+          "EG-01",
+          "EG-02",
+          "EG-03"
+        ],
+        "confidence": "medium",
+        "reversal_condition": "Reverse if direct discovery shows the digital positioning is purely promotional and no material workflow need exists."
+      },
+      {
+        "hypothesis_id": "EG-H2",
+        "statement": "The switching/offer journey may indicate active growth orientation, but it is customer acquisition marketing and not evidence of internal purchase intent.",
+        "support_claim_ids": [
+          "EG-02",
+          "EG-03"
+        ],
+        "confidence": "medium-low",
+        "reversal_condition": "Reverse if no internal growth, workflow or capacity challenge is confirmed."
+      }
+    ],
+    "counter": [
+      "No independently verified portfolio size or comparable operating baseline.",
+      "Digital/AI language, transparent communication and 24-hour response are customer-facing marketing claims.",
+      "No dated company-bound trigger, active hiring, procurement notice, vendor evaluation, implementation announcement, budget or direct purchase intent was verified.",
+      "Named owner access is available, but operational/technology ownership is unresolved."
+    ],
+    "urls": [
+      "https://www.evergreen-immobilienservice.de/",
+      "https://www.evergreen-immobilienservice.de/about-5",
+      "https://www.evergreen-immobilienservice.de/blog",
+      "https://www.evergreen-immobilienservice.de/hv-jetzt-wechseln",
+      "https://www.evergreen-immobilienservice.de/impressum",
+      "https://www.evergreen-immobilienservice.de/kontakt",
+      "https://www.evergreen-immobilienservice.de/unverbindliches-angebot",
+      "https://www.handelsregister.de/"
+    ],
+    "turns": 5
+  },
+  {
+    "name": "Velvo Immobilienmanagement",
+    "id": "DE-BER-986d789416af",
+    "domain": "velvo-immo.de",
+    "fit": "strong_fit_hypothesis_not_sales_ready",
+    "intent": "Unknown",
+    "trigger": "Unknown; current 2026 content is educational/editorial activity, not procurement evidence.",
+    "need": "Observed account-specific workflow/problem language and multi-step service operations; unmet need remains a hypothesis.",
+    "readiness": "Customer-facing digital processes and current publishing are observed; internal change or purchase readiness remains Unknown.",
+    "access": "Named proprietor Petra Weber plus public phone, email, and WhatsApp paths; operational/technology decision ownership is not verified.",
+    "why": "Strong service-fit and problem-shaped hypothesis: Velvo explicitly targets WEGs needing structure and clear processes, and publishes concrete administrative workflows across WEG, rental, special-property, maintenance, and tenant-service work.",
+    "why_now": "The live site has current 2026 editorial activity and explicitly emphasizes digital processes, reachability, and structured administration. This supports a timely discovery angle only; it does not prove an active buying event.",
+    "next": "Use the public Petra Weber contact path for one offer-specific discovery conversation focused on workflow intake, owner communication, document/accounting coordination, and the stated Problem-WEG pain points. Do not frame this as a confirmed buying signal.",
+    "gaps": [
+      "Direct purchase intent: Unknown",
+      "Budget/vendor evaluation: Unknown",
+      "Active internal project or implementation: Unknown",
+      "Named operational/technology buying owner beyond proprietor: Unknown",
+      "Portfolio scale and comparable trend: Unknown"
+    ],
+    "confidence": "medium-high for target-profile fit; medium for workflow hypothesis; low for timing, direct intent, and vendor readiness.",
+    "claims": [
+      {
+        "claim_id": "velvo-fit-01",
+        "claim_type": "target_profile_fit",
+        "text": "Velvo publicly offers property-management services in Berlin/Oberhavel and explicitly serves WEGs and related owners/property workflows.",
+        "source_urls": [
+          "https://www.velvo-immo.de/",
+          "https://www.velvo-immo.de/unsere-dienstleistungen-1"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "velvo-workflow-01",
+        "claim_type": "operating_problem_evidence",
+        "text": "The public service model includes recurring accounting, owner meetings, owner-committee communication, maintenance, contractor coordination, inspections, tenant communication, and repair/renovation follow-through.",
+        "source_urls": [
+          "https://www.velvo-immo.de/unsere-dienstleistungen-1"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "velvo-tool-01",
+        "claim_type": "internal_operating_evidence",
+        "text": "The privacy/legal page states that Microsoft Teams is used for communication; this is operational evidence, not purchase intent.",
+        "source_urls": [
+          "https://www.velvo-immo.de/impressum"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "velvo-access-02",
+        "claim_type": "named_decision_access",
+        "text": "Petra Weber is named as proprietor and content-responsible person; the public site provides phone, email, and WhatsApp access.",
+        "source_urls": [
+          "https://www.velvo-immo.de/impressum",
+          "https://www.velvo-immo.de/"
+        ],
+        "status": "verified_page_local"
+      }
+    ],
+    "hypotheses": [
+      {
+        "text": "The combination of explicit Problem-WEG language and multi-step administrative workflows may indicate a useful discovery angle around intake, coordination, documentation, and communication workflows.",
+        "supporting_claim_ids": [
+          "velvo-need-01",
+          "velvo-workflow-01"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "text": "The e.K. structure and lean-structure positioning may mean a focused owner-led conversation is more useful than enterprise procurement messaging.",
+        "supporting_claim_ids": [
+          "velvo-access-01",
+          "velvo-access-02"
+        ],
+        "confidence": "low-medium"
+      }
+    ],
+    "counter": [
+      "No public source proves an active internal project, budget, vendor evaluation, RFP, or direct purchase intent.",
+      "No public portfolio count, staffing baseline, growth trend, or comparable time-series evidence was found in the bounded pass.",
+      "Problem language is partly positioning/editorial content and may describe market pain rather than Velvo's own unmet need."
+    ],
+    "urls": [],
+    "turns": 5
+  },
+  {
+    "name": "- Sinus Berlin",
+    "id": "DE-BER-a3de5f133fce",
+    "domain": "sinus-berlin.com",
+    "fit": "strong_fit_hypothesis_not_sales_ready",
+    "intent": "Unknown",
+    "trigger": "Unknown; current operating footprint and project references are snapshots/history, not a dated buying trigger.",
+    "need": "High observable operating complexity and an existing DOMUS-based online workflow; unmet need remains Unknown.",
+    "readiness": "Established operational capability and current public presence are observed; internal change readiness remains Unknown.",
+    "access": "Named executive access through Elke Springer, Alexander Würfel, and Baysangur Khizriev, plus public accounting and technical/maintenance functions; procurement/software authority is not verified.",
+    "why": "Strong target-profile fit: Sinus publicly reports 60+ owner associations and 3,000+ apartments, with a broad administration, technical, legal, financial, and project-development operating footprint.",
+    "why_now": "The current public operating snapshot and explicit DOMUS-based online document workflow justify a bounded discovery conversation about scale-related coordination and reporting. No dated procurement or change trigger is public.",
+    "next": "Route one discovery conversation through the named executive or technical/maintenance/accounting path to validate current workflow pain, DOMUS integration constraints, and whether any active improvement or vendor-evaluation project exists. Treat direct intent as Unknown until explicit.",
+    "gaps": [
+      "Direct purchase intent: Unknown",
+      "Budget/vendor evaluation: Unknown",
+      "Active internal project or implementation: Unknown",
+      "Named software/procurement owner: Unknown",
+      "Current pain severity and willingness to change: Unknown"
+    ],
+    "confidence": "high for target-profile fit; medium for workflow hypothesis and access path; low for timing, direct intent, and vendor readiness.",
+    "claims": [
+      {
+        "claim_id": "sinus-fit-02",
+        "claim_type": "target_profile_fit",
+        "text": "Sinus publicly states that it manages more than 60 owner associations and more than 3,000 apartments in Berlin and other cities.",
+        "source_urls": [
+          "https://www.sinus-berlin.com/hausverwaltung/"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "sinus-workflow-01",
+        "claim_type": "operating_problem_evidence",
+        "text": "The published operating scope includes inspections, optimization, maintenance, construction supervision, cost control, communications, legal collections, contract management, billing, meetings, document delivery, and bookkeeping.",
+        "source_urls": [
+          "https://www.sinus-berlin.com/hausverwaltung/"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "sinus-tool-01",
+        "claim_type": "internal_operating_evidence",
+        "text": "The property-management page states that owner documents are provided through online systems based on DOMUS software; this indicates an existing tool/process, not a buying signal.",
+        "source_urls": [
+          "https://www.sinus-berlin.com/hausverwaltung/"
+        ],
+        "status": "verified_page_local"
+      },
+      {
+        "claim_id": "sinus-access-01",
+        "claim_type": "named_decision_access",
+        "text": "Elke Springer is named as Geschäftsführung and editorially responsible; the contact directory also names Alexander Würfel and Baysangur Khizriev as Geschäftsführer and lists accounting and technical/maintenance functions.",
+        "source_urls": [
+          "https://www.sinus-berlin.com/impressum/",
+          "https://www.sinus-berlin.com/ansprechpartner/"
+        ],
+        "status": "verified_page_local"
+      }
+    ],
+    "hypotheses": [
+      {
+        "text": "The scale and cross-functional service footprint create a credible discovery hypothesis around workflow standardization, owner-document access, maintenance coordination, and reporting across a DOMUS-based environment.",
+        "supporting_claim_ids": [
+          "sinus-scale-01",
+          "sinus-workflow-01",
+          "sinus-tool-01"
+        ],
+        "confidence": "medium"
+      },
+      {
+        "text": "The presence of named technical/maintenance and accounting functions may provide a more relevant first discovery path than generic marketing contact, subject to authority verification.",
+        "supporting_claim_ids": [
+          "sinus-access-02",
+          "sinus-access-03"
+        ],
+        "confidence": "medium"
+      }
+    ],
+    "counter": [
+      "No public source proves an active internal project, budget, vendor evaluation, RFP, or direct purchase intent.",
+      "DOMUS-based online systems indicate an incumbent process/tool, so a replacement or integration thesis could be wrong.",
+      "Portfolio references and adjacent services demonstrate complexity/history, not a current operational trigger."
+    ],
+    "urls": [],
+    "turns": 5
+  },
+  {
+    "name": "Cenes Carinta GmbH",
+    "id": "DE-BER-908bd2cbd716",
+    "domain": "cenes-hausverwaltung.de",
+    "fit": "A",
+    "intent": "Unknown",
+    "trigger": "2026 legal-name/address/management transition plus explicit management-change lead intake",
+    "need": "Confirmed operational complexity; modernization need not confirmed",
+    "readiness": "Medium-High for organizational change; readiness for a specific vendor unknown",
+    "access": "Public phone, generic email and appointment/intake route on official site; current managing directors identified by registry discovery; direct named contact not yet verified from official contact/imprint page.",
+    "why": "Strong target-profile fit: Berlin/Brandenburg WEG and rental administrator with explicit manager-change intake and concrete administration workflows.",
+    "why_now": "Current legal and management transition in August 2026 is a company-bound change signal; the official site also actively solicits management-change consultations.",
+    "next": "Verify the current legal name and decision owner through an official register extract or direct company contact; ask only whether the 2026 transition changed property-management systems/processes and whether a defined modernization need exists.",
+    "gaps": [
+      "Current legal entity/name and whether supplied account ID should follow the renamed SMART Manage entity",
+      "Named operational/economic buyer and procurement ownership",
+      "Portfolio/unit count and current growth baseline",
+      "Whether any internal modernization, consolidation or vendor evaluation is active",
+      "Budget and purchase timeline"
+    ],
+    "confidence": "Medium",
+    "claims": [
+      {
+        "claim": "Cenes Carinta publicly markets Berlin/Brandenburg property administration across WEG, rental, special-property administration, rent accounting and manager changes.",
+        "claim_type": "target_profile_fit",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://cenes-carinta.de/",
+        "page_local_excerpt": "Ihre Hausverwaltung in Berlin und Brandenburg; navigation lists WEG-Verwaltung, Mietverwaltung, Sondereigentumsverwaltung, Mieterabrechnung and Verwalterwechsel.",
+        "date": "2026-11-10"
+      },
+      {
+        "claim": "The site describes concrete operating workflows for WEG compliance, smaller WEG units, tenant administration, rent collection and statements, and a management-change intake form.",
+        "claim_type": "operational_problem_evidence",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://cenes-carinta.de/",
+        "page_local_excerpt": "Wir erbringen alle Leistungen im Rahmen des Wohnungseigentümergesetzes... Wir übernehmen auch die kleineren WEG-Einheiten; ... Eingang Ihrer Mieten und ... Abrechnungen; kostenfreies Hausverwaltungsmodul.",
+        "date": "2026-11-10"
+      },
+      {
+        "claim": "The legal entity experienced a 2025 house-management asset transfer and August 2026 name/address/management changes.",
+        "claim_type": "current_change_readiness",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://openregister.de/company/DE-HRB-G1309-6260",
+        "page_local_excerpt": "18.08.2026 address change; Thomas Nitschke no longer managing director; Matti Biskup and Matthias Stokowy appointed; 26.08.2026 name Cenes Carinta - SMART Manage GmbH.",
+        "date": "2026-08-26"
+      },
+      {
+        "claim": "The official site explicitly invites management-change prospects to submit property data for a timely consultation.",
+        "claim_type": "commercial_access_signal",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://cenes-carinta.de/",
+        "page_local_excerpt": "Sie haben Interesse an einem Hausverwaltungswechel?... geben die wichtigsten Immobiliendaten ein und erhalten zeitnah einen Beratungstermin.",
+        "date": "2026-11-10"
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis": "The 2025 carve-out plus August 2026 rebrand/management change may indicate an integration, ownership or operating-model transition where systems/process standardization could be relevant.",
+        "basis": [
+          "https://handelsregister.live/hrb/berlin/ag-berlin-charlottenburg/280482/cenes-carinta-gmbh",
+          "https://openregister.de/company/DE-HRB-G1309-6260"
+        ],
+        "status": "HYPOTHESIS",
+        "confidence": "medium"
+      },
+      {
+        "hypothesis": "The free management-change intake indicates openness to replacing incumbent administrators, but does not prove an active internal project or vendor evaluation.",
+        "basis": [
+          "https://cenes-carinta.de/"
+        ],
+        "status": "HYPOTHESIS",
+        "confidence": "medium"
+      }
+    ],
+    "counter": [
+      "Website copy is primarily marketing language; no disclosed portfolio size, named current properties, implementation case study, job opening or procurement notice was verified.",
+      "Registry sources are secondary aggregators, not the primary German register interface; legal-change facts should be rechecked against an official register extract before high-stakes use.",
+      "Current legal-name transition creates entity/decision-authority ambiguity: the supplied account name is Cenes Carinta GmbH while current registry discovery reports Cenes Carinta - SMART Manage GmbH.",
+      "No budget, incumbent vendor, active internal project, or direct purchase intent was found; preserve Unknown."
+    ],
+    "urls": [],
+    "turns": 0
+  },
+  {
+    "name": "micasio Home",
+    "id": "DE-BER-3c1e22d54396",
+    "domain": "micasio-hausverwaltung.de",
+    "fit": "A",
+    "intent": "Unknown",
+    "trigger": "No dated company-bound trigger verified; current 2026 site/package launch is only a weak freshness signal",
+    "need": "Marketing-stated pain points and concrete workflow design; operational need not independently confirmed",
+    "readiness": "Unknown to Medium; digital/process posture suggests receptivity but no dated change evidence",
+    "access": "Two named managing directors in official impressum; generic contact email and phone; homepage provides separate owner sales line and inquiry route.",
+    "why": "Clear target-profile fit for Berlin property administration, including WEG and rental operations, with explicit digital/process and asset-growth positioning.",
+    "why_now": "The site is current/copyright 2026 and exposes concrete packages, prices, damage workflow and owner acquisition route; however, no dated external trigger was verified.",
+    "next": "Verify whether the managing directors are the operational buyers and ask a narrowly scoped validation question about the stated pain points (availability, accounting transparency, strategic/energy advice) and any current process-modernization project.",
+    "gaps": [
+      "Current portfolio size and operating scale",
+      "Whether digital/AI/automation claims reflect deployed internal systems or positioning only",
+      "Named operational buyer versus legal managing director",
+      "Active internal project, incumbent stack and vendor evaluation status",
+      "Budget and purchase timeline",
+      "Current dated trigger beyond website refresh/copyright"
+    ],
+    "confidence": "Medium-Low",
+    "claims": [
+      {
+        "claim": "micasio targets Berlin owners and tenants with rental, WEG, special-property management and asset-growth consulting packages.",
+        "claim_type": "target_profile_fit",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://micasio-hausverwaltung.de/",
+        "page_local_excerpt": "Berlins moderne Hausverwaltung; Leistungspakete list Mietshaus Pro, WEG Master, SEV Pro and Asset Growth.",
+        "date": "2026-11-10"
+      },
+      {
+        "claim": "The company describes concrete operational mechanisms: digital tools/automated processes, visible status/receipts, fixed contacts, separate tenant damage reporting, owner sales line and property-management pricing.",
+        "claim_type": "operational_problem_evidence",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://micasio-hausverwaltung.de/",
+        "page_local_excerpt": "Sie sehen jederzeit, was mit Ihrer Immobilie passiert – Abrechnungen, Status, Belege; Schaden melden; Für Eigentümer & Vermieter ... erstellt Ihnen ein individuelles Angebot; prices from 25.00/29.75/24.00 EUR per unit/month.",
+        "date": "2026-11-10"
+      },
+      {
+        "claim": "micasio explicitly frames its origin around investor/owner pain points: unreachable managers, unclear statements and missing strategic advice.",
+        "claim_type": "problem_statement",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://micasio-hausverwaltung.de/",
+        "page_local_excerpt": "Wir wissen, wie es sich anfühlt, wenn der Verwalter nicht erreichbar ist, Abrechnungen unklar bleiben und strategische Beratung fehlt.",
+        "date": "2026-11-10"
+      },
+      {
+        "claim": "Named decision access is available through the legal notice: Dr. Robert Harms and Sebastian Schumann are listed as managing directors.",
+        "claim_type": "named_decision_access",
+        "evidence_class": "VERIFIED_EVIDENCE",
+        "source_url": "https://micasio-hausverwaltung.de/impressum",
+        "page_local_excerpt": "Vertreten durch: Dr. Robert Harms (Geschäftsführer), Sebastian Schumann (Geschäftsführer).",
+        "date": "2026-11-10"
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis": "micasio may be an early-stage or actively shaping operator because its website packages services, prices, digital workflow and AI/automation positioning unusually explicitly.",
+        "basis": [
+          "https://micasio-hausverwaltung.de/"
+        ],
+        "status": "HYPOTHESIS",
+        "confidence": "medium"
+      },
+      {
+        "hypothesis": "The combination of asset-growth consulting, energy-efficiency language and automation could create readiness for process/software discussions, but no current project or vendor evaluation is evidenced.",
+        "basis": [
+          "https://micasio-hausverwaltung.de/"
+        ],
+        "status": "HYPOTHESIS",
+        "confidence": "low-medium"
+      }
+    ],
+    "counter": [
+      "Most operational and differentiation statements are self-described marketing copy; no named portfolio, unit count, customer case, implementation partner or third-party operating proof was verified.",
+      "No company-bound 2026 job, news item, project announcement or modernization milestone was found in the bounded search; this is an unresolved gap, not a complete absence claim.",
+      "No budget, incumbent vendor, active internal project, procurement process or direct purchase intent was found; preserve Unknown.",
+      "Official contact/news paths were only partially fetchable, so the named managing directors are verified but their active buying role is not."
+    ],
+    "urls": [],
+    "turns": 0
+  },
+  {
+    "name": "MUREK Immobilienmanagement GmbH",
+    "id": "DE-BER-504975205571",
+    "domain": "mim-gmbh.com",
+    "fit": "Strong fit; fit-led validation, not sales-ready",
+    "intent": "Unknown",
+    "trigger": "2025 acquisition plus live hiring; no explicit purchase trigger",
+    "need": "Observed account-specific workflow complexity and vacancy/asset-management pressure; opportunity remains hypothesis",
+    "readiness": "Observed current activity and modernization positioning; internal project readiness Unknown",
+    "access": "Named access: Gregor Murek (Geschäftsführer), Robert Murek (Prokurist), office@mim-gmbh.com, +49 (0)3562 69892 0",
+    "why": "Strong target-profile fit: multi-function property manager with distributed offices, property development/management, asset-management hiring, and public workflow complexity.",
+    "why_now": "A dated 02.06.2025 acquisition and live hiring for property administration and asset management provide current operating-change evidence, while the public pages expose concrete coordination and vacancy/value pressures.",
+    "next": "One offer-specific discovery conversation with Gregor Murek or Robert Murek, testing whether distributed administration, asset/instandhaltung coordination, or vacancy workflows are active pain points; do not frame as an identified buying project.",
+    "gaps": [
+      "Budget unknown",
+      "Vendor/ incumbent evaluation unknown",
+      "Active internal project unknown",
+      "Direct purchase intent unknown",
+      "Offer-specific operational/technology owner beyond Geschäftsführer/Prokurist unknown",
+      "No public portfolio-size baseline or workflow KPI"
+    ],
+    "confidence": "Medium-high",
+    "claims": [
+      {
+        "claim_id": "murek-fit-1",
+        "claim_type": "target_profile_fit",
+        "status": "verified",
+        "evidence_class": "official_operational",
+        "statement": "MUREK provides property administration, letting, sales, and management of existing properties; it operates across Forst and Potsdam with an explicitly digitalized, overregional model.",
+        "source_urls": [
+          "https://www.mim-gmbh.com/",
+          "https://www.mim-gmbh.com/subsites/unternehmen/ueber-uns.html"
+        ],
+        "page_local_excerpts": [
+          "Ganzheitliches Immobilienmanagement",
+          "überregionalen und digitalisierten Immobilienmanagement",
+          "organisatorische Überwindung von großen Entfernungen ist Teil unseres Tagesgeschäftes"
+        ]
+      },
+      {
+        "claim_id": "murek-need-1",
+        "claim_type": "operating_problem",
+        "status": "verified",
+        "evidence_class": "official_problem_language",
+        "statement": "The company publicly describes time-intensive building operations, vacancy cost/value risk, response-time expectations, and the need to coordinate work across distance.",
+        "source_urls": [
+          "https://www.mim-gmbh.com/",
+          "https://www.mim-gmbh.com/subsites/unternehmen/ueber-uns.html"
+        ],
+        "page_local_excerpts": [
+          "Bewirtschaftung und Entwicklung von Gebäuden kann kompliziert und zeitintensiv sein",
+          "Langfristiger Leerstand verursacht hohe Kosten und gefährdet den Wert und die Bausubstanz",
+          "straffe Antwortzeiten"
+        ]
+      },
+      {
+        "claim_id": "murek-trigger-1",
+        "claim_type": "current_change",
+        "status": "verified",
+        "evidence_class": "official_dated_activity_plus_official_careers",
+        "statement": "A dated 2025 acquisition in Berlin-Schmargendorf and a live careers page for Immobilienkaufmann and Asset-Manager roles indicate current operating/capacity activity.",
+        "source_urls": [
+          "https://www.mim-gmbh.com/",
+          "https://mim-gmbh.com/subsites/unternehmen/karriere.html"
+        ],
+        "page_local_excerpts": [
+          "Zum 02.06.2025 haben wir ein Wohn- und Geschäftshaus am Hohenzollerndamm in Berlin-Schmargendorf erworben",
+          "Immobilienkaufmann (m/w/d)",
+          "Asset-Manager (m/w/d)"
+        ]
+      },
+      {
+        "claim_id": "murek-access-1",
+        "claim_type": "named_decision_access",
+        "status": "verified",
+        "evidence_class": "official_leadership_and_contact",
+        "statement": "Gregor Murek is publicly identified as Geschäftsführer and Robert Murek as Prokurist; the general office contact is public.",
+        "source_urls": [
+          "https://www.mim-gmbh.com/subsites/unternehmen/ueber-uns.html",
+          "https://www.mim-gmbh.com/subsites/kontakt.html"
+        ],
+        "page_local_excerpts": [
+          "Gregor Murek Geschäftsführer",
+          "Robert Murek Prokurist",
+          "office@mim-gmbh.com"
+        ]
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis_id": "murek-h1",
+        "claim_type": "need_hypothesis",
+        "status": "hypothesis",
+        "statement": "Distributed administration, vacancy reduction, and growing/asset-management work may create demand for workflow standardization, visibility, and coordination tooling.",
+        "supporting_claim_ids": [
+          "murek-fit-1",
+          "murek-need-1",
+          "murek-trigger-1"
+        ],
+        "not_proven": [
+          "No public internal workflow failure, implementation plan, vendor evaluation, budget, or direct purchase intent"
+        ]
+      },
+      {
+        "hypothesis_id": "murek-h2",
+        "claim_type": "readiness_hypothesis",
+        "status": "hypothesis",
+        "statement": "The 2025 acquisition and open roles may indicate a timely capacity or process-improvement conversation.",
+        "supporting_claim_ids": [
+          "murek-trigger-1"
+        ],
+        "not_proven": [
+          "No explicit 2026 initiative or named project owner"
+        ]
+      }
+    ],
+    "counter": [
+      "Official pages use positioning language such as modern, digitalized, transparent, and full-service without exposing system names, process metrics, or implementation commitments.",
+      "The latest visible homepage copyright is 2018-2025; current page retrieval does not establish that all content was updated in 2026.",
+      "No public budget, vendor comparison, procurement notice, active internal project, or direct purchase intent."
+    ],
+    "urls": [],
+    "turns": 5
+  },
+  {
+    "name": "SHK Hausverwaltung Berlin",
+    "id": "DE-BER-6e5a7f1244be",
+    "domain": "shk-immobilien.de",
+    "fit": "Strong fit; current capacity/readiness signal, not sales-ready",
+    "intent": "Unknown",
+    "trigger": "Backoffice hiring updated 16.10.2026",
+    "need": "Observed capacity and coordination need language plus job duties tied to management operations",
+    "readiness": "Moderate observable readiness; internal project readiness Unknown",
+    "access": "Named access: Manuela Freitag (GF), Sabine Hartwig (Prokuristin), Herr Köhler (job contact), hausverwaltung@shk-immobilien.de, 030-34 62 81 84",
+    "why": "Strong target-profile fit: Berlin/Brandenburg WEG and rental manager with technical/renovation advisory work and end-to-end transaction-to-management responsibilities.",
+    "why_now": "A company-specific backoffice job updated 16.10.2026 explicitly adds support for management, meetings, repairs, authorities, and office administration; the official site also says capacity is available and strategies are being developed.",
+    "next": "Validate the backoffice/management workflow with Manuela Freitag, Sabine Hartwig, or the job contact Herr Köhler; ask whether repairs, assemblies, authority communication, or document flow are active bottlenecks before discussing any solution.",
+    "gaps": [
+      "Budget unknown",
+      "Vendor/ incumbent evaluation unknown",
+      "Active internal project unknown",
+      "Direct purchase intent unknown",
+      "Named operational/technology owner not verified beyond public leadership/contact names",
+      "Portfolio size and workload trend unknown",
+      "Current job availability should be rechecked before contact"
+    ],
+    "confidence": "High for fit/current hiring; medium for need hypothesis",
+    "claims": [
+      {
+        "claim_id": "shk-fit-1",
+        "claim_type": "target_profile_fit",
+        "status": "verified",
+        "evidence_class": "official_operational",
+        "statement": "SHK provides residential, rental, and WEG management for Berlin/Brandenburg and supports property transactions and renovation/sanitation work.",
+        "source_urls": [
+          "https://www.shk-immobilien.de/",
+          "https://www.shk-immobilien.de/leistungen.php"
+        ],
+        "page_local_excerpts": [
+          "Wohnungsverwaltung Mietverwaltung & WEG-Verwaltung für Berlin Brandenburg",
+          "Beratung sowie Betreuung von Renovierungs- wie auch Sanierungsmaßnahmen",
+          "Besichtigung und Bewertung erforderlicher Instandsetzungsmaßnahmen"
+        ]
+      },
+      {
+        "claim_id": "shk-need-1",
+        "claim_type": "operating_problem",
+        "status": "verified",
+        "evidence_class": "official_capacity_and_workflow_language",
+        "statement": "The official site explicitly says management capacity remains available and describes end-to-end transaction-to-management coordination plus owner/tenant/object servicing.",
+        "source_urls": [
+          "https://www.shk-immobilien.de/"
+        ],
+        "page_local_excerpts": [
+          "Kapazitäten in der Hausverwaltung stehen noch zur Verfügung",
+          "von der Vermittlung über die Begleitung und Beratung der Ankaufstransaktion, bis hin zur kompetenten Verwaltung alles aus einer Hand",
+          "professionelle, qualifizierte Objekt-, Eigentümer- sowie Mieterbetreuung"
+        ]
+      },
+      {
+        "claim_id": "shk-trigger-1",
+        "claim_type": "current_change",
+        "status": "verified",
+        "evidence_class": "company_specific_job_listing_corroborated_by_public_job_board",
+        "statement": "SHK advertised additional backoffice staff for a next-available start, with management support, meeting/assembly preparation, repair orders, authorities, and office administration; listing updated 2026-10-16 and sourced to the Bundesagentur für Arbeit.",
+        "source_urls": [
+          "https://portal.oproma.de/jobs/backoffice-mitarbeiter-in-m-w-d-in-voll-oder-teilzeit-ab-25-40-std-moegl-naehe-rathaus-steglitz-ID-9448393",
+          "https://www.arbeitsagentur.de/jobsuche/suche?arbeitszeit=tz&suchbereich=jobs&was=Backoffice&wo=Berlin%20(Bundesland)"
+        ],
+        "page_local_excerpts": [
+          "Wir suchen zum nächstmöglichen Zeitpunkt zusätzliche Kräfte für unser Backoffice",
+          "Unterstützung der Geschäftsführung",
+          "Veranlassung von kleineren Reparaturaufträgen",
+          "Aktualisiert: 16.10.2026",
+          "Quelle: Bundesagentur für Arbeit"
+        ]
+      },
+      {
+        "claim_id": "shk-access-1",
+        "claim_type": "named_decision_access",
+        "status": "verified",
+        "evidence_class": "association_and_official_contact",
+        "statement": "Public association data names Sabine Hartwig as Prokuristin and Manuela Freitag as Geschäftsführer; official contact details provide a direct shared mailbox and telephone number.",
+        "source_urls": [
+          "https://vdiv-bb.de/mitglieder/",
+          "https://www.shk-immobilien.de/immonet.php"
+        ],
+        "page_local_excerpts": [
+          "Prokuristin Sabine Hartwig, GF und Manuela Freitag",
+          "hausverwaltung@shk-immobilien.de",
+          "030-34 62 81 84"
+        ]
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis_id": "shk-h1",
+        "claim_type": "need_hypothesis",
+        "status": "hypothesis",
+        "statement": "Backoffice hiring may reflect workload or coordination pressure around management support, assemblies, repairs, authorities, and office administration.",
+        "supporting_claim_ids": [
+          "shk-need-1",
+          "shk-trigger-1"
+        ],
+        "not_proven": [
+          "No public workload KPI, service backlog, internal process failure, software gap, or vendor evaluation"
+        ]
+      },
+      {
+        "hypothesis_id": "shk-h2",
+        "claim_type": "readiness_hypothesis",
+        "status": "hypothesis",
+        "statement": "The combination of stated spare capacity, ongoing strategy development, and October 2026 hiring may make SHK receptive to a workflow-focused discovery conversation.",
+        "supporting_claim_ids": [
+          "shk-need-1",
+          "shk-trigger-1"
+        ],
+        "not_proven": [
+          "No explicit internal project, budget, timeline, or direct purchase intent"
+        ]
+      }
+    ],
+    "counter": [
+      "The official homepage uses broad positioning language and gives no quantified managed portfolio or process metrics.",
+      "The official site says capacity is available, which weakens any assumption of acute capacity shortage.",
+      "The association listing gives Breite Straße 20 while the official contact page gives Grunewaldstraße 25; association address may be stale.",
+      "No public budget, incumbent/vendor evaluation, active implementation project, or direct purchase intent."
+    ],
+    "urls": [],
+    "turns": 5
+  },
+  {
+    "name": "Elovate Immobilien",
+    "id": "DE-BER-8884b4076880",
+    "domain": "elovate-immobilien.de",
+    "fit": "Target-profile fit confirmed; operating complexity evidenced; internal need and purchase readiness unconfirmed",
+    "intent": "Unknown",
+    "trigger": "Dated public activity and recent registry timeline; no direct buying trigger verified",
+    "need": "Observed service/workflow surface plus general market-problem framing; account-specific need remains a hypothesis",
+    "readiness": "Observed public positioning and early-stage company activity; internal change readiness Unknown",
+    "access": "Katharina Prahm is the verified named managing director and public contact route; no separate operations, technology or procurement owner is public",
+    "why": "Elovate matches the target profile because its official service catalogue is centered on Berlin/Brandenburg property management with WEG, rental, accounting, maintenance, technical and portal workflows. This is semantic operational fit, not a score or confirmed buying signal.",
+    "why_now": "The account shows recent public activity and a recent registry timeline, but no dated purchase trigger. Timing is fit-led validation only; readiness and direct intent remain Unknown.",
+    "next": "Run one offer-specific public/contact-validation pass for Katharina Prahm and the operating owner behind WEG, accounting, maintenance or portal workflows; upgrade only if a company-bound source names an active problem, project, budget, vendor evaluation or implementation timeframe.",
+    "gaps": [
+      "Direct purchase intent remains Unknown.",
+      "Budget and active internal project remain Unknown.",
+      "Vendor evaluation or procurement remains Unknown.",
+      "No named operations, technology or implementation owner beyond Katharina Prahm is verified.",
+      "Portfolio size, current hiring status and workflow baseline are not independently verified."
+    ],
+    "confidence": "Medium",
+    "claims": [
+      {
+        "claim_type": "target_profile_fit",
+        "claim": "Elovate is an identifiable Berlin GmbH offering WEG, rental, property-management and related real-estate services in Berlin and Brandenburg.",
+        "evidence_urls": [
+          "https://www.elovate-immobilien.de/",
+          "https://www.elovate-immobilien.de/unsere-leistungen",
+          "https://www.elovate-immobilien.de/impressum"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Official pages name Berlin/Brandenburg services, WEG administration and Elovate Immobilien GmbH.",
+        "company_binding": "High",
+        "uncertainty": "Portfolio scale and internal workflow maturity are not independently verified."
+      },
+      {
+        "claim_type": "operating_surface",
+        "claim": "Elovate publicly lists recurring administration and coordination work across WEG, rental, accounting, maintenance, meetings, technical management, energy, portals and insurance.",
+        "evidence_urls": [
+          "https://www.elovate-immobilien.de/unsere-leistungen"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Service list names the operating responsibilities.",
+        "company_binding": "High",
+        "uncertainty": "Catalogue proves offer scope, not internal pain, volume, staffing pressure or active project status."
+      },
+      {
+        "claim_type": "dated_public_activity",
+        "claim": "The official blog shows dated Elovate activity on 2025-12-09 and 2025-12-10; this is public/company activity, not procurement evidence.",
+        "evidence_urls": [
+          "https://www.elovate-immobilien.de/blog"
+        ],
+        "temporal_category": "dated_event",
+        "page_local_evidence": "Blog index displays 09. Dez. 2025 and 10. Dez. 2025 entries.",
+        "company_binding": "High",
+        "uncertainty": "Operational or commercial consequences are not stated."
+      },
+      {
+        "claim_type": "named_decision_access",
+        "claim": "Katharina Prahm is the publicly named managing director and public contact route; no separate operational or technology owner is identified.",
+        "evidence_urls": [
+          "https://www.elovate-immobilien.de/impressum",
+          "https://vdiv-bb.de/mitglieder/"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Official imprint names Katharina Prahm and provides email/phone.",
+        "company_binding": "High",
+        "uncertainty": "Legal authority does not prove day-to-day buying authority."
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis": "Elovate may fit workflow, document, maintenance, owner-communication, accounting or portal-support offers because its public service surface spans coordination-heavy property-management tasks.",
+        "basis_claim_types": [
+          "target_profile_fit",
+          "operating_surface"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Current pain, budget, vendor evaluation, active internal project and direct purchase intent."
+      },
+      {
+        "hypothesis": "The 2025 company formation and dated public activity may indicate an early-stage growth/readiness phase.",
+        "basis_claim_types": [
+          "registry_fact",
+          "dated_public_activity"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Current growth rate, staffing plan, implementation roadmap or external buying motion."
+      },
+      {
+        "hypothesis": "General blog language about owners changing managers may reflect market pain relevant to Elovate’s offer but is not an internal Elovate problem statement.",
+        "basis_claim_types": [
+          "market_problem_framing"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Account-specific dissatisfaction or need to purchase a remedy."
+      }
+    ],
+    "counter": [
+      "Problem language is general marketing/editorial framing, not an Elovate incident, KPI, complaint, hiring brief or internal-project statement.",
+      "No public Elovate job listing, RFP, vendor comparison, software-selection notice, budget or implementation announcement was verified.",
+      "500+ unit and digitalization claims are self-descriptions, not independently verified operating baselines.",
+      "Only owner/managing-director access is public; day-to-day technology or operations ownership is unresolved."
+    ],
+    "urls": [],
+    "turns": 5
+  },
+  {
+    "name": "Hermes Hausverwaltung",
+    "id": "DE-BER-01808a09ff7b",
+    "domain": "hermes-berlin.de",
+    "fit": "Target-profile fit confirmed; concrete workflow and current staffing signals evidenced; internal need and purchase readiness unconfirmed",
+    "intent": "Unknown",
+    "trigger": "Live WEG-Verwalter vacancy with intended start date 2027-01-01; group-level change language",
+    "need": "Observed coordination-heavy WEG, portal, form, repair and invoice workflows plus staffing signal; account-specific need remains a hypothesis",
+    "readiness": "Observed customer-facing portal and current hiring; internal transformation/procurement readiness Unknown",
+    "access": "Jochen Rühr is Geschäftsführer, Alexander Lilov Prokurist and Michelle Kamp is the DHV Plus recruiting contact; technology/procurement owner unresolved",
+    "why": "Hermes matches the target profile through a directly verified Berlin/Brandenburg WEG and property-management model with concrete forms, portal, meeting, repair, service-provider and invoice workflows. This is operational fit, not a score or confirmed intent.",
+    "why_now": "A live WEG-Verwalter vacancy with intended start date 2027-01-01 and group-level digitalization/change language provide a current capacity/readiness trigger. They do not establish procurement.",
+    "next": "Verify the buying center with Jochen Rühr, Alexander Lilov and the DHV Plus process/technology owner; upgrade timing only if a company-bound source connects the hiring/change context to an active workflow, vendor evaluation, budget or implementation project.",
+    "gaps": [
+      "Direct purchase intent remains Unknown.",
+      "Budget and active internal project remain Unknown.",
+      "Vendor evaluation or procurement remains Unknown.",
+      "Technology/process buying owner is not publicly verified; DHV Plus centralization is a hypothesis.",
+      "Current WEG vacancy status and growth-versus-replacement meaning are unresolved."
+    ],
+    "confidence": "Medium-High",
+    "claims": [
+      {
+        "claim_type": "target_profile_fit",
+        "claim": "Hermes is a Berlin/Brandenburg property manager for WEG communities, individual owners and property-owner associations.",
+        "evidence_urls": [
+          "https://www.hermes-berlin.de/",
+          "https://www.hermes-berlin.de/impressum"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Official homepage and imprint bind the model to HERMES Hausverwaltung GmbH, Berlin.",
+        "company_binding": "High",
+        "uncertainty": "Portfolio size and current operating capacity are not disclosed."
+      },
+      {
+        "claim_type": "operating_surface",
+        "claim": "Hermes exposes a concrete workflow surface through owner/tenant forms, a portal for object documents and current processes, and WEG responsibilities spanning meetings, repairs, service providers and invoice checks.",
+        "evidence_urls": [
+          "https://www.hermes-berlin.de/formulare",
+          "https://www.hermes-berlin.de/login",
+          "https://hermes-berlin.jobs.personio.de/job/1444650"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Official pages name forms, portal records, WEG coordination, repairs, maintenance and invoice checks.",
+        "company_binding": "High",
+        "uncertainty": "Workflow surface does not prove failure, replacement project, vendor search or budget."
+      },
+      {
+        "claim_type": "dated_hiring_trigger",
+        "claim": "One official WEG-Verwalter vacancy is live at retrieval; a matching Federal Employment Agency record gives intended start date 2027-01-01.",
+        "evidence_urls": [
+          "https://hermes-berlin.jobs.personio.de/",
+          "https://hermes-berlin.jobs.personio.de/job/1444650",
+          "https://www.arbeitsagentur.de/jobsuche/jobdetail/10000-1207855540-S"
+        ],
+        "temporal_category": "dated_event",
+        "page_local_evidence": "Official board shows one open position; BA record states Beginn ab 01.01.2027.",
+        "company_binding": "High",
+        "uncertainty": "Exact posting date and hiring stage are not exposed; staffing need is not purchase intent."
+      },
+      {
+        "claim_type": "named_decision_access",
+        "claim": "Jochen Rühr and Alexander Lilov are public legal contacts; Michelle Kamp is a DHV Plus recruiting contact for the linked vacancy.",
+        "evidence_urls": [
+          "https://www.hermes-berlin.de/impressum",
+          "https://deutsche-hausverwaltung-plus-gmbh.jobs.personio.com/job/1444650?language=de"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Official imprint names Geschäftsführer and Prokurist; group job page names Michelle Kamp.",
+        "company_binding": "High",
+        "uncertainty": "Legal and recruiting authority do not establish technology or vendor-buying authority."
+      },
+      {
+        "claim_type": "group_change_context",
+        "claim": "DHV Plus recruiting context describes digitalization and rising technical/legal requirements changing work methods.",
+        "evidence_urls": [
+          "https://deutsche-hausverwaltung-plus-gmbh.jobs.personio.com/job/1444650?language=de"
+        ],
+        "temporal_category": "snapshot",
+        "page_local_evidence": "Group page contains explicit change language and names Hermes in the role context.",
+        "company_binding": "Medium",
+        "uncertainty": "Group context may not describe a Hermes-specific internal project."
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis": "Hermes may fit workflow, document, owner-communication, maintenance, portal or compliance-support offers because its public operating surface is coordination-heavy and structured.",
+        "basis_claim_types": [
+          "target_profile_fit",
+          "operating_surface"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Current pain, budget, vendor evaluation, active internal project and direct purchase intent."
+      },
+      {
+        "hypothesis": "The live WEG vacancy may indicate capacity pressure or planned service expansion.",
+        "basis_claim_types": [
+          "dated_hiring_trigger"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Whether the role is replacement, growth, backlog response or unrelated staffing."
+      },
+      {
+        "hypothesis": "DHV Plus may be the relevant buying center for technology or process change.",
+        "basis_claim_types": [
+          "group_change_context",
+          "ownership_context"
+        ],
+        "status": "hypothesis",
+        "not_proven": "Actual procurement delegation, group standardization or Hermes autonomy."
+      }
+    ],
+    "counter": [
+      "The vacancy is a staffing signal, not explicit external-vendor or software-buying intent.",
+      "Hermes already advertises a customer portal and forms; any new offer may need to integrate with or displace existing tools.",
+      "DHV Plus may centralize procurement away from Hermes, reducing local decision access.",
+      "Only one vacancy was verified, so no hiring trend or acceleration can be claimed.",
+      "No public RFP, vendor comparison, budget, active implementation or direct purchase request was found."
+    ],
+    "urls": [],
+    "turns": 5
+  }
+]

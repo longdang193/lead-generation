@@ -54,6 +54,10 @@ class HarnessToolTests(unittest.TestCase):
             "access_person": "A. Buyer", "access_role": "Managing Director", "access_channel": "official email",
             "access_claim_ids": ["c1"], "comparative_rationale": "Best fit in the admitted set", "next_alternative_company_id": "C2",
             "reversal_condition": "Reconsider if the official contact is not attributable",
+             "indicators": [
+                 {"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "indicator_type": "need_indicator", "statement": "Observed operating need", "strength": 80, "confidence": "high", "supporting_claim_ids": ["c1"], "offer_criterion": "relevant_triggers"},
+                 {"company_id": "C1", "offer_id": "offer-1", "offer_version": "2026-11-09", "indicator_type": "change_readiness", "statement": "Current change context", "strength": 80, "confidence": "high", "supporting_claim_ids": ["c1"], "offer_criterion": "relevant_triggers"},
+             ],
             "selection_rationale": {
                 "summary": "Strong account thesis",
                 "observations": [{"observation": "Portfolio growth", "implication": "Higher operating complexity", "claim_id": "c1", "source_url": "https://example.com/source"}],

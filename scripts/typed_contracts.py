@@ -702,6 +702,26 @@ class AccountThesis(ContractModel):
             return self
         if self.selection_rationale is None:
             raise ValueError(f"{self.decision_class} thesis requires selection_rationale")
+        indicator_types = {
+            indicator.indicator_type
+            for indicator in self.indicators
+            if indicator.strength > 0
+        }
+        account_evidence_types = {"need_indicator", "change_readiness", "trigger", "direct_intent"}
+        if not indicator_types & account_evidence_types:
+            raise ValueError(
+                f"{self.decision_class} requires account evidence beyond structural fit"
+            )
+        if self.decision_class == "sales_ready":
+            missing_account_evidence = []
+            if "need_indicator" not in indicator_types:
+                missing_account_evidence.append("need_indicator")
+            if not indicator_types & {"change_readiness", "trigger"}:
+                missing_account_evidence.append("change_readiness_or_trigger")
+            if missing_account_evidence:
+                raise ValueError(
+                    "sales_ready requires " + ", ".join(missing_account_evidence)
+                )
         missing = [
             name for name, value in (
                 ("readiness_decision", self.readiness_decision == ("sales_ready" if self.decision_class == "sales_ready" else "proactive_qualified")),
