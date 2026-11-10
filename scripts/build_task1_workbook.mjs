@@ -56,7 +56,17 @@ function columnLetter(index) {
   return result;
 }
 
-function normalizeCell(value) {
+const explicitUnknownFields = new Set([
+  "Portfolio Size",
+  "Portfolio Potential",
+  "Structural Lead Fit",
+  "Evidence Coverage",
+]);
+
+function normalizeCell(value, header) {
+  if ((value === undefined || value === null || value === "") && explicitUnknownFields.has(header)) {
+    return "Unknown";
+  }
   return value === undefined ? null : value;
 }
 
@@ -92,7 +102,7 @@ function writeTableSheet({ name, title, note, rows, tableName, tabColor }) {
   const dataRange = `${columnLetter(0)}${tableStartRow + 1}:${lastColumn}${tableEndRow}`;
   const fullRange = `${columnLetter(0)}${tableStartRow}:${lastColumn}${tableEndRow}`;
   sheet.getRange(headerRange).values = [headers];
-  sheet.getRange(dataRange).values = rows.map((row) => headers.map((header) => normalizeCell(row[header])));
+  sheet.getRange(dataRange).values = rows.map((row) => headers.map((header) => normalizeCell(row[header], header)));
   const table = sheet.tables.add(fullRange, true, tableName);
   table.style = "TableStyleMedium2";
   table.showHeaders = true;
